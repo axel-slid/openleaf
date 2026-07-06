@@ -9924,8 +9924,6 @@ body.transparent-theme #compileLog {
   background: var(--panel);
   border-left: 1px solid var(--border);
   display: grid;
-  grid-column: 3;
-  grid-row: 1;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -10491,4 +10489,125 @@ body.is-resizing-notes .pdf-viewer-shell {
 
 .notes-mode-actions .mode-button {
   color: var(--text);
+}
+
+/* Notes dragged fully left: PDF collapses to an in-pane rail. */
+.pdf-viewer-shell.notes-open {
+  grid-template-columns: 0 minmax(0, 1fr) min(var(--notes-width), calc(100% - 150px)) !important;
+}
+
+.pdf-viewer-shell.pdf-sidebar-visible.notes-open {
+  grid-template-columns: 112px minmax(0, 1fr) min(var(--notes-width), calc(100% - 150px)) !important;
+}
+
+.pdf-viewer-shell.notes-open.notes-max,
+.pdf-viewer-shell.pdf-sidebar-visible.notes-open.notes-max {
+  grid-template-columns: 0 42px minmax(0, 1fr) !important;
+}
+
+.notes-pdf-rail {
+  display: none;
+}
+
+.pdf-viewer-shell.notes-open.notes-max .pdf-viewer,
+.pdf-viewer-shell.notes-open.notes-max .pdf-sidebar {
+  display: none !important;
+}
+
+.pdf-viewer-shell.notes-open.notes-max .notes-pdf-rail {
+  align-items: center;
+  background: var(--panel);
+  border: 0;
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+  box-shadow: none;
+  color: var(--muted);
+  display: flex;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  grid-column: 2;
+  grid-row: 1;
+  height: 100%;
+  justify-content: center;
+  letter-spacing: 0.04em;
+  padding: 0;
+  transform: rotate(180deg);
+  width: 100%;
+  writing-mode: vertical-rl;
+}
+
+.pdf-viewer-shell.notes-open.notes-max .notes-pdf-rail:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+
+/* Notes is a full-height workspace column on the far right, like Files on the left. */
+.pdf-viewer-shell,
+.pdf-viewer-shell.notes-open,
+.pdf-viewer-shell.notes-off {
+  grid-template-columns: 0 minmax(0, 1fr) !important;
+}
+
+.pdf-viewer-shell.pdf-sidebar-visible,
+.pdf-viewer-shell.pdf-sidebar-visible.notes-open,
+.pdf-viewer-shell.pdf-sidebar-visible.notes-off {
+  grid-template-columns: 112px minmax(0, 1fr) !important;
+}
+
+.workspace > .notes-panel {
+  border-left: 1px solid var(--border);
+  grid-column: 99 !important;
+  grid-row: 1 !important;
+  height: 100%;
+  min-width: 0;
+  position: relative;
+  width: 42px;
+  z-index: 21;
+}
+
+.workspace > .notes-panel.notes-open {
+  width: var(--notes-width, 400px);
+}
+
+.notes-panel.notes-off {
+  display: none !important;
+}
+
+.notes-panel .notes-rail-open {
+  display: flex;
+}
+
+.notes-panel.notes-open .notes-rail-open {
+  display: none !important;
+}
+
+.notes-panel .notes-body {
+  display: none;
+}
+
+.notes-panel.notes-open .notes-body {
+  display: grid;
+  grid-template-rows: 44px auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.notes-panel .notes-resize-handle {
+  display: none;
+}
+
+.notes-panel.notes-open .notes-resize-handle {
+  display: block;
+}
+
+.notes-panel.notes-fullscreen .notes-body {
+  display: grid;
+  grid-template-rows: 44px auto minmax(0, 1fr);
+}
+
+.notes-panel.notes-fullscreen .notes-rail-open,
+.notes-panel.notes-fullscreen .notes-resize-handle {
+  display: none !important;
 }

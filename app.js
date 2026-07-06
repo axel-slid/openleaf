@@ -8665,6 +8665,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
     if (token !== pdfRenderToken) return;
 
     const fragment = document.createDocumentFragment();
+    const progressiveRender = !preservedViewState && (showLoading || !hasExistingPages);
     updatePdfTitleFromSelection();
     pdfMeta.textContent = `${pdf.numPages} ${pdf.numPages === 1 ? "page" : "pages"}`;
     const nextPageTextLines = new Map();
@@ -8713,6 +8714,21 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
       await page.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
       applyPdfCanvasRenderMode(context, canvas);
       renderedPageCanvases.set(pageNumber, canvas);
+      if (progressiveRender) {
+        // Show the first page immediately; stream the rest in so opening a
+        // project feels instant instead of waiting on the full document.
+        if (pageNumber === 1) {
+          pdfViewer.replaceChildren(fragment);
+        } else {
+          pdfViewer.appendChild(pageShell);
+        }
+        pdfPageTextLines = nextPageTextLines;
+        renderedPdfPageCount = pdf.numPages;
+        renderedPdfZoom = zoomForRender;
+        updatePdfPageIndicator();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        if (token !== pdfRenderToken) return;
+      }
     }
 
     if (token !== pdfRenderToken) return;
@@ -8722,12 +8738,14 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
     pdfPageTextLines = nextPageTextLines;
     renderedPdfPageCount = pdf.numPages;
     renderedPdfZoom = zoomForRender;
-    pdfViewer.replaceChildren(fragment);
-    if (preservedViewState) {
-      restorePdfViewState(preservedViewState);
-    } else if (preserveScroll) {
-      pdfViewer.scrollLeft = scrollLeft;
-      pdfViewer.scrollTop = scrollTop;
+    if (!progressiveRender) {
+      pdfViewer.replaceChildren(fragment);
+      if (preservedViewState) {
+        restorePdfViewState(preservedViewState);
+      } else if (preserveScroll) {
+        pdfViewer.scrollLeft = scrollLeft;
+        pdfViewer.scrollTop = scrollTop;
+      }
     }
     if (pdfZoom !== zoomForRender) applyPdfLiveZoom();
     updatePdfPageIndicator();
@@ -10042,7 +10060,6 @@ function setupNotesPanel() {
   const panel = document.getElementById("notesPanel");
   if (!shell || !panel) return;
   const railButton = document.getElementById("notesRailButton");
-  const collapseButton = document.getElementById("notesCollapseButton");
   const fullscreenButton = document.getElementById("notesFullscreenButton");
   const clearButton = document.getElementById("notesClearButton");
   const modeTextButton = document.getElementById("notesModeTextButton");
@@ -10117,7 +10134,7 @@ function setupNotesPanel() {
   }
 
   function syncCanvasSize() {
-    if (canvasWrap.hidden || !shell.classList.contains("notes-open")) return;
+    if (canvasWrap.hidden || !panel.classList.contains("notes-open")) return;
     const { width, height } = canvasCssSize();
     if (width < 2 || height < 2) return;
     const dpr = boardDpr();
@@ -10136,7 +10153,7 @@ function setupNotesPanel() {
   }
 
   function restorePendingDrawing() {
-    if (!pendingDrawData || canvasWrap.hidden || !shell.classList.contains("notes-open")) return;
+    if (!pendingDrawData || canvasWrap.hidden || !panel.classList.contains("notes-open")) return;
     const { width, height } = canvasCssSize();
     if (width < 2 || height < 2) return;
     const data = pendingDrawData;
@@ -10173,7 +10190,7 @@ function setupNotesPanel() {
   }
 
   function setNotesOpen(open, { persist = true } = {}) {
-    shell.classList.toggle("notes-open", open);
+    panel.classList.toggle("notes-open", open);
     if (persist) localStorage.setItem("latexStudioNotesOpen", String(open));
     if (!open) setNotesFullscreen(false);
     if (open) requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
@@ -10201,22 +10218,29 @@ function setupNotesPanel() {
     fullscreenButton.title = on ? "Exit fullscreen notes" : "Fullscreen notes";
     // Ancestor backdrop-filters trap position: fixed, so fullscreen lives on <body>.
     if (on && panel.parentElement !== document.body) document.body.appendChild(panel);
-    if (!on && panel.parentElement !== shell) shell.appendChild(panel);
+    if (!on && panel.parentElement !== workspace) workspace.appendChild(panel);
     requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
   }
 
   function setNotesEnabled(enabled, { persist = true } = {}) {
-    shell.classList.toggle("notes-off", !enabled);
-    if (previewRail) previewRail.classList.toggle("with-notes", enabled);
+    panel.classList.toggle("notes-off", !enabled);
     if (!enabled) setNotesFullscreen(false);
     if (settingsToggle) settingsToggle.checked = enabled;
     if (persist) localStorage.setItem("latexStudioNotesEnabled", String(enabled));
   }
 
+  function notesCapWidth() {
+    const wsWidth = Math.min(workspace.getBoundingClientRect().width, window.innerWidth);
+    const pdfHidden = workspace.classList.contains("pdf-hidden");
+    const sourceHidden = workspace.classList.contains("source-hidden");
+    if (pdfHidden && sourceHidden) return wsWidth - 170;
+    if (pdfHidden) return wsWidth - 460;
+    return wsWidth - 720;
+  }
+
   function setNotesWidth(width, { persist = true } = {}) {
-    const maxWidth = Math.max(240, Math.round(shell.getBoundingClientRect().width * 0.6));
-    const clamped = clampNumber(width, 220, maxWidth, 400);
-    shell.style.setProperty("--notes-width", `${Math.round(clamped)}px`);
+    const clamped = clampNumber(width, 220, Math.max(260, Math.round(notesCapWidth())), 400);
+    panel.style.setProperty("--notes-width", `${Math.round(clamped)}px`);
     if (persist) localStorage.setItem("latexStudioNotesWidth", String(Math.round(clamped)));
   }
 
@@ -10231,7 +10255,7 @@ function setupNotesPanel() {
       document.body.classList.remove("is-resizing-notes");
       window.removeEventListener("pointermove", resize);
       window.removeEventListener("pointerup", stopDragging);
-      if (shell.classList.contains("notes-open")) setNotesWidth(panel.getBoundingClientRect().width);
+      if (panel.classList.contains("notes-open")) setNotesWidth(panel.getBoundingClientRect().width);
       requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); renderPdf({ showLoading: false }); });
     };
 
@@ -10241,6 +10265,19 @@ function setupNotesPanel() {
         setNotesOpen(false);
         stopDragging(event);
         return;
+      }
+      // Dragging past the cap collapses the PDF, then the code editor;
+      // dragging back restores them in reverse order.
+      const wsWidth = Math.min(workspace.getBoundingClientRect().width, window.innerWidth);
+      const pdfHidden = () => workspace.classList.contains("pdf-hidden");
+      const sourceHidden = () => workspace.classList.contains("source-hidden");
+      if (nextWidth > notesCapWidth() + 60) {
+        if (!pdfHidden()) setPdfCollapsed(true);
+        else if (!sourceHidden()) setSourceCollapsed(true);
+      } else if (pdfHidden() && sourceHidden()) {
+        if (nextWidth < wsWidth - 460 - 80) setSourceCollapsed(false);
+      } else if (pdfHidden()) {
+        if (nextWidth < wsWidth - 720 - 80) setPdfCollapsed(false);
       }
       setNotesWidth(nextWidth, { persist: false });
     };
@@ -10374,7 +10411,6 @@ function setupNotesPanel() {
   });
 
   railButton.addEventListener("click", () => setNotesOpen(true));
-  collapseButton.addEventListener("click", () => setNotesOpen(false));
   fullscreenButton.addEventListener("click", () => setNotesFullscreen(!panel.classList.contains("notes-fullscreen")));
   modeTextButton.addEventListener("click", () => setNotesMode("text"));
   modeDrawButton.addEventListener("click", () => setNotesMode("draw"));
@@ -10548,6 +10584,7 @@ function setupNotesPanel() {
   loadNotesForActiveProject = () => {
     clearTimeout(textSaveTimer);
     clearTimeout(drawSaveTimer);
+    setNotesOpen(false, { persist: false });
     textArea.value = localStorage.getItem(notesKey("Text")) || "";
     if (notesPreviewOn && canvasWrap.hidden) renderNotesPreview();
     pendingDrawData = localStorage.getItem(notesKey("Draw")) || null;
@@ -10557,17 +10594,10 @@ function setupNotesPanel() {
     requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
   };
 
-  const notesRailSideButton = document.getElementById("previewNotesRailButton");
-  if (notesRailSideButton) {
-    notesRailSideButton.addEventListener("click", () => {
-      setPdfCollapsed(false);
-      setNotesOpen(true);
-    });
-  }
   setupNotesResize();
   setNotesWidth(Number(localStorage.getItem("latexStudioNotesWidth")) || 400, { persist: false });
   setNotesEnabled(localStorage.getItem("latexStudioNotesEnabled") !== "false", { persist: false });
-  setNotesOpen(localStorage.getItem("latexStudioNotesOpen") === "true", { persist: false });
+  setNotesOpen(false, { persist: false });
   setNotesMode(localStorage.getItem("latexStudioNotesMode") === "draw" ? "draw" : "text", { persist: false });
   loadNotesForActiveProject();
 }
