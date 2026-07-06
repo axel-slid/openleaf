@@ -10426,3 +10426,69 @@ body.is-resizing-notes .pdf-viewer-shell {
 .notes-draw-tools .notes-size.active .notes-size-dot {
   background: #111827;
 }
+
+/* Notes toggling is instant: no grid animation fighting the PDF re-layout. */
+.pdf-viewer-shell {
+  transition: none !important;
+}
+
+/* Whiteboard: dot grid surface. */
+.notes-canvas-wrap {
+  background-color: #ffffff;
+  background-image: radial-gradient(circle, rgba(17, 24, 39, 0.16) 1.1px, transparent 1.6px);
+  background-size: 18px 18px;
+}
+
+/* Notes controls follow the active theme. */
+.notes-draw-tools {
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+.notes-draw-tools button {
+  background: transparent;
+  color: var(--text);
+}
+
+.notes-draw-tools button:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+}
+
+.notes-draw-tools button.active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.notes-tools-divider {
+  background: color-mix(in srgb, var(--text) 22%, transparent);
+}
+
+.notes-draw-tools .notes-color {
+  border-color: var(--panel) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 35%, transparent);
+}
+
+.notes-draw-tools .notes-color.active {
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+.notes-draw-tools .notes-size .notes-size-dot {
+  background: var(--text);
+}
+
+.notes-draw-tools .notes-size.active {
+  background: color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.notes-draw-tools .notes-size.active .notes-size-dot {
+  background: var(--text);
+}
+
+.notes-toolbar button {
+  color: var(--text);
+}
+
+.notes-mode-actions .mode-button {
+  color: var(--text);
+}

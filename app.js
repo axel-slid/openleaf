@@ -10064,6 +10064,7 @@ function setupNotesPanel() {
   let strokeStart = null;
   let shapeSnapshot = null;
   let notesPreviewOn = false;
+  let notesPdfRerenderTimer = null;
   let pendingDrawData = null;
   let textSaveTimer = null;
   let drawSaveTimer = null;
@@ -10076,27 +10077,61 @@ function setupNotesPanel() {
     return { width: rect.width, height: rect.height };
   }
 
+  const board = document.createElement("canvas");
+  const boardCtx = board.getContext("2d");
+  const boardDpr = () => window.devicePixelRatio || 1;
+
+  function ensureBoardSize(cssWidth, cssHeight) {
+    const dpr = boardDpr();
+    const needWidth = Math.max(board.width, Math.round(cssWidth * dpr));
+    const needHeight = Math.max(board.height, Math.round(cssHeight * dpr));
+    if (needWidth === board.width && needHeight === board.height) {
+      boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return;
+    }
+    const copy = document.createElement("canvas");
+    copy.width = board.width;
+    copy.height = board.height;
+    if (board.width && board.height) copy.getContext("2d").drawImage(board, 0, 0);
+    board.width = needWidth;
+    board.height = needHeight;
+    boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    boardCtx.lineCap = "round";
+    boardCtx.lineJoin = "round";
+    if (copy.width && copy.height) {
+      boardCtx.save();
+      boardCtx.setTransform(1, 0, 0, 1, 0, 0);
+      boardCtx.globalCompositeOperation = "source-over";
+      boardCtx.drawImage(copy, 0, 0);
+      boardCtx.restore();
+    }
+  }
+
+  function repaintViewFromBoard() {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (board.width && board.height) ctx.drawImage(board, 0, 0);
+    ctx.restore();
+  }
+
   function syncCanvasSize() {
     if (canvasWrap.hidden || !shell.classList.contains("notes-open")) return;
     const { width, height } = canvasCssSize();
     if (width < 2 || height < 2) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = boardDpr();
     const nextWidth = Math.round(width * dpr);
     const nextHeight = Math.round(height * dpr);
-    if (canvas.width === nextWidth && canvas.height === nextHeight) return;
-    const snapshot = document.createElement("canvas");
-    snapshot.width = canvas.width;
-    snapshot.height = canvas.height;
-    if (canvas.width && canvas.height) snapshot.getContext("2d").drawImage(canvas, 0, 0);
-    canvas.width = nextWidth;
-    canvas.height = nextHeight;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    if (snapshot.width && snapshot.height) {
-      ctx.globalCompositeOperation = "source-over";
-      ctx.drawImage(snapshot, 0, 0, width, height);
+    ensureBoardSize(width, height);
+    if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
     }
+    repaintViewFromBoard();
     restorePendingDrawing();
   }
 
@@ -10108,9 +10143,15 @@ function setupNotesPanel() {
     pendingDrawData = null;
     const image = new Image();
     image.onload = () => {
-      ctx.globalCompositeOperation = "source-over";
-      ctx.clearRect(0, 0, width, height);
-      ctx.drawImage(image, 0, 0, width, height);
+      const dpr = boardDpr();
+      ensureBoardSize(Math.max(width, image.width / dpr), Math.max(height, image.height / dpr));
+      boardCtx.save();
+      boardCtx.setTransform(1, 0, 0, 1, 0, 0);
+      boardCtx.globalCompositeOperation = "source-over";
+      boardCtx.clearRect(0, 0, board.width, board.height);
+      boardCtx.drawImage(image, 0, 0);
+      boardCtx.restore();
+      repaintViewFromBoard();
     };
     image.src = data;
   }
@@ -10124,7 +10165,7 @@ function setupNotesPanel() {
     clearTimeout(drawSaveTimer);
     drawSaveTimer = setTimeout(() => {
       try {
-        localStorage.setItem(notesKey("Draw"), canvas.toDataURL("image/png"));
+        localStorage.setItem(notesKey("Draw"), board.toDataURL("image/png"));
       } catch (error) {
         // Storage full or canvas unreadable; drawing stays in memory only.
       }
@@ -10136,7 +10177,8 @@ function setupNotesPanel() {
     if (persist) localStorage.setItem("latexStudioNotesOpen", String(open));
     if (!open) setNotesFullscreen(false);
     if (open) requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
-    requestAnimationFrame(() => renderPdf({ showLoading: false }));
+    clearTimeout(notesPdfRerenderTimer);
+    notesPdfRerenderTimer = setTimeout(() => renderPdf({ showLoading: false }), 220);
   }
 
   function setNotesMode(mode, { persist = true } = {}) {
@@ -10237,36 +10279,45 @@ function setupNotesPanel() {
     }
   }
 
-  function applyStrokeStyle() {
-    ctx.globalAlpha = drawTool === "highlighter" ? 0.35 : 1;
-    ctx.globalCompositeOperation = drawTool === "eraser" ? "destination-out" : "source-over";
-    ctx.strokeStyle = drawColor;
-    ctx.lineWidth = drawTool === "eraser" ? drawSize * 8 : drawTool === "highlighter" ? drawSize * 4 : drawSize;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+  function applyStrokeStyle(target) {
+    target.globalAlpha = drawTool === "highlighter" ? 0.35 : 1;
+    target.globalCompositeOperation = drawTool === "eraser" ? "destination-out" : "source-over";
+    target.strokeStyle = drawColor;
+    target.lineWidth = drawTool === "eraser" ? drawSize * 8 : drawTool === "highlighter" ? drawSize * 4 : drawSize;
+    target.lineCap = "round";
+    target.lineJoin = "round";
   }
 
-  function drawShape(from, to) {
-    applyStrokeStyle();
-    ctx.beginPath();
+  function strokeSegment(target, from, to) {
+    applyStrokeStyle(target);
+    target.beginPath();
+    target.moveTo(from.x, from.y);
+    target.lineTo(to.x, to.y);
+    target.stroke();
+    target.globalAlpha = 1;
+  }
+
+  function drawShape(target, from, to) {
+    applyStrokeStyle(target);
+    target.beginPath();
     if (drawTool === "line" || drawTool === "arrow") {
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
+      target.moveTo(from.x, from.y);
+      target.lineTo(to.x, to.y);
       if (drawTool === "arrow") {
         const angle = Math.atan2(to.y - from.y, to.x - from.x);
         const head = 10 + drawSize * 2;
-        ctx.moveTo(to.x, to.y);
-        ctx.lineTo(to.x - head * Math.cos(angle - Math.PI / 6), to.y - head * Math.sin(angle - Math.PI / 6));
-        ctx.moveTo(to.x, to.y);
-        ctx.lineTo(to.x - head * Math.cos(angle + Math.PI / 6), to.y - head * Math.sin(angle + Math.PI / 6));
+        target.moveTo(to.x, to.y);
+        target.lineTo(to.x - head * Math.cos(angle - Math.PI / 6), to.y - head * Math.sin(angle - Math.PI / 6));
+        target.moveTo(to.x, to.y);
+        target.lineTo(to.x - head * Math.cos(angle + Math.PI / 6), to.y - head * Math.sin(angle + Math.PI / 6));
       }
     } else if (drawTool === "rect") {
-      ctx.rect(Math.min(from.x, to.x), Math.min(from.y, to.y), Math.abs(to.x - from.x), Math.abs(to.y - from.y));
+      target.rect(Math.min(from.x, to.x), Math.min(from.y, to.y), Math.abs(to.x - from.x), Math.abs(to.y - from.y));
     } else if (drawTool === "ellipse") {
-      ctx.ellipse((from.x + to.x) / 2, (from.y + to.y) / 2, Math.abs(to.x - from.x) / 2, Math.abs(to.y - from.y) / 2, 0, 0, Math.PI * 2);
+      target.ellipse((from.x + to.x) / 2, (from.y + to.y) / 2, Math.abs(to.x - from.x) / 2, Math.abs(to.y - from.y) / 2, 0, 0, Math.PI * 2);
     }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    target.stroke();
+    target.globalAlpha = 1;
   }
 
   const isShapeTool = () => ["line", "arrow", "rect", "ellipse"].includes(drawTool);
@@ -10290,14 +10341,11 @@ function setupNotesPanel() {
     const next = pointFromEvent(event);
     if (isShapeTool()) {
       if (shapeSnapshot) ctx.putImageData(shapeSnapshot, 0, 0);
-      drawShape(strokeStart, next);
+      drawShape(ctx, strokeStart, next);
+      lastPoint = next;
     } else {
-      applyStrokeStyle();
-      ctx.beginPath();
-      ctx.moveTo(lastPoint.x, lastPoint.y);
-      ctx.lineTo(next.x, next.y);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+      strokeSegment(ctx, lastPoint, next);
+      strokeSegment(boardCtx, lastPoint, next);
       lastPoint = next;
     }
     scheduleDrawSave();
@@ -10306,6 +10354,9 @@ function setupNotesPanel() {
   const endStroke = (event) => {
     if (drawingPointer !== event.pointerId) return;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    if (isShapeTool() && strokeStart && lastPoint && (strokeStart.x !== lastPoint.x || strokeStart.y !== lastPoint.y)) {
+      drawShape(boardCtx, strokeStart, lastPoint);
+    }
     drawingPointer = null;
     lastPoint = null;
     strokeStart = null;
@@ -10381,9 +10432,12 @@ function setupNotesPanel() {
 
   clearButton.addEventListener("click", () => {
     if (isDrawMode()) {
-      const { width, height } = canvasCssSize();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.clearRect(0, 0, width, height);
+      boardCtx.save();
+      boardCtx.setTransform(1, 0, 0, 1, 0, 0);
+      boardCtx.globalCompositeOperation = "source-over";
+      boardCtx.clearRect(0, 0, board.width, board.height);
+      boardCtx.restore();
+      repaintViewFromBoard();
       localStorage.removeItem(notesKey("Draw"));
       pendingDrawData = null;
     } else {
@@ -10495,10 +10549,11 @@ function setupNotesPanel() {
     clearTimeout(textSaveTimer);
     clearTimeout(drawSaveTimer);
     textArea.value = localStorage.getItem(notesKey("Text")) || "";
+    if (notesPreviewOn && canvasWrap.hidden) renderNotesPreview();
     pendingDrawData = localStorage.getItem(notesKey("Draw")) || null;
-    const { width, height } = canvasCssSize();
-    ctx.globalCompositeOperation = "source-over";
-    if (width && height) ctx.clearRect(0, 0, width, height);
+    board.width = 0;
+    board.height = 0;
+    repaintViewFromBoard();
     requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
   };
 
