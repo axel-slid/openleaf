@@ -91,7 +91,13 @@ function safeSetPlist(plistPath, key, value) {
 function ensureElectronTemplate() {
   if (fs.existsSync(sourceElectronApp)) return;
   console.log("Electron app template not found. Installing packaging dependencies...");
-  run("npm", ["install", "--include=dev", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: appRoot });
+  run("npm", ["install", "--include=dev", "--no-audit", "--no-fund"], { cwd: appRoot });
+  if (!fs.existsSync(sourceElectronApp)) {
+    run("npm", ["rebuild", "electron", "--no-audit", "--no-fund"], { cwd: appRoot });
+  }
+  if (!fs.existsSync(sourceElectronApp)) {
+    run(process.execPath, ["-e", "require('electron')"], { cwd: appRoot });
+  }
   if (!fs.existsSync(sourceElectronApp)) {
     throw new Error("Electron app template was not found after installing dependencies.");
   }
@@ -100,6 +106,12 @@ function ensureElectronTemplate() {
 function ensureAppIcons() {
   if (fs.existsSync(sourceIcon) && fs.existsSync(sourcePngIcon)) return;
   run("npm", ["run", "make:icons"], { cwd: appRoot });
+}
+
+function ensurePackagedRuntimeDependencies() {
+  run(process.execPath, ["-e", "require('node-pty')"], {
+    cwd: appResourcesDir
+  });
 }
 
 async function copyAppSources() {
@@ -153,7 +165,8 @@ async function main() {
   await fsp.rm(appResourcesDir, { recursive: true, force: true });
   await copyAppSources();
   const installMode = fs.existsSync(path.join(appResourcesDir, "package-lock.json")) ? "ci" : "install";
-  run("npm", [installMode, "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: appResourcesDir });
+  run("npm", [installMode, "--omit=dev", "--no-audit", "--no-fund"], { cwd: appResourcesDir });
+  ensurePackagedRuntimeDependencies();
 
   writeMainPlist();
   try {
