@@ -12,7 +12,6 @@
     "openleaf": "scripts/openleaf-cli.mjs"
   },
   "scripts": {
-    "postinstall": "node scripts/postinstall.mjs",
     "start": "node scripts/start.mjs",
     "dev": "electron \"$PWD\"",
     "make:icons": "node scripts/make-icons.mjs",
