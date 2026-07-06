@@ -19,11 +19,17 @@ let mainWindow;
 const terminalSessions = new Map();
 const terminalPath = [
   "/opt/homebrew/bin",
+  "/opt/homebrew/sbin",
   "/usr/local/bin",
+  "/usr/bin",
+  "/bin",
+  "/usr/sbin",
+  "/sbin",
   path.join(homeDir, ".local", "bin"),
   path.join(homeDir, "bin"),
   process.env.PATH || ""
 ].join(path.delimiter);
+process.env.PATH = terminalPath;
 
 app.setName("Openleaf");
 

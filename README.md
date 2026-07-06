@@ -15,20 +15,22 @@ archive or clone the repository and run the Electron app locally.
 To install Openleaf as a normal macOS application with its Dock icon:
 
 ```bash
+env PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" npm install -g github:axel-slid/openleaf
+env PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" openleaf install
+env PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" openleaf open
+```
+
+The installer checks for `tectonic`, `latexmk`, or `pdflatex`. If none are
+found and Homebrew is installed, it installs `tectonic`.
+
+You can also clone the source and install the app bundle manually:
+
+```bash
 git clone https://github.com/axel-slid/openleaf.git
 cd openleaf
 npm install
 npm run install:mac
 open /Applications/Openleaf.app
-```
-
-You can also install the GitHub package globally and run the explicit app
-installer command:
-
-```bash
-npm install -g github:axel-slid/openleaf
-openleaf install
-openleaf open
 ```
 
 `npm install` does not silently copy anything into `/Applications`. Use

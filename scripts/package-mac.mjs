@@ -17,9 +17,63 @@ const appResourcesDir = path.join(resourcesDir, "app");
 const sourceIcon = path.join(appRoot, "assets", "Openleaf.icns");
 const sourcePngIcon = path.join(appRoot, "assets", "icon.png");
 const install = process.argv.includes("--install");
+const defaultPathParts = [
+  "/opt/homebrew/bin",
+  "/opt/homebrew/sbin",
+  "/usr/local/bin",
+  "/usr/bin",
+  "/bin",
+  "/usr/sbin",
+  "/sbin"
+];
+const childEnv = { ...process.env, PATH: normalizedPath(process.env.PATH || "") };
+
+function normalizedPath(value) {
+  return [...defaultPathParts, ...String(value).split(path.delimiter)]
+    .filter(Boolean)
+    .filter((entry, index, entries) => entries.indexOf(entry) === index)
+    .join(path.delimiter);
+}
 
 function run(command, args, options = {}) {
-  execFileSync(command, args, { stdio: "inherit", ...options });
+  execFileSync(command, args, {
+    ...options,
+    env: { ...childEnv, ...(options.env || {}) },
+    stdio: "inherit"
+  });
+}
+
+function commandExists(command) {
+  try {
+    execFileSync("sh", ["-lc", `command -v ${command}`], {
+      env: childEnv,
+      stdio: "ignore"
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function ensureLatexCompiler() {
+  const existingCompiler = ["tectonic", "latexmk", "pdflatex"].find(commandExists);
+  if (existingCompiler) {
+    console.log(`Found LaTeX compiler: ${existingCompiler}`);
+    return;
+  }
+
+  if (!commandExists("brew")) {
+    throw new Error(
+      "No LaTeX compiler found. Install Homebrew or install tectonic, latexmk, or pdflatex, then rerun openleaf install."
+    );
+  }
+
+  console.log("No LaTeX compiler found. Installing tectonic with Homebrew...");
+  run("brew", ["install", "tectonic"]);
+
+  if (!commandExists("tectonic")) {
+    throw new Error("Homebrew finished, but tectonic was not found on PATH. Restart your terminal and rerun openleaf install.");
+  }
 }
 
 function plist(command, plistPath) {
@@ -87,6 +141,7 @@ function writeMainPlist() {
 }
 
 async function main() {
+  ensureLatexCompiler();
   ensureElectronTemplate();
 
   ensureAppIcons();

@@ -8,12 +8,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, "..");
 const command = String(process.argv[2] || "help").toLowerCase();
 const args = process.argv.slice(3);
+const defaultPathParts = [
+  "/opt/homebrew/bin",
+  "/opt/homebrew/sbin",
+  "/usr/local/bin",
+  "/usr/bin",
+  "/bin",
+  "/usr/sbin",
+  "/sbin"
+];
+const childEnv = { ...process.env, PATH: normalizedPath(process.env.PATH || "") };
+
+function normalizedPath(value) {
+  return [...defaultPathParts, ...String(value).split(path.delimiter)]
+    .filter(Boolean)
+    .filter((entry, index, entries) => entries.indexOf(entry) === index)
+    .join(path.delimiter);
+}
 
 function run(commandName, commandArgs, options = {}) {
   const result = spawnSync(commandName, commandArgs, {
+    ...options,
     cwd: appRoot,
-    stdio: "inherit",
-    ...options
+    env: { ...childEnv, ...(options.env || {}) },
+    stdio: "inherit"
   });
   process.exitCode = result.status || 0;
   return result.status || 0;
