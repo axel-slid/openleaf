@@ -28,7 +28,9 @@
     "codemirror": "^5.65.21",
     "katex": "^0.17.0",
     "material-icon-theme": "^5.36.1",
-    "node-pty": "^1.1.0",
     "pdfjs-dist": "^4.10.38"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.1.0"
   }
 }
