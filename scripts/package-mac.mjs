@@ -97,7 +97,8 @@ async function main() {
   await fsp.copyFile(sourceIcon, path.join(resourcesDir, "Openleaf.icns"));
   await fsp.rm(appResourcesDir, { recursive: true, force: true });
   await copyAppSources();
-  run("npm", ["ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: appResourcesDir });
+  const installMode = fs.existsSync(path.join(appResourcesDir, "package-lock.json")) ? "ci" : "install";
+  run("npm", [installMode, "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: appResourcesDir });
 
   writeMainPlist();
   try {
