@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="150" y1="74" x2="876" y2="958" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2A4566"/>
+      <stop offset="0.46" stop-color="#071521"/>
+      <stop offset="1" stop-color="#11152D"/>
+    </linearGradient>
+    <linearGradient id="plate" x1="250" y1="180" x2="760" y2="842" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F9FFFD"/>
+      <stop offset="0.72" stop-color="#DDF8F1"/>
+      <stop offset="1" stop-color="#B8EDE3"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="260" y1="820" x2="798" y2="238" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#64F4D3"/>
+      <stop offset="0.52" stop-color="#7EC8FF"/>
+      <stop offset="1" stop-color="#E3A8FF"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="330" y1="268" x2="735" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#11263A"/>
+      <stop offset="1" stop-color="#07131F"/>
+    </linearGradient>
+    <filter id="softShadow" x="-18%" y="-18%" width="136%" height="142%">
+      <feDropShadow dx="0" dy="30" stdDeviation="34" flood-color="#000000" flood-opacity="0.36"/>
+    </filter>
+    <filter id="innerGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+      <feOffset dy="0"/>
+      <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="inner"/>
+      <feColorMatrix in="inner" type="matrix" values="0 0 0 0 0.44 0 0 0 0 1 0 0 0 0 0.86 0 0 0 0.35 0"/>
+      <feComposite in2="SourceGraphic" operator="over"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <path d="M145 694c118-56 216-40 338 6 127 48 232 67 398-18" fill="none" stroke="#64F4D3" stroke-width="34" stroke-linecap="round" opacity="0.32"/>
+  <path d="M205 265c116-86 264-99 392-48 128 50 218 156 244 302" fill="none" stroke="#E3A8FF" stroke-width="28" stroke-linecap="round" opacity="0.25"/>
+
+  <g filter="url(#softShadow)">
+    <rect x="252" y="168" width="520" height="688" rx="86" fill="url(#plate)"/>
+    <path d="M618 168h54c55 0 100 45 100 100v54z" fill="#92DDF1"/>
+    <rect x="252" y="168" width="520" height="688" rx="86" fill="none" stroke="#FFFFFF" stroke-width="24" opacity="0.82"/>
+  </g>
+
+  <g filter="url(#innerGlow)">
+    <path d="M342 720l126-392c10-32 38-52 72-52h16c34 0 62 20 72 52l126 392h-100l-27-88H467l-27 88zm150-170h110l-55-178z" fill="url(#ink)"/>
+    <rect x="475" y="552" width="145" height="66" rx="28" fill="url(#accent)"/>
+  </g>
+
+  <path d="M326 784h372" stroke="url(#accent)" stroke-width="34" stroke-linecap="round"/>
+  <path d="M354 398h-44c-22 0-40 18-40 40v58c0 22 18 40 40 40h28" fill="none" stroke="#11263A" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" opacity="0.72"/>
+  <path d="M714 398h44c22 0 40 18 40 40v58c0 22-18 40-40 40h-28" fill="none" stroke="#11263A" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" opacity="0.72"/>
+  <circle cx="734" cy="704" r="48" fill="#071521" opacity="0.95"/>
+  <path d="M714 704h40M734 684v40" stroke="#64F4D3" stroke-width="20" stroke-linecap="round"/>
+</svg>

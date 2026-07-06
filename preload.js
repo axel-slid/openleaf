@@ -1,0 +1,58 @@
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
+
+contextBridge.exposeInMainWorld("localOverleaf", {
+  listProjects: () => ipcRenderer.invoke("list-projects"),
+  addProject: (kind) => ipcRenderer.invoke("add-project", { kind }),
+  addProjectFromPath: (paths) => ipcRenderer.invoke("add-project-from-path", { paths }),
+  listTemplates: () => ipcRenderer.invoke("list-templates"),
+  templatePreviewPdf: (templateId) => ipcRenderer.invoke("template-preview-pdf", templateId),
+  cacheTemplatePreview: (templateId, dataUrl) => ipcRenderer.invoke("cache-template-preview", { templateId, dataUrl }),
+  cacheProjectPreview: (projectId, dataUrl) => ipcRenderer.invoke("cache-project-preview", { projectId, dataUrl }),
+  importTemplate: () => ipcRenderer.invoke("import-template"),
+  removeTemplate: (templateId) => ipcRenderer.invoke("remove-template", templateId),
+  createProjectFromTemplate: (templateId) => ipcRenderer.invoke("create-project-from-template", templateId),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
+  renameProject: (projectId, name) => ipcRenderer.invoke("rename-project", { projectId, name }),
+  removeProject: (projectId) => ipcRenderer.invoke("remove-project", projectId),
+  toggleProjectFavorite: (projectId) => ipcRenderer.invoke("toggle-project-favorite", projectId),
+  listProjectFiles: (projectId) => ipcRenderer.invoke("list-project-files", projectId),
+  listRemoteFiles: (remote) => ipcRenderer.invoke("list-remote-files", remote),
+  readRemoteFile: (remote, relativePath) => ipcRenderer.invoke("read-remote-file", { remote, relativePath }),
+  readRemotePdf: (remote, relativePath) => ipcRenderer.invoke("read-remote-pdf", { remote, relativePath }),
+  saveRemoteFile: (remote, relativePath, tex) => ipcRenderer.invoke("save-remote-file", { remote, relativePath, tex }),
+  compileRemote: (remote, relativePath, tex) => ipcRenderer.invoke("compile-remote-manuscript", { remote, relativePath, tex }),
+  verifySshConnection: (remote) => ipcRenderer.invoke("verify-ssh-connection", remote),
+  projectFileAction: (projectId, relativePath, action, options = {}) => ipcRenderer.invoke("project-file-action", { projectId, relativePath, action, options }),
+  chooseProjectFiles: (projectId) => ipcRenderer.invoke("choose-project-files", projectId),
+  importProjectFiles: (projectId, files) => ipcRenderer.invoke("import-project-files", { projectId, files }),
+  downloadProjectPackage: (projectId) => ipcRenderer.invoke("download-project-package", projectId),
+  saveProjectSettings: (projectId, settings) => ipcRenderer.invoke("save-project-settings", { projectId, settings }),
+  pushProjectToGithub: (projectId, options = {}) => ipcRenderer.invoke("push-project-to-github", { projectId, ...options }),
+  pullProjectFromGithub: (projectId, options = {}) => ipcRenderer.invoke("pull-project-from-github", { projectId, ...options }),
+  listSshHosts: () => ipcRenderer.invoke("list-ssh-hosts"),
+  toggleFullscreen: () => ipcRenderer.invoke("toggle-fullscreen"),
+  load: (projectId, relativePath) => ipcRenderer.invoke("load-manuscript", { projectId, relativePath }),
+  readProjectFile: (projectId, relativePath) => ipcRenderer.invoke("read-project-file", { projectId, relativePath }),
+  save: (projectId, relativePath, tex) => ipcRenderer.invoke("save-manuscript", { projectId, relativePath, tex }),
+  compile: (projectId, relativePath, tex) => ipcRenderer.invoke("compile-manuscript", { projectId, relativePath, tex }),
+  readPdf: (projectId, relativePath = "") => ipcRenderer.invoke("read-pdf", { projectId, relativePath }),
+  openPdf: (projectId, relativePath = "") => ipcRenderer.invoke("open-pdf", { projectId, relativePath }),
+  downloadPdf: (projectId, relativePath = "") => ipcRenderer.invoke("download-pdf", { projectId, relativePath }),
+  openExternalLink: (url) => ipcRenderer.invoke("open-external-link", url),
+  openHistoryWindow: (payload) => ipcRenderer.invoke("open-history-window", payload),
+  readAgents: (projectId) => ipcRenderer.invoke("read-agents", projectId),
+  saveAgents: (projectId, text) => ipcRenderer.invoke("save-agents", { projectId, text }),
+  createTerminal: (projectId, kind, options = {}) => ipcRenderer.invoke("terminal-create", { projectId, kind, ...options }),
+  writeTerminal: (id, data) => ipcRenderer.send("terminal-write", { id, data }),
+  resizeTerminal: (id, cols, rows) => ipcRenderer.send("terminal-resize", { id, cols, rows }),
+  killTerminal: (id) => ipcRenderer.invoke("terminal-kill", id),
+  onTerminalData: (callback) => {
+    ipcRenderer.on("terminal-data", (_event, payload) => callback(payload));
+  },
+  onTerminalExit: (callback) => {
+    ipcRenderer.on("terminal-exit", (_event, payload) => callback(payload));
+  },
+  onCommand: (callback) => {
+    ipcRenderer.on("editor-command", (_event, command) => callback(command));
+  }
+});
