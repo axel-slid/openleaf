@@ -443,6 +443,11 @@ const HIGH_CONTRAST_PRESETS = new Set([
   "light-rose-hc",
   "light-amber-hc",
   "pastel-amber-hc",
+  "light-mono-hc",
+  "light-blue-hc",
+  "light-forest-hc",
+  "light-violet-hc",
+  "light-slate-hc",
   "abyss",
   "tomorrow-night-blue",
   "pastel-graphite-hc",
@@ -989,6 +994,161 @@ const THEME_PRESETS = {
       "--cm-string": "#4d7c0f",
       "--cm-number": "#b45309",
       "--pdf-bg": "#e6c579",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "light-mono-hc": {
+    theme: "light",
+    accent: "#0f62fe",
+    background: "linear-gradient(135deg, #ffffff, #f4f4f4 68%, #e8e8e8)",
+    colors: {
+      "--bg": "#ffffff",
+      "--glass": "rgba(255, 255, 255, 0.97)",
+      "--glass-strong": "rgba(255, 255, 255, 0.99)",
+      "--panel": "rgba(255, 255, 255, 0.98)",
+      "--page": "#ffffff",
+      "--text": "#000000",
+      "--muted": "#3d3d3d",
+      "--border": "rgba(0, 0, 0, 0.56)",
+      "--border-strong": "rgba(0, 0, 0, 0.88)",
+      "--red": "#da1e28",
+      "--green": "#0e6027",
+      "--blue": "#0f62fe",
+      "--blue-dark": "#0043ce",
+      "--cm-bg": "#ffffff",
+      "--cm-gutter": "#f4f4f4",
+      "--cm-text": "#000000",
+      "--cm-keyword": "#8a0091",
+      "--cm-variable": "#0043ce",
+      "--cm-atom": "#0e6027",
+      "--cm-comment": "#525252",
+      "--cm-string": "#a2191f",
+      "--cm-number": "#6929c4",
+      "--pdf-bg": "#d0d0d0",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "light-blue-hc": {
+    theme: "light",
+    accent: "#1d4ed8",
+    background: "linear-gradient(135deg, #f8fbff, #e8f1ff 68%, #d4e4fb)",
+    colors: {
+      "--bg": "#f8fbff",
+      "--glass": "rgba(255, 255, 255, 0.96)",
+      "--glass-strong": "rgba(255, 255, 255, 0.99)",
+      "--panel": "rgba(255, 255, 255, 0.98)",
+      "--page": "#ffffff",
+      "--text": "#04142e",
+      "--muted": "#26437a",
+      "--border": "rgba(4, 20, 46, 0.52)",
+      "--border-strong": "rgba(4, 20, 46, 0.84)",
+      "--red": "#b42318",
+      "--green": "#067647",
+      "--blue": "#1d4ed8",
+      "--blue-dark": "#1e40af",
+      "--cm-bg": "#ffffff",
+      "--cm-gutter": "#e8f1ff",
+      "--cm-text": "#04142e",
+      "--cm-keyword": "#1d4ed8",
+      "--cm-variable": "#0e7490",
+      "--cm-atom": "#067647",
+      "--cm-comment": "#475467",
+      "--cm-string": "#9a3412",
+      "--cm-number": "#6d28d9",
+      "--pdf-bg": "#bcd2ef",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "light-forest-hc": {
+    theme: "light",
+    accent: "#15803d",
+    background: "linear-gradient(135deg, #f7fdf9, #e6f9ed 68%, #cdefdb)",
+    colors: {
+      "--bg": "#f7fdf9",
+      "--glass": "rgba(255, 255, 255, 0.96)",
+      "--glass-strong": "rgba(255, 255, 255, 0.99)",
+      "--panel": "rgba(255, 255, 255, 0.98)",
+      "--page": "#ffffff",
+      "--text": "#04210f",
+      "--muted": "#1f4d33",
+      "--border": "rgba(4, 33, 15, 0.52)",
+      "--border-strong": "rgba(4, 33, 15, 0.84)",
+      "--red": "#b42318",
+      "--green": "#15803d",
+      "--blue": "#0e7490",
+      "--blue-dark": "#155e75",
+      "--cm-bg": "#ffffff",
+      "--cm-gutter": "#e6f9ed",
+      "--cm-text": "#04210f",
+      "--cm-keyword": "#15803d",
+      "--cm-variable": "#155e75",
+      "--cm-atom": "#92400e",
+      "--cm-comment": "#4d5f55",
+      "--cm-string": "#a2191f",
+      "--cm-number": "#6929c4",
+      "--pdf-bg": "#b7dcc6",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "light-violet-hc": {
+    theme: "light",
+    accent: "#6d28d9",
+    background: "linear-gradient(135deg, #fbf9ff, #f0e9ff 68%, #e0d1fb)",
+    colors: {
+      "--bg": "#fbf9ff",
+      "--glass": "rgba(255, 255, 255, 0.96)",
+      "--glass-strong": "rgba(255, 255, 255, 0.99)",
+      "--panel": "rgba(255, 255, 255, 0.98)",
+      "--page": "#ffffff",
+      "--text": "#180432",
+      "--muted": "#432466",
+      "--border": "rgba(24, 4, 50, 0.52)",
+      "--border-strong": "rgba(24, 4, 50, 0.84)",
+      "--red": "#b42318",
+      "--green": "#067647",
+      "--blue": "#6d28d9",
+      "--blue-dark": "#5b21b6",
+      "--cm-bg": "#ffffff",
+      "--cm-gutter": "#f0e9ff",
+      "--cm-text": "#180432",
+      "--cm-keyword": "#6d28d9",
+      "--cm-variable": "#1d4ed8",
+      "--cm-atom": "#067647",
+      "--cm-comment": "#5b5568",
+      "--cm-string": "#a2191f",
+      "--cm-number": "#0e7490",
+      "--pdf-bg": "#d4c3ee",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "light-slate-hc": {
+    theme: "light",
+    accent: "#334155",
+    background: "linear-gradient(135deg, #fafbfc, #eef1f5 68%, #dde3ea)",
+    colors: {
+      "--bg": "#fafbfc",
+      "--glass": "rgba(255, 255, 255, 0.97)",
+      "--glass-strong": "rgba(255, 255, 255, 0.99)",
+      "--panel": "rgba(255, 255, 255, 0.98)",
+      "--page": "#ffffff",
+      "--text": "#0b1220",
+      "--muted": "#33415c",
+      "--border": "rgba(11, 18, 32, 0.54)",
+      "--border-strong": "rgba(11, 18, 32, 0.86)",
+      "--red": "#b42318",
+      "--green": "#067647",
+      "--blue": "#334155",
+      "--blue-dark": "#1e293b",
+      "--cm-bg": "#ffffff",
+      "--cm-gutter": "#eef1f5",
+      "--cm-text": "#0b1220",
+      "--cm-keyword": "#1e293b",
+      "--cm-variable": "#0e7490",
+      "--cm-atom": "#067647",
+      "--cm-comment": "#64748b",
+      "--cm-string": "#9a3412",
+      "--cm-number": "#6d28d9",
+      "--pdf-bg": "#c9d2dd",
       "--pdf-paper": "#ffffff"
     }
   },
@@ -2188,7 +2348,6 @@ let selectionCodexTimer = null;
 let spellIssueMarks = [];
 let spellCheckTimer = null;
 let spellContextMenu = null;
-let equationPreviewWidget = null;
 let historyEvents = [];
 let historyCaptureTimer = null;
 let lastHistoryText = "";
@@ -2278,7 +2437,6 @@ function setupSourceEditor() {
     updateRelativeLineNumbers();
     updateVimModeIndicator();
     scheduleSelectionCodexPopover();
-    updateEquationPreview();
   });
   editor.on("inputRead", maybeShowLatexCompletion);
   editor.on("viewportChange", updateRelativeLineNumbers);
@@ -2348,49 +2506,6 @@ function currentLatexPrefix(cm) {
   const left = line.slice(0, cursor.ch);
   const match = left.match(/\\[A-Za-z*]*$/);
   return match ? match[0] : "";
-}
-
-function updateEquationPreview() {
-  if (!editor || !window.katex) return;
-  if (equationPreviewWidget) {
-    equationPreviewWidget.clear();
-    equationPreviewWidget = null;
-  }
-  const expression = currentMathExpression();
-  if (!expression) return;
-  const node = document.createElement("div");
-  node.className = "equation-preview-widget";
-  try {
-    katex.render(expression.math, node, { displayMode: expression.display, throwOnError: false });
-  } catch (error) {
-    return;
-  }
-  equationPreviewWidget = editor.addLineWidget(expression.line, node, {
-    above: true,
-    coverGutter: false,
-    noHScroll: true
-  });
-}
-
-function currentMathExpression() {
-  const cursor = editor.getCursor();
-  const line = editor.getLine(cursor.line) || "";
-  const inline = line.match(/\$([^$]{1,240})\$/);
-  if (inline) return { math: inline[1], display: false, line: cursor.line };
-
-  let start = cursor.line;
-  while (start >= 0 && !/\\begin\{(?:equation|align|gather)\*?\}|\\\[/.test(editor.getLine(start) || "")) start -= 1;
-  if (start < 0) return null;
-  let end = cursor.line;
-  while (end <= editor.lastLine() && !/\\end\{(?:equation|align|gather)\*?\}|\\\]/.test(editor.getLine(end) || "")) end += 1;
-  if (end > editor.lastLine()) return null;
-  const source = editor.getRange({ line: start, ch: 0 }, { line: end, ch: (editor.getLine(end) || "").length });
-  const math = source
-    .replace(/\\begin\{(?:equation|align|gather)\*?\}/g, "")
-    .replace(/\\end\{(?:equation|align|gather)\*?\}/g, "")
-    .replace(/\\\[|\\\]/g, "")
-    .trim();
-  return math ? { math, display: true, line: start } : null;
 }
 
 function setupSettings() {
@@ -3107,6 +3222,9 @@ function greetingAllowedForHour(greeting, hour) {
 function updateProjectHeroGreeting({ rotate = false } = {}) {
   if (!projectHeroTitle) return;
   const firstName = String(aiProfile.name || "").trim().split(/\s+/)[0] || "";
+  projectHeroTitle.hidden = !firstName;
+  projectHeroTitle.style.display = firstName ? "" : "none";
+  if (!firstName) return;
   const now = new Date();
   const hour = now.getHours();
   const bucket = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
@@ -3834,8 +3952,24 @@ async function pollExternalSourceUpdate() {
   if (getSourceText() !== savedText) return;
 
   externalSourcePollBusy = true;
+  const requestProjectId = activeProject.id;
+  const requestRelativePath = activeFile.relativePath;
   try {
-    const result = await window.localOverleaf.readProjectFile(activeProject.id, activeFile.relativePath);
+    const result = await window.localOverleaf.readProjectFile(requestProjectId, requestRelativePath);
+    // The project or file may have changed while the disk read was in flight;
+    // applying a stale result would show another file's LaTeX in the editor.
+    if (
+      !activeProject
+      || activeProject.id !== requestProjectId
+      || !activeFile
+      || activeFile.relativePath !== requestRelativePath
+      || editorScreen.hidden
+      || isLoading
+      || isCompiling
+      || getSourceText() !== savedText
+    ) {
+      return;
+    }
     const nextSignature = sourceDiskSignature(result.file, result.tex);
     if (nextSignature === activeDiskSignature) return;
 
@@ -3995,6 +4129,8 @@ function renderTextTabs() {
       <span class="text-tab-name">${escapeHtml(tab.name)}</span>
       <span class="text-tab-dirty" aria-hidden="true">${tab.dirty ? "•" : ""}</span>
       <span class="text-tab-close" role="button" aria-label="Close ${escapeHtml(tab.name)}">${CLOSE_ICON_SVG}</span>
+      <span class="text-tab-curve text-tab-curve-left" aria-hidden="true"></span>
+      <span class="text-tab-curve text-tab-curve-right" aria-hidden="true"></span>
     `;
     button.addEventListener("click", () => switchTextTab(tab.relativePath));
     button.addEventListener("dblclick", () => pinTextTab(tab.relativePath));
@@ -4178,6 +4314,8 @@ function wireEvents() {
   closeHistoryButton.addEventListener("click", () => setHistoryPanelOpen(false));
   pdfZoomOutButton.addEventListener("click", () => changePdfZoom(-0.1));
   pdfZoomInButton.addEventListener("click", () => changePdfZoom(0.1));
+  const pdfFitButton = document.getElementById("pdfFitButton");
+  if (pdfFitButton) pdfFitButton.addEventListener("click", fitPdfToBoundaries);
   pdfViewer.addEventListener("wheel", handlePdfWheelZoom, { passive: false });
   pdfViewer.addEventListener("scroll", updatePdfPageIndicator, { passive: true });
   pdfViewer.addEventListener("gesturestart", handlePdfGestureStart);
@@ -5228,6 +5366,18 @@ function closeSpellContextMenu() {
 function changePdfZoom(delta) {
   setPdfZoom(Math.round((pdfZoom + delta) * 10) / 10, { render: false, live: true });
   schedulePdfZoomRender(80);
+}
+
+function fitPdfToBoundaries() {
+  const pageShell = pdfViewer.querySelector(".pdf-page");
+  if (!pageShell) return;
+  const viewerStyles = getComputedStyle(pdfViewer);
+  const available = pdfViewer.clientWidth
+    - Number.parseFloat(viewerStyles.paddingLeft || "0")
+    - Number.parseFloat(viewerStyles.paddingRight || "0");
+  const pageWidth = pageShell.getBoundingClientRect().width;
+  if (!(available > 0) || !(pageWidth > 0)) return;
+  setPdfZoom(pdfZoom * (available / pageWidth));
 }
 
 function setPdfZoom(value, { render = true, live = false } = {}) {
@@ -8514,7 +8664,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
 
     const fragment = document.createDocumentFragment();
     updatePdfTitleFromSelection();
-    pdfMeta.textContent = `${pdf.numPages} pages`;
+    pdfMeta.textContent = `${pdf.numPages} ${pdf.numPages === 1 ? "page" : "pages"}`;
     const nextPageTextLines = new Map();
     const renderedPageCanvases = new Map();
 

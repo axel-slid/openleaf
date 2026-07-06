@@ -2277,15 +2277,15 @@ button:disabled {
 }
 
 .workspace.source-hidden {
-  grid-template-columns: var(--file-width) 8px 42px 8px minmax(var(--pdf-min-width), 1fr);
+  grid-template-columns: var(--file-width) 8px 42px minmax(var(--pdf-min-width), 1fr);
 }
 
 .workspace.pdf-hidden {
-  grid-template-columns: var(--file-width) 8px minmax(320px, var(--editor-width)) 42px;
+  grid-template-columns: var(--file-width) 8px minmax(320px, 1fr) 42px;
 }
 
 .workspace.files-hidden.pdf-hidden {
-  grid-template-columns: 42px minmax(320px, var(--editor-width)) 42px;
+  grid-template-columns: 42px minmax(320px, 1fr) 42px;
 }
 
 .workspace.source-hidden.pdf-hidden {
@@ -2994,19 +2994,19 @@ body[data-theme="dark"] .vim-mode-indicator[data-vim-state="visual"] {
 }
 
 .workspace.source-hidden {
-  grid-template-columns: var(--file-width) 8px 42px 8px minmax(var(--pdf-min-width), 1fr);
+  grid-template-columns: var(--file-width) 8px 42px minmax(var(--pdf-min-width), 1fr);
 }
 
 .workspace.pdf-hidden {
-  grid-template-columns: var(--file-width) 8px minmax(320px, var(--editor-width)) 42px;
+  grid-template-columns: var(--file-width) 8px minmax(320px, 1fr) 42px;
 }
 
 .workspace.files-hidden.source-hidden {
-  grid-template-columns: 42px 42px 8px minmax(var(--pdf-min-width), 1fr);
+  grid-template-columns: 42px 42px minmax(var(--pdf-min-width), 1fr);
 }
 
 .workspace.files-hidden.pdf-hidden {
-  grid-template-columns: 42px minmax(320px, var(--editor-width)) 42px;
+  grid-template-columns: 42px minmax(320px, 1fr) 42px;
 }
 
 .workspace.source-hidden.pdf-hidden {
@@ -4313,7 +4313,7 @@ body[data-theme="dark"] .relative-line-number {
   display: grid;
   font-family: var(--sans);
   font-size: 12px;
-  grid-template-rows: 5px 34px minmax(0, 1fr);
+  grid-template-rows: 5px minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
   position: relative;
@@ -4388,12 +4388,7 @@ body[data-theme="dark"] .relative-line-number {
   color: var(--terminal-text);
 }
 
-.log-header button {
-  border-radius: 7px;
-  font-size: 11px;
-  height: 24px;
-  padding: 0 8px;
-}
+
 
 #compileLog {
   background: var(--terminal-bg);
@@ -5521,7 +5516,7 @@ textarea,
 }
 
 .workspace.source-hidden {
-  grid-template-columns: var(--file-width) 8px 42px 8px minmax(360px, 1fr);
+  grid-template-columns: var(--file-width) 8px 42px minmax(360px, 1fr);
 }
 
 .workspace.pdf-hidden {
@@ -5529,7 +5524,7 @@ textarea,
 }
 
 .workspace.files-hidden.source-hidden {
-  grid-template-columns: 42px 42px 8px minmax(360px, 1fr);
+  grid-template-columns: 42px 42px minmax(360px, 1fr);
 }
 
 .workspace.files-hidden.pdf-hidden {
@@ -6298,15 +6293,15 @@ body.transparent-theme .pdf-page {
 }
 
 .workspace.source-hidden {
-  grid-template-columns: var(--file-width) 8px 42px 8px minmax(var(--pdf-min-width), 1fr);
+  grid-template-columns: var(--file-width) 8px 42px minmax(var(--pdf-min-width), 1fr);
 }
 
 .workspace.pdf-hidden {
-  grid-template-columns: var(--file-width) 8px minmax(320px, var(--editor-width)) 42px;
+  grid-template-columns: var(--file-width) 8px minmax(320px, 1fr) 42px;
 }
 
 .workspace.files-hidden.pdf-hidden {
-  grid-template-columns: 42px minmax(320px, var(--editor-width)) 42px;
+  grid-template-columns: 42px minmax(320px, 1fr) 42px;
 }
 
 .workspace.source-hidden.pdf-hidden {
@@ -7931,16 +7926,6 @@ body[data-contrast="high"] .log-collapsed-rail::before {
   width: 18px;
 }
 
-.equation-preview-widget {
-  background: color-mix(in srgb, var(--panel) 94%, var(--bg));
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
-  border-radius: 8px;
-  color: var(--text);
-  margin: 4px 12px 6px;
-  max-width: calc(100% - 32px);
-  overflow-x: auto;
-  padding: 8px 10px;
-}
 
 .CodeMirror-hints {
   background: color-mix(in srgb, var(--panel) 96%, var(--bg));
@@ -9290,15 +9275,6 @@ body[data-theme="dark"] .project-preview canvas {
   display: block !important;
 }
 
-.log-panel:not(.log-collapsed) {
-  grid-template-rows: minmax(0, 1fr) !important;
-}
-
-.log-panel:not(.log-collapsed) .log-resize-handle,
-.log-panel:not(.log-collapsed) .log-header {
-  display: none !important;
-}
-
 .pdf-thumbnail-list.pdf-dark-render .pdf-thumbnail {
   background: transparent !important;
 }
@@ -9355,9 +9331,15 @@ body[data-theme="dark"] .project-preview canvas {
   z-index: 21 !important;
 }
 
-.source-pane.terminal-collapsed .terminal-collapsed-rail,
-.log-panel.log-collapsed .log-collapsed-rail {
+.source-pane.terminal-collapsed .terminal-collapsed-rail {
   position: relative !important;
+  z-index: 22 !important;
+}
+
+.log-panel.log-collapsed .log-collapsed-rail {
+  left: 0 !important;
+  position: absolute !important;
+  top: 0 !important;
   z-index: 22 !important;
 }
 
@@ -9470,9 +9452,15 @@ body.transparent-theme #compileLog {
   z-index: 21 !important;
 }
 
-.source-pane.terminal-collapsed .terminal-collapsed-rail,
-.log-panel.log-collapsed .log-collapsed-rail {
+.source-pane.terminal-collapsed .terminal-collapsed-rail {
   position: relative !important;
+  z-index: 22 !important;
+}
+
+.log-panel.log-collapsed .log-collapsed-rail {
+  left: 0 !important;
+  position: absolute !important;
+  top: 0 !important;
   z-index: 22 !important;
 }
 
@@ -9715,9 +9703,15 @@ body.transparent-theme .help-menu button {
   z-index: 21 !important;
 }
 
-.source-pane.terminal-collapsed .terminal-collapsed-rail,
-.log-panel.log-collapsed .log-collapsed-rail {
+.source-pane.terminal-collapsed .terminal-collapsed-rail {
   position: relative !important;
+  z-index: 22 !important;
+}
+
+.log-panel.log-collapsed .log-collapsed-rail {
+  left: 0 !important;
+  position: absolute !important;
+  top: 0 !important;
   z-index: 22 !important;
 }
 
@@ -9761,4 +9755,138 @@ body.transparent-theme .terminal-instance .xterm-viewport,
 body.transparent-theme #compileLog {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
+}
+
+/* Unified refresh glyph: every refresh control uses the same clockwise open-circle arrow. */
+.refresh-glyph {
+  align-items: center;
+  display: inline-flex;
+  font-family: var(--sans);
+  font-size: 19px;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1;
+}
+
+#refreshProjectsButton .refresh-glyph {
+  font-size: 20px;
+  height: 20px;
+  width: 20px;
+}
+
+#topRefreshFilesButton .refresh-glyph,
+#fileHeaderRefreshButton .refresh-glyph {
+  font-size: 17px;
+  height: 16px;
+  width: 16px;
+}
+
+/* Chrome-style tabs: the active tab joins the editor surface below it. */
+.text-tabs {
+  border-bottom: 0 !important;
+  box-shadow: inset 0 -1px 0 var(--border) !important;
+  padding: 4px 12px 0 !important;
+}
+
+.text-tab {
+  border-radius: 10px 10px 0 0 !important;
+}
+
+.text-tab.active {
+  background: var(--cm-bg) !important;
+  border: 1px solid var(--border) !important;
+  border-bottom: 0 !important;
+  color: var(--text) !important;
+  overflow: visible !important;
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+.text-tab-curve {
+  bottom: 0;
+  display: none;
+  height: 8px;
+  pointer-events: none;
+  position: absolute;
+  width: 8px;
+}
+
+.text-tab.active .text-tab-curve {
+  display: block;
+}
+
+.text-tab-curve-left {
+  background: radial-gradient(circle at 0 0, transparent 6.5px, var(--border) 7px, var(--border) 7.5px, var(--cm-bg) 8px);
+  left: -8px;
+}
+
+.text-tab-curve-right {
+  background: radial-gradient(circle at 100% 0, transparent 6.5px, var(--border) 7px, var(--border) 7.5px, var(--cm-bg) 8px);
+  right: -8px;
+}
+
+/* Collapsed rails are a single clean banner: no resize handle strip above them. */
+.source-pane.terminal-collapsed .terminal-resize-handle,
+.log-panel.log-collapsed .log-resize-handle {
+  display: none !important;
+}
+
+/* Splitter: one continuous opaque dark line from the top of the panes to the window bottom. */
+.splitter {
+  background: color-mix(in srgb, var(--text) 86%, var(--bg)) !important;
+  border-left: 0 !important;
+  border-radius: 0 !important;
+  border-right: 0 !important;
+}
+
+.splitter::after {
+  background: none;
+  border-top: 0;
+  content: "";
+  cursor: col-resize;
+  height: auto;
+  inset: 0 -5px;
+  position: absolute;
+}
+
+/* No profile name set: hero shows only the action buttons, centered. */
+.project-hero:has(#projectHeroTitle[hidden]) {
+  justify-content: center !important;
+}
+
+/* PDF collapsed: the splitter leaves the grid so the PDF rail takes the last column. */
+.workspace.pdf-hidden .splitter {
+  display: none !important;
+}
+
+/* Collapsed side rails: label centered, whole rail clickable. */
+.file-rail-open,
+.source-rail-open,
+.preview-rail-open {
+  align-items: center !important;
+  display: flex !important;
+  height: 100% !important;
+  inset: 0 !important;
+  justify-content: center !important;
+  position: absolute !important;
+  width: 100% !important;
+  z-index: 3 !important;
+}
+
+/* Icon-only PDF action buttons keep a comfortable square hit area. */
+.pdf-action-button {
+  padding: 0 10px !important;
+}
+
+/* Files header: icon buttons sit on one line, vertically centered. */
+.file-header-actions {
+  align-items: center !important;
+  display: flex !important;
+  gap: 4px !important;
+}
+
+.file-header-actions .icon-button {
+  align-items: center !important;
+  display: inline-flex !important;
+  justify-content: center !important;
 }

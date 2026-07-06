@@ -54,10 +54,7 @@
             </button>
           </div>
           <button id="refreshProjectsButton" type="button" aria-label="Refresh projects" title="Refresh projects">
-            <svg class="view-icon refresh-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
-              <path d="M21 4v6h-6"></path>
-            </svg>
+            <span class="refresh-glyph" aria-hidden="true">&#8635;</span>
             <span class="visually-hidden">Refresh projects</span>
           </button>
           <div class="project-sort-menu-wrap">
@@ -114,10 +111,7 @@
         </div>
         <div class="topbar-actions">
           <button id="topRefreshFilesButton" class="topbar-action-button" type="button" title="Refresh project">
-            <svg class="topbar-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
-              <path d="M21 4v6h-6"></path>
-            </svg>
+            <span class="refresh-glyph" aria-hidden="true">&#8635;</span>
             <span>Refresh Project</span>
           </button>
           <button id="historyButton" class="topbar-action-button" type="button" title="History">
@@ -163,7 +157,7 @@
           <button id="fileRailButton" class="file-rail-open" type="button" aria-label="Expand files">Files</button>
           <div class="file-rail-actions">
             <button id="railRefreshFilesButton" class="file-footer-icon" type="button" aria-label="Refresh files" title="Refresh files">
-              <span aria-hidden="true">&#8635;</span>
+              <span class="refresh-glyph" aria-hidden="true">&#8635;</span>
             </button>
             <button class="settingsButton file-footer-icon" type="button" aria-label="Open settings" title="Settings">
               <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -188,10 +182,7 @@
             </div>
             <div class="file-header-actions">
               <button id="fileHeaderRefreshButton" class="icon-button" type="button" aria-label="Refresh files" title="Refresh files">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
-                  <path d="M21 4v6h-6"></path>
-                </svg>
+                <span class="refresh-glyph" aria-hidden="true">&#8635;</span>
               </button>
               <button id="newFileButton" class="icon-button" type="button" aria-label="New file" title="New file">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -379,29 +370,26 @@
                 </svg>
               </button>
               <div class="pdf-action-segment" aria-label="PDF actions">
-                <button id="compileButton" class="pdf-action-button" type="button">
+                <button id="compileButton" class="pdf-action-button" type="button" aria-label="Compile PDF" title="Compile PDF">
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 3v4"></path>
                     <path d="m9 6 3 3 3-3"></path>
                     <path d="M5 12a7 7 0 0 0 14 0"></path>
                   </svg>
-                  <span>Compile PDF</span>
                 </button>
-                <button id="openPdfButton" class="pdf-action-button" type="button">
+                <button id="openPdfButton" class="pdf-action-button" type="button" aria-label="Open PDF in system viewer" title="Open PDF in system viewer">
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
                     <path d="M14 2v6h6"></path>
                     <path d="M9 15h6"></path>
                   </svg>
-                  <span>Open PDF</span>
                 </button>
-                <button id="downloadPdfButton" class="pdf-action-button" type="button">
+                <button id="downloadPdfButton" class="pdf-action-button" type="button" aria-label="Download PDF" title="Download PDF">
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 3v12"></path>
                     <path d="m7 10 5 5 5-5"></path>
                     <path d="M5 21h14"></path>
                   </svg>
-                  <span>Download PDF</span>
                 </button>
               </div>
               <div class="pdf-controls">
@@ -418,6 +406,15 @@
                     <circle cx="11" cy="11" r="7"></circle>
                     <path d="m16 16 5 5"></path>
                     <path d="M11 8v6M8 11h6"></path>
+                  </svg>
+                </button>
+                <button id="pdfFitButton" type="button" aria-label="Fit page to width" title="Fit page to width">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 5v14"></path>
+                    <path d="M21 5v14"></path>
+                    <path d="M7 12h10"></path>
+                    <path d="m10 9-3 3 3 3"></path>
+                    <path d="m14 9 3 3-3 3"></path>
                   </svg>
                 </button>
               </div>
@@ -453,9 +450,6 @@
           <section class="log-panel" id="compileLogPanel">
             <div id="compileLogResizeHandle" class="log-resize-handle" role="separator" aria-label="Resize log" tabindex="0"></div>
             <button id="compileLogCollapsedButton" class="collapsed-panel-rail log-collapsed-rail" type="button" aria-label="Expand log">Log</button>
-            <header class="log-header">
-              <span>Log</span>
-            </header>
             <pre id="compileLog">No compile run yet.</pre>
           </section>
         </section>
@@ -661,6 +655,11 @@
                   <option value="light-rose-hc">Rose Contrast Light</option>
                   <option value="light-amber-hc">Amber Contrast</option>
                   <option value="pastel-amber-hc">Pastel Amber Contrast</option>
+                  <option value="light-mono-hc">Mono Contrast</option>
+                  <option value="light-blue-hc">Blue Contrast Light</option>
+                  <option value="light-forest-hc">Forest Contrast</option>
+                  <option value="light-violet-hc">Violet Contrast Light</option>
+                  <option value="light-slate-hc">Slate Contrast</option>
                 </optgroup>
                 <optgroup label="Transparent">
                   <option value="glass-light">Glass Light</option>
