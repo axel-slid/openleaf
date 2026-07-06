@@ -9984,6 +9984,8 @@ function setupNotesPanel() {
     modeDrawButton.classList.toggle("active", draw);
     textArea.hidden = draw;
     canvasWrap.hidden = !draw;
+    const toolbarEl = document.getElementById("notesToolbar");
+    if (toolbarEl) toolbarEl.hidden = draw;
     if (persist) localStorage.setItem("latexStudioNotesMode", draw ? "draw" : "text");
     if (draw) requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
   }
@@ -10000,9 +10002,62 @@ function setupNotesPanel() {
 
   function setNotesEnabled(enabled, { persist = true } = {}) {
     shell.classList.toggle("notes-off", !enabled);
+    if (previewRail) previewRail.classList.toggle("with-notes", enabled);
     if (!enabled) setNotesFullscreen(false);
     if (settingsToggle) settingsToggle.checked = enabled;
     if (persist) localStorage.setItem("latexStudioNotesEnabled", String(enabled));
+  }
+
+  function setNotesWidth(width, { persist = true } = {}) {
+    const maxWidth = Math.max(240, Math.round(shell.getBoundingClientRect().width * 0.6));
+    const clamped = clampNumber(width, 220, maxWidth, 400);
+    shell.style.setProperty("--notes-width", `${Math.round(clamped)}px`);
+    if (persist) localStorage.setItem("latexStudioNotesWidth", String(Math.round(clamped)));
+  }
+
+  function setupNotesResize() {
+    const handle = document.getElementById("notesResizeHandle");
+    if (!handle) return;
+    let dragStartX = 0;
+    let dragStartWidth = 0;
+
+    const stopDragging = (event) => {
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      document.body.classList.remove("is-resizing-notes");
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", stopDragging);
+      requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); renderPdf({ showLoading: false }); });
+    };
+
+    const resize = (event) => {
+      const nextWidth = dragStartWidth + dragStartX - event.clientX;
+      if (nextWidth < 140) {
+        setNotesOpen(false);
+        stopDragging(event);
+        return;
+      }
+      setNotesWidth(nextWidth, { persist: false });
+    };
+
+    handle.addEventListener("pointerdown", (event) => {
+      dragStartX = event.clientX;
+      dragStartWidth = panel.getBoundingClientRect().width;
+      handle.setPointerCapture(event.pointerId);
+      document.body.classList.add("is-resizing-notes");
+      window.addEventListener("pointermove", resize);
+      window.addEventListener("pointerup", stopDragging);
+    });
+
+    handle.addEventListener("pointerup", () => {
+      localStorage.setItem("latexStudioNotesWidth", String(Math.round(panel.getBoundingClientRect().width)));
+    });
+
+    handle.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const delta = event.key === "ArrowLeft" ? 24 : -24;
+      setNotesWidth(panel.getBoundingClientRect().width + delta);
+    });
   }
 
   function setEraser(on) {
@@ -10070,6 +10125,71 @@ function setupNotesPanel() {
 
   textArea.addEventListener("input", scheduleTextSave);
 
+  function surroundSelection(before, after = before, placeholder = "text") {
+    const start = textArea.selectionStart;
+    const end = textArea.selectionEnd;
+    const selected = textArea.value.slice(start, end) || placeholder;
+    textArea.setRangeText(before + selected + after, start, end, "end");
+    textArea.selectionStart = start + before.length;
+    textArea.selectionEnd = start + before.length + selected.length;
+    textArea.focus();
+    scheduleTextSave();
+  }
+
+  function prefixSelectedLines(prefixFor) {
+    const start = textArea.selectionStart;
+    const end = textArea.selectionEnd;
+    const value = textArea.value;
+    const blockStart = value.lastIndexOf("\n", start - 1) + 1;
+    const blockEndIndex = value.indexOf("\n", Math.max(end - 1, blockStart));
+    const blockEnd = blockEndIndex === -1 ? value.length : blockEndIndex;
+    const next = value
+      .slice(blockStart, blockEnd)
+      .split("\n")
+      .map((line, index) => prefixFor(index) + line)
+      .join("\n");
+    textArea.setRangeText(next, blockStart, blockEnd, "end");
+    textArea.focus();
+    scheduleTextSave();
+  }
+
+  function insertBlock(text) {
+    const start = textArea.selectionStart;
+    const prefix = start === 0 || textArea.value[start - 1] === "\n" ? "" : "\n";
+    textArea.setRangeText(prefix + text, start, textArea.selectionEnd, "end");
+    textArea.focus();
+    scheduleTextSave();
+  }
+
+  const toolbar = document.getElementById("notesToolbar");
+  if (toolbar) {
+    toolbar.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-notes-md]");
+      if (!button) return;
+      const action = button.dataset.notesMd;
+      if (action === "undo" || action === "redo") {
+        textArea.focus();
+        document.execCommand(action);
+        scheduleTextSave();
+        return;
+      }
+      switch (action) {
+        case "bold": surroundSelection("**"); break;
+        case "italic": surroundSelection("*"); break;
+        case "strike": surroundSelection("~~"); break;
+        case "code": surroundSelection("`", "`", "code"); break;
+        case "heading": prefixSelectedLines(() => "# "); break;
+        case "bullet": prefixSelectedLines(() => "- "); break;
+        case "numbered": prefixSelectedLines((index) => `${index + 1}. `); break;
+        case "checklist": prefixSelectedLines(() => "- [ ] "); break;
+        case "quote": prefixSelectedLines(() => "> "); break;
+        case "link": surroundSelection("[", "](url)", "title"); break;
+        case "image": insertBlock("![alt](image-url)\n"); break;
+        case "table": insertBlock("| Col 1 | Col 2 |\n| --- | --- |\n|  |  |\n"); break;
+      }
+    });
+  }
+
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && panel.classList.contains("notes-fullscreen")) setNotesFullscreen(false);
   });
@@ -10090,6 +10210,15 @@ function setupNotesPanel() {
     requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
   };
 
+  const notesRailSideButton = document.getElementById("previewNotesRailButton");
+  if (notesRailSideButton) {
+    notesRailSideButton.addEventListener("click", () => {
+      setPdfCollapsed(false);
+      setNotesOpen(true);
+    });
+  }
+  setupNotesResize();
+  setNotesWidth(Number(localStorage.getItem("latexStudioNotesWidth")) || 400, { persist: false });
   setNotesEnabled(localStorage.getItem("latexStudioNotesEnabled") !== "false", { persist: false });
   setNotesOpen(localStorage.getItem("latexStudioNotesOpen") === "true", { persist: false });
   setNotesMode(localStorage.getItem("latexStudioNotesMode") === "draw" ? "draw" : "text", { persist: false });

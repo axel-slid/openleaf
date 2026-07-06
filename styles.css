@@ -10093,3 +10093,199 @@ body.transparent-theme #compileLog {
 .notes-panel.notes-fullscreen .notes-rail-open {
   display: none;
 }
+
+/* Notes formatting toolbar: symbol buttons above the text pad. */
+.pdf-viewer-shell.notes-open .notes-body,
+.notes-panel.notes-fullscreen .notes-body {
+  grid-template-rows: 44px auto minmax(0, 1fr);
+}
+
+.notes-text,
+.notes-canvas-wrap {
+  grid-row: 3;
+}
+
+.notes-toolbar {
+  align-items: center;
+  background: var(--terminal-header-bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px 8px;
+}
+
+.notes-toolbar[hidden] {
+  display: none;
+}
+
+.notes-toolbar button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  box-shadow: none;
+  color: var(--text);
+  display: inline-flex;
+  height: 26px;
+  justify-content: center;
+  padding: 0;
+  width: 26px;
+}
+
+.notes-toolbar button:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.notes-toolbar .icon {
+  flex: 0 0 auto !important;
+  height: 15px !important;
+  width: 15px !important;
+}
+
+.notes-toolbar-divider {
+  align-self: center;
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  height: 16px;
+  margin: 0 4px;
+  width: 1px;
+}
+
+.notes-md-glyph {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.notes-md-bold {
+  font-weight: 800;
+}
+
+.notes-md-italic {
+  font-style: italic;
+  font-weight: 700;
+}
+
+.notes-md-strike {
+  font-weight: 700;
+  text-decoration: line-through;
+}
+
+.notes-mode-actions .mode-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  padding: 0 10px;
+}
+
+.notes-mode-actions .mode-button .icon,
+.notes-draw-tools button .icon {
+  flex: 0 0 auto !important;
+  height: 15px !important;
+  width: 15px !important;
+}
+
+.notes-draw-tools button {
+  align-items: center;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+
+/* Notes width is draggable; stacked PDF+Notes rails when the right side is collapsed. */
+.pdf-viewer-shell.notes-open {
+  --notes-width: 400px;
+  grid-template-columns: 0 minmax(0, 1fr) min(var(--notes-width), 60%) !important;
+}
+
+.pdf-viewer-shell.pdf-sidebar-visible.notes-open {
+  grid-template-columns: 112px minmax(0, 1fr) min(var(--notes-width), 60%) !important;
+}
+
+.notes-resize-handle {
+  bottom: 0;
+  cursor: col-resize;
+  display: none;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 6px;
+  z-index: 5;
+}
+
+.pdf-viewer-shell.notes-open .notes-resize-handle {
+  display: block;
+}
+
+.notes-panel.notes-fullscreen .notes-resize-handle {
+  display: none;
+}
+
+body.is-resizing-notes {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.workspace.pdf-hidden {
+  grid-template-columns: var(--file-width) 8px minmax(320px, 1fr) auto !important;
+}
+
+.workspace.files-hidden.pdf-hidden {
+  grid-template-columns: 42px minmax(320px, 1fr) auto !important;
+}
+
+.workspace.source-hidden.pdf-hidden {
+  grid-template-columns: var(--file-width) 8px 42px auto !important;
+}
+
+.workspace.files-hidden.source-hidden.pdf-hidden {
+  grid-template-columns: 42px 42px auto !important;
+}
+
+.preview-rail {
+  align-items: stretch !important;
+  display: flex !important;
+}
+
+.preview-rail[hidden] {
+  display: none !important;
+}
+
+.preview-rail .preview-rail-open,
+.preview-rail .preview-rail-notes {
+  align-items: center !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  display: flex !important;
+  flex: 0 0 42px !important;
+  font-family: var(--sans) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  height: 100% !important;
+  inset: auto !important;
+  justify-content: center !important;
+  letter-spacing: 0.04em !important;
+  padding: 0 !important;
+  position: static !important;
+  transform: rotate(180deg);
+  width: 42px !important;
+  writing-mode: vertical-rl;
+}
+
+.preview-rail .preview-rail-open:hover,
+.preview-rail .preview-rail-notes:hover {
+  color: var(--text) !important;
+}
+
+.preview-rail .preview-rail-notes {
+  border-right: 1px solid var(--border) !important;
+}
+
+.preview-rail:not(.with-notes) .preview-rail-notes {
+  display: none !important;
+}
