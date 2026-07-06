@@ -477,8 +477,18 @@
                   </div>
                 </header>
                 <div id="notesToolbar" class="notes-toolbar" role="toolbar" aria-label="Formatting">
-                  <button type="button" data-notes-md="undo" aria-label="Undo" title="Undo"><span class="notes-md-glyph">&#8630;</span></button>
-                  <button type="button" data-notes-md="redo" aria-label="Redo" title="Redo"><span class="notes-md-glyph">&#8631;</span></button>
+                  <button type="button" data-notes-md="undo" aria-label="Undo" title="Undo">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M9 14 4 9l5-5"></path>
+                      <path d="M4 9h10a6 6 0 0 1 0 12h-1"></path>
+                    </svg>
+                  </button>
+                  <button type="button" data-notes-md="redo" aria-label="Redo" title="Redo">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m15 14 5-5-5-5"></path>
+                      <path d="M20 9H10a6 6 0 0 0 0 12h1"></path>
+                    </svg>
+                  </button>
                   <span class="notes-toolbar-divider" aria-hidden="true"></span>
                   <button type="button" data-notes-md="bold" aria-label="Bold" title="Bold"><span class="notes-md-glyph notes-md-bold">B</span></button>
                   <button type="button" data-notes-md="italic" aria-label="Italic" title="Italic"><span class="notes-md-glyph notes-md-italic">I</span></button>
@@ -535,24 +545,70 @@
                       <path d="m5 19 5-5 3 3 3-3 3 3"></path>
                     </svg>
                   </button>
+                  <span class="notes-toolbar-spacer" aria-hidden="true"></span>
+                  <button type="button" id="notesPreviewButton" aria-label="Preview markdown" title="Preview" aria-pressed="false">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                  </button>
                 </div>
                 <textarea id="notesText" class="notes-text" spellcheck="false" placeholder="Notes, outlines, markdown - anything."></textarea>
+                <div id="notesPreview" class="notes-preview" hidden></div>
                 <div id="notesCanvasWrap" class="notes-canvas-wrap" hidden>
                   <canvas id="notesCanvas"></canvas>
                   <div class="notes-draw-tools">
-                    <button id="notesPenButton" class="active" type="button" aria-label="Pen" title="Pen">
+                    <button type="button" data-notes-tool="pen" class="active" aria-label="Pen" title="Pen">
                       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M12 20h9"></path>
                         <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
                       </svg>
                     </button>
-                    <button id="notesEraserButton" type="button" aria-label="Eraser" title="Eraser">
+                    <button type="button" data-notes-tool="highlighter" aria-label="Highlighter" title="Highlighter">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m9 11-6 6v3h9l3-3"></path>
+                        <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path>
+                      </svg>
+                    </button>
+                    <button type="button" data-notes-tool="eraser" aria-label="Eraser" title="Eraser">
                       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="m7 21 -4 -4a2 2 0 0 1 0 -2.8L13.5 3.6a2 2 0 0 1 2.8 0l4.1 4.1a2 2 0 0 1 0 2.8L12 19"></path>
                         <path d="M7 21h14"></path>
                         <path d="m9 8 7 7"></path>
                       </svg>
                     </button>
+                    <button type="button" data-notes-tool="line" aria-label="Line" title="Line">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 19 19 5"></path>
+                      </svg>
+                    </button>
+                    <button type="button" data-notes-tool="arrow" aria-label="Arrow" title="Arrow">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 19 19 5"></path>
+                        <path d="M11 5h8v8"></path>
+                      </svg>
+                    </button>
+                    <button type="button" data-notes-tool="rect" aria-label="Rectangle" title="Rectangle">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="4" y="6" width="16" height="12" rx="1"></rect>
+                      </svg>
+                    </button>
+                    <button type="button" data-notes-tool="ellipse" aria-label="Ellipse" title="Ellipse">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <ellipse cx="12" cy="12" rx="8" ry="6"></ellipse>
+                      </svg>
+                    </button>
+                    <span class="notes-tools-divider" aria-hidden="true"></span>
+                    <button type="button" class="notes-color active" data-notes-color="#111827" style="--swatch: #111827" aria-label="Ink" title="Ink"></button>
+                    <button type="button" class="notes-color" data-notes-color="#dc2626" style="--swatch: #dc2626" aria-label="Red" title="Red"></button>
+                    <button type="button" class="notes-color" data-notes-color="#2563eb" style="--swatch: #2563eb" aria-label="Blue" title="Blue"></button>
+                    <button type="button" class="notes-color" data-notes-color="#16a34a" style="--swatch: #16a34a" aria-label="Green" title="Green"></button>
+                    <button type="button" class="notes-color" data-notes-color="#ea580c" style="--swatch: #ea580c" aria-label="Orange" title="Orange"></button>
+                    <button type="button" class="notes-color" data-notes-color="#7c3aed" style="--swatch: #7c3aed" aria-label="Purple" title="Purple"></button>
+                    <span class="notes-tools-divider" aria-hidden="true"></span>
+                    <button type="button" class="notes-size" data-notes-size="2" aria-label="Thin stroke" title="Thin"><span class="notes-size-dot" style="--dot: 3px"></span></button>
+                    <button type="button" class="notes-size active" data-notes-size="3.5" aria-label="Medium stroke" title="Medium"><span class="notes-size-dot" style="--dot: 6px"></span></button>
+                    <button type="button" class="notes-size" data-notes-size="6" aria-label="Thick stroke" title="Thick"><span class="notes-size-dot" style="--dot: 9px"></span></button>
                   </div>
                 </div>
               </div>

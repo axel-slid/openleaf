@@ -3606,9 +3606,9 @@ function updateRelativeLineNumbers() {
     return;
   }
 
-  const info = editor.getScrollInfo();
-  const from = editor.lineAtHeight(info.top, "local");
-  const to = editor.lineAtHeight(info.top + info.clientHeight, "local");
+  const viewport = editor.getViewport();
+  const from = viewport.from;
+  const to = Math.min(editor.lineCount() - 1, viewport.to);
   const cursorLine = editor.getCursor().line;
 
   editor.operation(() => {
@@ -9882,6 +9882,161 @@ function trailingWhitespaceLength(value) {
 
 var loadNotesForActiveProject;
 
+function renderMarkdownToHtml(source) {
+  const inline = (text) => escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img alt="$1" src="$2">')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>');
+
+  const lines = source.split("\n");
+  const out = [];
+  let list = null;
+  let inCode = false;
+  let codeLines = [];
+  let quote = [];
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  const closeQuote = () => { if (quote.length) { out.push("<blockquote>" + quote.join("<br>") + "</blockquote>"); quote = []; } };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^```/.test(line.trim())) {
+      if (inCode) {
+        out.push("<pre><code>" + escapeHtml(codeLines.join("\n")) + "</code></pre>");
+        codeLines = [];
+        inCode = false;
+      } else {
+        closeList();
+        closeQuote();
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) { codeLines.push(line); continue; }
+
+    if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+      closeList();
+      closeQuote();
+      const parseRow = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((cell) => inline(cell.trim()));
+      let html = "<table><thead><tr>" + parseRow(line).map((cell) => `<th>${cell}</th>`).join("") + "</tr></thead><tbody>";
+      let j = i + 2;
+      while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])) {
+        html += "<tr>" + parseRow(lines[j]).map((cell) => `<td>${cell}</td>`).join("") + "</tr>";
+        j += 1;
+      }
+      out.push(html + "</tbody></table>");
+      i = j - 1;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) {
+      closeList();
+      closeQuote();
+      out.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
+      continue;
+    }
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) { closeList(); closeQuote(); out.push("<hr>"); continue; }
+    const quoted = line.match(/^\s*>\s?(.*)$/);
+    if (quoted) { closeList(); quote.push(inline(quoted[1])); continue; }
+    closeQuote();
+    const check = line.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/);
+    if (check) {
+      if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; }
+      const checked = check[1].toLowerCase() === "x";
+      out.push(`<li class="notes-check"><input type="checkbox" data-md-line="${i}"${checked ? " checked" : ""}><span${checked ? ' class="notes-done"' : ""}>${inline(check[2])}</span></li>`);
+      continue;
+    }
+    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bullet) {
+      if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; }
+      out.push(`<li>${inline(bullet[1])}</li>`);
+      continue;
+    }
+    const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (numbered) {
+      if (list !== "ol") { closeList(); out.push("<ol>"); list = "ol"; }
+      out.push(`<li>${inline(numbered[1])}</li>`);
+      continue;
+    }
+    closeList();
+    if (!line.trim()) continue;
+    out.push(`<p>${inline(line)}</p>`);
+  }
+  if (inCode) out.push("<pre><code>" + escapeHtml(codeLines.join("\n")) + "</code></pre>");
+  closeList();
+  closeQuote();
+  return out.join("\n");
+}
+
+function notesHtmlToMarkdown(root) {
+  const inline = (node) => {
+    let out = "";
+    node.childNodes.forEach((child) => {
+      if (child.nodeType === Node.TEXT_NODE) { out += child.textContent; return; }
+      if (child.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = child.tagName;
+      if (tag === "INPUT") return;
+      const inner = inline(child);
+      if (tag === "STRONG" || tag === "B") out += `**${inner}**`;
+      else if (tag === "EM" || tag === "I") out += `*${inner}*`;
+      else if (tag === "DEL" || tag === "S" || tag === "STRIKE") out += `~~${inner}~~`;
+      else if (tag === "CODE") out += "`" + child.textContent + "`";
+      else if (tag === "A") out += `[${inner}](${child.getAttribute("href") || ""})`;
+      else if (tag === "IMG") out += `![${child.getAttribute("alt") || ""}](${child.getAttribute("src") || ""})`;
+      else if (tag === "BR") out += "\n";
+      else out += inner;
+    });
+    return out;
+  };
+
+  const blocks = [];
+  const walkBlocks = (parent) => {
+    parent.childNodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent.trim();
+        if (text) blocks.push(text);
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = node.tagName;
+      if (/^H[1-6]$/.test(tag)) blocks.push("#".repeat(Number(tag[1])) + " " + inline(node).trim());
+      else if (tag === "HR") blocks.push("---");
+      else if (tag === "PRE") blocks.push("```\n" + node.textContent.replace(/\n$/, "") + "\n```");
+      else if (tag === "BLOCKQUOTE") blocks.push(inline(node).split("\n").map((line) => "> " + line).join("\n"));
+      else if (tag === "UL" || tag === "OL") {
+        const lines = [];
+        Array.from(node.children).forEach((li, index) => {
+          if (li.tagName !== "LI") return;
+          const box = li.querySelector("input[type=checkbox]");
+          const text = inline(li).trim();
+          if (box) lines.push(`- [${box.checked ? "x" : " "}] ${text}`);
+          else if (tag === "UL") lines.push(`- ${text}`);
+          else lines.push(`${index + 1}. ${text}`);
+        });
+        if (lines.length) blocks.push(lines.join("\n"));
+      } else if (tag === "TABLE") {
+        const rows = Array.from(node.querySelectorAll("tr"));
+        if (!rows.length) return;
+        const lines = rows.map((row) => "| " + Array.from(row.children).map((cell) => inline(cell).trim()).join(" | ") + " |");
+        lines.splice(1, 0, "| " + Array.from(rows[0].children).map(() => "---").join(" | ") + " |");
+        blocks.push(lines.join("\n"));
+      } else if (tag === "P" || tag === "DIV") {
+        if (node.querySelector("h1,h2,h3,h4,h5,h6,ul,ol,table,pre,blockquote")) { walkBlocks(node); return; }
+        const text = inline(node).trim();
+        if (text) blocks.push(text);
+      } else {
+        const text = inline(node).trim();
+        if (text) blocks.push(text);
+      }
+    });
+  };
+  walkBlocks(root);
+  return blocks.join("\n\n");
+}
+
 function setupNotesPanel() {
   const shell = document.querySelector(".pdf-viewer-shell");
   const panel = document.getElementById("notesPanel");
@@ -9895,14 +10050,20 @@ function setupNotesPanel() {
   const textArea = document.getElementById("notesText");
   const canvasWrap = document.getElementById("notesCanvasWrap");
   const canvas = document.getElementById("notesCanvas");
-  const penButton = document.getElementById("notesPenButton");
-  const eraserButton = document.getElementById("notesEraserButton");
+  const drawToolsBar = canvasWrap.querySelector(".notes-draw-tools");
+  const previewButton = document.getElementById("notesPreviewButton");
+  const previewPaneEl = document.getElementById("notesPreview");
   const settingsToggle = document.getElementById("settingsNotesToggle");
   const ctx = canvas.getContext("2d");
 
-  let erasing = false;
+  let drawTool = "pen";
+  let drawColor = "#111827";
+  let drawSize = 3.5;
   let drawingPointer = null;
   let lastPoint = null;
+  let strokeStart = null;
+  let shapeSnapshot = null;
+  let notesPreviewOn = false;
   let pendingDrawData = null;
   let textSaveTimer = null;
   let drawSaveTimer = null;
@@ -9982,8 +10143,10 @@ function setupNotesPanel() {
     const draw = mode === "draw";
     modeTextButton.classList.toggle("active", !draw);
     modeDrawButton.classList.toggle("active", draw);
-    textArea.hidden = draw;
+    textArea.hidden = draw || notesPreviewOn;
     canvasWrap.hidden = !draw;
+    previewPaneEl.hidden = draw || !notesPreviewOn;
+    if (!draw && notesPreviewOn) renderNotesPreview();
     const toolbarEl = document.getElementById("notesToolbar");
     if (toolbarEl) toolbarEl.hidden = draw;
     if (persist) localStorage.setItem("latexStudioNotesMode", draw ? "draw" : "text");
@@ -10026,6 +10189,7 @@ function setupNotesPanel() {
       document.body.classList.remove("is-resizing-notes");
       window.removeEventListener("pointermove", resize);
       window.removeEventListener("pointerup", stopDragging);
+      if (shell.classList.contains("notes-open")) setNotesWidth(panel.getBoundingClientRect().width);
       requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); renderPdf({ showLoading: false }); });
     };
 
@@ -10060,11 +10224,52 @@ function setupNotesPanel() {
     });
   }
 
-  function setEraser(on) {
-    erasing = on;
-    penButton.classList.toggle("active", !on);
-    eraserButton.classList.toggle("active", on);
+  function selectDrawControl(button) {
+    if (button.dataset.notesTool) {
+      drawTool = button.dataset.notesTool;
+      drawToolsBar.querySelectorAll("[data-notes-tool]").forEach((item) => item.classList.toggle("active", item === button));
+    } else if (button.dataset.notesColor) {
+      drawColor = button.dataset.notesColor;
+      drawToolsBar.querySelectorAll("[data-notes-color]").forEach((item) => item.classList.toggle("active", item === button));
+    } else if (button.dataset.notesSize) {
+      drawSize = Number(button.dataset.notesSize);
+      drawToolsBar.querySelectorAll("[data-notes-size]").forEach((item) => item.classList.toggle("active", item === button));
+    }
   }
+
+  function applyStrokeStyle() {
+    ctx.globalAlpha = drawTool === "highlighter" ? 0.35 : 1;
+    ctx.globalCompositeOperation = drawTool === "eraser" ? "destination-out" : "source-over";
+    ctx.strokeStyle = drawColor;
+    ctx.lineWidth = drawTool === "eraser" ? drawSize * 8 : drawTool === "highlighter" ? drawSize * 4 : drawSize;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+  }
+
+  function drawShape(from, to) {
+    applyStrokeStyle();
+    ctx.beginPath();
+    if (drawTool === "line" || drawTool === "arrow") {
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      if (drawTool === "arrow") {
+        const angle = Math.atan2(to.y - from.y, to.x - from.x);
+        const head = 10 + drawSize * 2;
+        ctx.moveTo(to.x, to.y);
+        ctx.lineTo(to.x - head * Math.cos(angle - Math.PI / 6), to.y - head * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(to.x, to.y);
+        ctx.lineTo(to.x - head * Math.cos(angle + Math.PI / 6), to.y - head * Math.sin(angle + Math.PI / 6));
+      }
+    } else if (drawTool === "rect") {
+      ctx.rect(Math.min(from.x, to.x), Math.min(from.y, to.y), Math.abs(to.x - from.x), Math.abs(to.y - from.y));
+    } else if (drawTool === "ellipse") {
+      ctx.ellipse((from.x + to.x) / 2, (from.y + to.y) / 2, Math.abs(to.x - from.x) / 2, Math.abs(to.y - from.y) / 2, 0, 0, Math.PI * 2);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  const isShapeTool = () => ["line", "arrow", "rect", "ellipse"].includes(drawTool);
 
   function pointFromEvent(event) {
     const rect = canvas.getBoundingClientRect();
@@ -10076,19 +10281,25 @@ function setupNotesPanel() {
     drawingPointer = event.pointerId;
     canvas.setPointerCapture(event.pointerId);
     lastPoint = pointFromEvent(event);
+    strokeStart = lastPoint;
+    shapeSnapshot = isShapeTool() ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
   });
 
   canvas.addEventListener("pointermove", (event) => {
     if (drawingPointer !== event.pointerId || !lastPoint) return;
     const next = pointFromEvent(event);
-    ctx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
-    ctx.strokeStyle = "#111827";
-    ctx.lineWidth = erasing ? 26 : 2.4;
-    ctx.beginPath();
-    ctx.moveTo(lastPoint.x, lastPoint.y);
-    ctx.lineTo(next.x, next.y);
-    ctx.stroke();
-    lastPoint = next;
+    if (isShapeTool()) {
+      if (shapeSnapshot) ctx.putImageData(shapeSnapshot, 0, 0);
+      drawShape(strokeStart, next);
+    } else {
+      applyStrokeStyle();
+      ctx.beginPath();
+      ctx.moveTo(lastPoint.x, lastPoint.y);
+      ctx.lineTo(next.x, next.y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      lastPoint = next;
+    }
     scheduleDrawSave();
   });
 
@@ -10097,18 +10308,76 @@ function setupNotesPanel() {
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     drawingPointer = null;
     lastPoint = null;
+    strokeStart = null;
+    shapeSnapshot = null;
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
     scheduleDrawSave();
   };
   canvas.addEventListener("pointerup", endStroke);
   canvas.addEventListener("pointercancel", endStroke);
+
+  drawToolsBar.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (button) selectDrawControl(button);
+  });
 
   railButton.addEventListener("click", () => setNotesOpen(true));
   collapseButton.addEventListener("click", () => setNotesOpen(false));
   fullscreenButton.addEventListener("click", () => setNotesFullscreen(!panel.classList.contains("notes-fullscreen")));
   modeTextButton.addEventListener("click", () => setNotesMode("text"));
   modeDrawButton.addEventListener("click", () => setNotesMode("draw"));
-  penButton.addEventListener("click", () => setEraser(false));
-  eraserButton.addEventListener("click", () => setEraser(true));
+  let visualSyncTimer = null;
+
+  function renderNotesPreview() {
+    previewPaneEl.innerHTML = renderMarkdownToHtml(textArea.value);
+    previewPaneEl.contentEditable = "true";
+  }
+
+  function syncVisualToSource() {
+    textArea.value = notesHtmlToMarkdown(previewPaneEl);
+    scheduleTextSave();
+  }
+
+  function scheduleVisualSync() {
+    clearTimeout(visualSyncTimer);
+    visualSyncTimer = setTimeout(syncVisualToSource, 350);
+  }
+
+  function setNotesPreview(on) {
+    notesPreviewOn = on;
+    previewButton.setAttribute("aria-pressed", String(on));
+    previewButton.classList.toggle("active", on);
+    if (canvasWrap.hidden) {
+      textArea.hidden = on;
+      previewPaneEl.hidden = !on;
+      if (on) renderNotesPreview();
+    }
+  }
+
+  previewButton.addEventListener("click", () => setNotesPreview(!notesPreviewOn));
+
+  previewPaneEl.addEventListener("input", scheduleVisualSync);
+
+  previewPaneEl.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (link && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      if (window.localOverleaf && window.localOverleaf.openExternalLink) window.localOverleaf.openExternalLink(link.getAttribute("href"));
+      return;
+    }
+    const box = event.target.closest("input[type=checkbox]");
+    if (box) {
+      const next = box.checked;
+      event.preventDefault();
+      setTimeout(() => {
+        box.checked = next;
+        const label = box.parentElement ? box.parentElement.querySelector("span") : null;
+        if (label) label.classList.toggle("notes-done", next);
+        syncVisualToSource();
+      }, 0);
+    }
+  });
 
   clearButton.addEventListener("click", () => {
     if (isDrawMode()) {
@@ -10120,6 +10389,7 @@ function setupNotesPanel() {
     } else {
       textArea.value = "";
       localStorage.setItem(notesKey("Text"), "");
+      if (notesPreviewOn) renderNotesPreview();
     }
   });
 
@@ -10167,6 +10437,28 @@ function setupNotesPanel() {
       const button = event.target.closest("[data-notes-md]");
       if (!button) return;
       const action = button.dataset.notesMd;
+      if (notesPreviewOn && canvasWrap.hidden) {
+        previewPaneEl.focus();
+        const exec = (command, value = null) => document.execCommand(command, false, value);
+        switch (action) {
+          case "undo": exec("undo"); break;
+          case "redo": exec("redo"); break;
+          case "bold": exec("bold"); break;
+          case "italic": exec("italic"); break;
+          case "strike": exec("strikeThrough"); break;
+          case "heading": exec("formatBlock", "<h2>"); break;
+          case "bullet": exec("insertUnorderedList"); break;
+          case "numbered": exec("insertOrderedList"); break;
+          case "quote": exec("formatBlock", "<blockquote>"); break;
+          case "code": exec("insertHTML", `<code>${escapeHtml(String(window.getSelection()) || "code")}</code>`); break;
+          case "checklist": exec("insertHTML", '<ul><li class="notes-check"><input type="checkbox"><span>todo</span></li></ul>'); break;
+          case "link": exec("createLink", "https://"); break;
+          case "image": exec("insertHTML", '<img alt="alt" src="image-url">'); break;
+          case "table": exec("insertHTML", "<table><thead><tr><th>Col 1</th><th>Col 2</th></tr></thead><tbody><tr><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table><p></p>"); break;
+        }
+        scheduleVisualSync();
+        return;
+      }
       if (action === "undo" || action === "redo") {
         textArea.focus();
         document.execCommand(action);
@@ -10222,6 +10514,5 @@ function setupNotesPanel() {
   setNotesEnabled(localStorage.getItem("latexStudioNotesEnabled") !== "false", { persist: false });
   setNotesOpen(localStorage.getItem("latexStudioNotesOpen") === "true", { persist: false });
   setNotesMode(localStorage.getItem("latexStudioNotesMode") === "draw" ? "draw" : "text", { persist: false });
-  setEraser(false);
   loadNotesForActiveProject();
 }
