@@ -4341,6 +4341,7 @@ function wireEvents() {
   });
   setupFileSplitter();
   setupSplitter();
+  setupNotesPanel();
   setupTerminalResize();
   setupTerminalTabsResize();
   setupCompileLogResize();
@@ -6588,6 +6589,7 @@ async function openProject(projectId) {
   setCompileLogCollapsed(true, { persist: false });
   await loadManuscript(projectId);
   await loadProjectFiles();
+  if (typeof loadNotesForActiveProject === "function") loadNotesForActiveProject();
   startExternalSourcePolling();
 }
 
@@ -9876,4 +9878,221 @@ function leadingWhitespaceLength(value) {
 function trailingWhitespaceLength(value) {
   const match = value.match(/\s*$/);
   return match ? match[0].length : 0;
+}
+
+var loadNotesForActiveProject;
+
+function setupNotesPanel() {
+  const shell = document.querySelector(".pdf-viewer-shell");
+  const panel = document.getElementById("notesPanel");
+  if (!shell || !panel) return;
+  const railButton = document.getElementById("notesRailButton");
+  const collapseButton = document.getElementById("notesCollapseButton");
+  const fullscreenButton = document.getElementById("notesFullscreenButton");
+  const clearButton = document.getElementById("notesClearButton");
+  const modeTextButton = document.getElementById("notesModeTextButton");
+  const modeDrawButton = document.getElementById("notesModeDrawButton");
+  const textArea = document.getElementById("notesText");
+  const canvasWrap = document.getElementById("notesCanvasWrap");
+  const canvas = document.getElementById("notesCanvas");
+  const penButton = document.getElementById("notesPenButton");
+  const eraserButton = document.getElementById("notesEraserButton");
+  const settingsToggle = document.getElementById("settingsNotesToggle");
+  const ctx = canvas.getContext("2d");
+
+  let erasing = false;
+  let drawingPointer = null;
+  let lastPoint = null;
+  let pendingDrawData = null;
+  let textSaveTimer = null;
+  let drawSaveTimer = null;
+
+  const notesKey = (kind) => `latexStudioNotes${kind}:${(activeProject && activeProject.id) || "global"}`;
+  const isDrawMode = () => !canvasWrap.hidden;
+
+  function canvasCssSize() {
+    const rect = canvas.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  }
+
+  function syncCanvasSize() {
+    if (canvasWrap.hidden || !shell.classList.contains("notes-open")) return;
+    const { width, height } = canvasCssSize();
+    if (width < 2 || height < 2) return;
+    const dpr = window.devicePixelRatio || 1;
+    const nextWidth = Math.round(width * dpr);
+    const nextHeight = Math.round(height * dpr);
+    if (canvas.width === nextWidth && canvas.height === nextHeight) return;
+    const snapshot = document.createElement("canvas");
+    snapshot.width = canvas.width;
+    snapshot.height = canvas.height;
+    if (canvas.width && canvas.height) snapshot.getContext("2d").drawImage(canvas, 0, 0);
+    canvas.width = nextWidth;
+    canvas.height = nextHeight;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    if (snapshot.width && snapshot.height) {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(snapshot, 0, 0, width, height);
+    }
+    restorePendingDrawing();
+  }
+
+  function restorePendingDrawing() {
+    if (!pendingDrawData || canvasWrap.hidden || !shell.classList.contains("notes-open")) return;
+    const { width, height } = canvasCssSize();
+    if (width < 2 || height < 2) return;
+    const data = pendingDrawData;
+    pendingDrawData = null;
+    const image = new Image();
+    image.onload = () => {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(image, 0, 0, width, height);
+    };
+    image.src = data;
+  }
+
+  function scheduleTextSave() {
+    clearTimeout(textSaveTimer);
+    textSaveTimer = setTimeout(() => localStorage.setItem(notesKey("Text"), textArea.value), 350);
+  }
+
+  function scheduleDrawSave() {
+    clearTimeout(drawSaveTimer);
+    drawSaveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(notesKey("Draw"), canvas.toDataURL("image/png"));
+      } catch (error) {
+        // Storage full or canvas unreadable; drawing stays in memory only.
+      }
+    }, 600);
+  }
+
+  function setNotesOpen(open, { persist = true } = {}) {
+    shell.classList.toggle("notes-open", open);
+    if (persist) localStorage.setItem("latexStudioNotesOpen", String(open));
+    if (!open) setNotesFullscreen(false);
+    if (open) requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
+    requestAnimationFrame(() => renderPdf({ showLoading: false }));
+  }
+
+  function setNotesMode(mode, { persist = true } = {}) {
+    const draw = mode === "draw";
+    modeTextButton.classList.toggle("active", !draw);
+    modeDrawButton.classList.toggle("active", draw);
+    textArea.hidden = draw;
+    canvasWrap.hidden = !draw;
+    if (persist) localStorage.setItem("latexStudioNotesMode", draw ? "draw" : "text");
+    if (draw) requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
+  }
+
+  function setNotesFullscreen(on) {
+    panel.classList.toggle("notes-fullscreen", on);
+    fullscreenButton.setAttribute("aria-pressed", String(on));
+    fullscreenButton.title = on ? "Exit fullscreen notes" : "Fullscreen notes";
+    // Ancestor backdrop-filters trap position: fixed, so fullscreen lives on <body>.
+    if (on && panel.parentElement !== document.body) document.body.appendChild(panel);
+    if (!on && panel.parentElement !== shell) shell.appendChild(panel);
+    requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
+  }
+
+  function setNotesEnabled(enabled, { persist = true } = {}) {
+    shell.classList.toggle("notes-off", !enabled);
+    if (!enabled) setNotesFullscreen(false);
+    if (settingsToggle) settingsToggle.checked = enabled;
+    if (persist) localStorage.setItem("latexStudioNotesEnabled", String(enabled));
+  }
+
+  function setEraser(on) {
+    erasing = on;
+    penButton.classList.toggle("active", !on);
+    eraserButton.classList.toggle("active", on);
+  }
+
+  function pointFromEvent(event) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  canvas.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    drawingPointer = event.pointerId;
+    canvas.setPointerCapture(event.pointerId);
+    lastPoint = pointFromEvent(event);
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    if (drawingPointer !== event.pointerId || !lastPoint) return;
+    const next = pointFromEvent(event);
+    ctx.globalCompositeOperation = erasing ? "destination-out" : "source-over";
+    ctx.strokeStyle = "#111827";
+    ctx.lineWidth = erasing ? 26 : 2.4;
+    ctx.beginPath();
+    ctx.moveTo(lastPoint.x, lastPoint.y);
+    ctx.lineTo(next.x, next.y);
+    ctx.stroke();
+    lastPoint = next;
+    scheduleDrawSave();
+  });
+
+  const endStroke = (event) => {
+    if (drawingPointer !== event.pointerId) return;
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    drawingPointer = null;
+    lastPoint = null;
+    scheduleDrawSave();
+  };
+  canvas.addEventListener("pointerup", endStroke);
+  canvas.addEventListener("pointercancel", endStroke);
+
+  railButton.addEventListener("click", () => setNotesOpen(true));
+  collapseButton.addEventListener("click", () => setNotesOpen(false));
+  fullscreenButton.addEventListener("click", () => setNotesFullscreen(!panel.classList.contains("notes-fullscreen")));
+  modeTextButton.addEventListener("click", () => setNotesMode("text"));
+  modeDrawButton.addEventListener("click", () => setNotesMode("draw"));
+  penButton.addEventListener("click", () => setEraser(false));
+  eraserButton.addEventListener("click", () => setEraser(true));
+
+  clearButton.addEventListener("click", () => {
+    if (isDrawMode()) {
+      const { width, height } = canvasCssSize();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.clearRect(0, 0, width, height);
+      localStorage.removeItem(notesKey("Draw"));
+      pendingDrawData = null;
+    } else {
+      textArea.value = "";
+      localStorage.setItem(notesKey("Text"), "");
+    }
+  });
+
+  textArea.addEventListener("input", scheduleTextSave);
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && panel.classList.contains("notes-fullscreen")) setNotesFullscreen(false);
+  });
+  window.addEventListener("resize", () => requestAnimationFrame(syncCanvasSize));
+
+  if (settingsToggle) {
+    settingsToggle.addEventListener("change", () => setNotesEnabled(settingsToggle.checked));
+  }
+
+  loadNotesForActiveProject = () => {
+    clearTimeout(textSaveTimer);
+    clearTimeout(drawSaveTimer);
+    textArea.value = localStorage.getItem(notesKey("Text")) || "";
+    pendingDrawData = localStorage.getItem(notesKey("Draw")) || null;
+    const { width, height } = canvasCssSize();
+    ctx.globalCompositeOperation = "source-over";
+    if (width && height) ctx.clearRect(0, 0, width, height);
+    requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
+  };
+
+  setNotesEnabled(localStorage.getItem("latexStudioNotesEnabled") !== "false", { persist: false });
+  setNotesOpen(localStorage.getItem("latexStudioNotesOpen") === "true", { persist: false });
+  setNotesMode(localStorage.getItem("latexStudioNotesMode") === "draw" ? "draw" : "text", { persist: false });
+  setEraser(false);
+  loadNotesForActiveProject();
 }

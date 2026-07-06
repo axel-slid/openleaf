@@ -9890,3 +9890,206 @@ body.transparent-theme #compileLog {
   display: inline-flex !important;
   justify-content: center !important;
 }
+
+/* Notes panel: collapsible pad to the right of the PDF. */
+.pdf-viewer-shell {
+  grid-template-columns: 0 minmax(0, 1fr) 42px !important;
+}
+
+.pdf-viewer-shell.pdf-sidebar-visible {
+  grid-template-columns: 112px minmax(0, 1fr) 42px !important;
+}
+
+.pdf-viewer-shell.notes-open {
+  grid-template-columns: 0 minmax(0, 1fr) min(400px, 44vw) !important;
+}
+
+.pdf-viewer-shell.pdf-sidebar-visible.notes-open {
+  grid-template-columns: 112px minmax(0, 1fr) min(400px, 44vw) !important;
+}
+
+.pdf-viewer-shell.notes-off {
+  grid-template-columns: 0 minmax(0, 1fr) 0 !important;
+}
+
+.pdf-viewer-shell.pdf-sidebar-visible.notes-off {
+  grid-template-columns: 112px minmax(0, 1fr) 0 !important;
+}
+
+.pdf-viewer-shell.notes-off .notes-panel {
+  display: none !important;
+}
+
+.notes-panel {
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: grid;
+  grid-column: 3;
+  grid-row: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 21;
+}
+
+.notes-rail-open {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--muted);
+  display: flex;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  height: 100%;
+  inset: 0;
+  justify-content: center;
+  letter-spacing: 0.04em;
+  padding: 0;
+  position: absolute;
+  transform: rotate(180deg);
+  width: 100%;
+  writing-mode: vertical-rl;
+  z-index: 3;
+}
+
+.notes-rail-open:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.pdf-viewer-shell.notes-open .notes-rail-open {
+  display: none;
+}
+
+.notes-body {
+  display: none;
+}
+
+.pdf-viewer-shell.notes-open .notes-body {
+  display: grid;
+  grid-template-rows: 44px minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+.notes-header {
+  align-items: center;
+  background: var(--terminal-header-bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.notes-mode-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.notes-header-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 2px;
+}
+
+.notes-header-actions .icon-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.notes-header-actions .icon-button:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.notes-text {
+  background: var(--cm-bg);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--cm-text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.55;
+  min-height: 0;
+  outline: none;
+  padding: 12px;
+  resize: none;
+}
+
+.notes-canvas-wrap {
+  background: #ffffff;
+  min-height: 0;
+  position: relative;
+}
+
+#notesCanvas {
+  cursor: crosshair;
+  display: block;
+  height: 100%;
+  touch-action: none;
+  width: 100%;
+}
+
+.notes-draw-tools {
+  display: flex;
+  gap: 6px;
+  left: 10px;
+  position: absolute;
+  top: 10px;
+}
+
+.notes-draw-tools button {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(17, 24, 39, 0.35);
+  border-radius: 999px;
+  box-shadow: none;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  height: 26px;
+  padding: 0 12px;
+}
+
+.notes-draw-tools button.active {
+  background: #111827;
+  border-color: #111827;
+  color: #ffffff;
+}
+
+.notes-panel.notes-fullscreen {
+  border: 1px solid var(--border);
+  border-radius: 0;
+  inset: 42px 0 0 0;
+  position: fixed !important;
+  z-index: 96;
+}
+
+.notes-header-actions .icon-button .icon {
+  flex: 0 0 auto !important;
+  height: 16px !important;
+  width: 16px !important;
+}
+
+.notes-panel.notes-fullscreen .notes-body {
+  display: grid;
+  grid-template-rows: 44px minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+.notes-panel.notes-fullscreen .notes-rail-open {
+  display: none;
+}

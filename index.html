@@ -434,6 +434,45 @@
               <div id="pdfThumbnailList" class="pdf-thumbnail-list" aria-label="PDF page thumbnails"></div>
             </aside>
             <div id="pdfViewer" class="pdf-viewer" aria-label="Compiled manuscript pages"></div>
+            <aside id="notesPanel" class="notes-panel">
+              <button id="notesRailButton" class="notes-rail-open" type="button" title="Open notes">Notes</button>
+              <div class="notes-body">
+                <header class="notes-header">
+                  <div class="notes-mode-actions" role="group" aria-label="Notes mode">
+                    <button id="notesModeTextButton" class="mode-button active" type="button">Notes</button>
+                    <button id="notesModeDrawButton" class="mode-button" type="button">Draw</button>
+                  </div>
+                  <div class="notes-header-actions">
+                    <button id="notesClearButton" class="icon-button" type="button" aria-label="Clear notes" title="Clear">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path>
+                      </svg>
+                    </button>
+                    <button id="notesFullscreenButton" class="icon-button" type="button" aria-label="Fullscreen notes" title="Fullscreen notes" aria-pressed="false">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+                        <path d="M16 3h3a2 2 0 0 1 2 2v3"></path>
+                        <path d="M8 21H5a2 2 0 0 1-2-2v-3"></path>
+                        <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+                      </svg>
+                    </button>
+                    <button id="notesCollapseButton" class="icon-button" type="button" aria-label="Collapse notes" title="Collapse notes">
+                      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m9 6 6 6-6 6"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </header>
+                <textarea id="notesText" class="notes-text" spellcheck="false" placeholder="Notes, outlines, markdown - anything."></textarea>
+                <div id="notesCanvasWrap" class="notes-canvas-wrap" hidden>
+                  <canvas id="notesCanvas"></canvas>
+                  <div class="notes-draw-tools">
+                    <button id="notesPenButton" class="active" type="button">Pen</button>
+                    <button id="notesEraserButton" type="button">Eraser</button>
+                  </div>
+                </div>
+              </div>
+            </aside>
           </div>
           <aside id="historyPanel" class="history-panel" hidden>
             <header>
@@ -875,6 +914,10 @@
             <label class="setting-row">
               <span>Relative line numbers</span>
               <input id="settingsRelativeLineNumbersToggle" type="checkbox">
+            </label>
+            <label class="setting-row">
+              <span>Notes panel</span>
+              <input id="settingsNotesToggle" type="checkbox">
             </label>
             <div class="shortcut-list">
               <div><span>Save</span><kbd>Cmd/Ctrl</kbd><kbd>S</kbd></div>
