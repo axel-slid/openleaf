@@ -10125,9 +10125,10 @@ function setupTooltips() {
 
   const show = (target) => {
     if (!document.contains(target)) return;
+    const rect = target.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
     tip.textContent = target.dataset.tip;
     tip.hidden = false;
-    const rect = target.getBoundingClientRect();
     const tipRect = tip.getBoundingClientRect();
     let x = rect.left + rect.width / 2 - tipRect.width / 2;
     x = Math.max(8, Math.min(x, window.innerWidth - tipRect.width - 8));

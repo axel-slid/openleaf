@@ -10745,6 +10745,7 @@ body.is-resizing-notes .notes-resize-handle::before {
 /* Custom tooltip overlay: instant, theme-aware, replaces native titles. */
 #appTooltip {
   background: color-mix(in srgb, var(--text) 92%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--bg) 45%, var(--text));
   border-radius: 7px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
   color: var(--bg);
@@ -10805,4 +10806,32 @@ body.is-resizing-notes .notes-resize-handle::before {
 .compile-pill.stale {
   background: color-mix(in srgb, var(--accent) 22%, var(--panel)) !important;
   border-color: color-mix(in srgb, var(--accent) 60%, var(--border)) !important;
+}
+
+/* Compile pill sits flush after the PDF title on the left. */
+.preview-pane .pane-header {
+  justify-content: flex-start !important;
+}
+
+.preview-pane .pane-header .pdf-header-actions {
+  margin-left: auto !important;
+}
+
+/* Template previews follow dark themes: dark card, inverted PDF thumbnails. */
+body[data-theme="dark"] .template-preview {
+  background: color-mix(in srgb, var(--panel) 86%, var(--bg)) !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+
+body[data-theme="dark"] .template-preview img {
+  filter: var(--pdf-dark-filter);
+}
+
+body[data-theme="dark"] .template-preview .template-heading,
+body[data-theme="dark"] .template-preview .template-line,
+body[data-theme="dark"] .template-preview .template-problem,
+body[data-theme="dark"] .template-preview .template-equation {
+  background: color-mix(in srgb, var(--text) 34%, transparent) !important;
+  border-color: transparent !important;
 }
