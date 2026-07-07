@@ -15,9 +15,15 @@ archive or clone the repository and run the Electron app locally.
 To install Openleaf as a normal macOS application with its Dock icon:
 
 ```bash
-env PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" npm install -g github:axel-slid/openleaf
-env PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" openleaf install
-env PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" openleaf open
+curl -fsSL https://alex-dils.com/openleaf/install.sh | bash
+```
+
+Prefer npm directly?
+
+```bash
+npm install -g github:axel-slid/openleaf
+openleaf install
+openleaf open
 ```
 
 The installer checks for `tectonic`, `latexmk`, or `pdflatex`. If none are
