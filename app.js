@@ -4128,7 +4128,7 @@ function renderTextTabs() {
       ${fileIconMarkup(tab.file || { name: tab.name, relativePath: tab.relativePath, kind: "file" })}
       <span class="text-tab-name">${escapeHtml(tab.name)}</span>
       <span class="text-tab-dirty" aria-hidden="true">${tab.dirty ? "•" : ""}</span>
-      <span class="text-tab-close" role="button" aria-label="Close ${escapeHtml(tab.name)}">${CLOSE_ICON_SVG}</span>
+      <span class="text-tab-close" role="button" aria-label="Close ${escapeHtml(tab.name)}" title="Close ${escapeHtml(tab.name)}">${CLOSE_ICON_SVG}</span>
       <span class="text-tab-curve text-tab-curve-left" aria-hidden="true"></span>
       <span class="text-tab-curve text-tab-curve-right" aria-hidden="true"></span>
     `;
@@ -5664,7 +5664,7 @@ function renderTerminalTabs() {
     button.innerHTML = `
       <span class="terminal-tab-kind terminal-tab-kind-${escapeHtml(session.kind)}" aria-hidden="true">${terminalKindIcon(session.kind)}</span>
       <span class="terminal-tab-title">${escapeHtml(session.title)}</span>
-      <span class="terminal-tab-close" role="button" aria-label="Close terminal">${CLOSE_ICON_SVG}</span>
+      <span class="terminal-tab-close" role="button" aria-label="Close terminal" title="Close terminal">${CLOSE_ICON_SVG}</span>
     `;
     button.addEventListener("click", () => activateTerminal(session.id));
     button.addEventListener("dragstart", (event) => {
@@ -9659,11 +9659,18 @@ function setupSplitter() {
     renderPdf({ showLoading: false });
   };
 
+  const notesColumnWidth = () => {
+    const notesPanel = document.getElementById("notesPanel");
+    if (!notesPanel || notesPanel.classList.contains("notes-off") || notesPanel.parentElement !== workspace) return 0;
+    return notesPanel.getBoundingClientRect().width;
+  };
+
   const resize = (event) => {
     const bounds = workspace.getBoundingClientRect();
     const fileWidth = workspace.classList.contains("files-hidden")
       ? fileRail.getBoundingClientRect().width
       : filePane.getBoundingClientRect().width + fileSplitter.offsetWidth;
+    const notesWidth = notesColumnWidth();
     const nextWidth = dragStartWidth + event.clientX - dragStartX;
     if (nextWidth < SOURCE_COLLAPSE_THRESHOLD) {
       setSourceCollapsed(true);
@@ -9672,7 +9679,7 @@ function setupSplitter() {
     }
 
     const minLeft = MIN_EDITOR_WIDTH;
-    const rightWidth = bounds.width - fileWidth - nextWidth - splitter.offsetWidth;
+    const rightWidth = bounds.width - fileWidth - notesWidth - nextWidth - splitter.offsetWidth;
     if (rightWidth < PDF_COLLAPSE_THRESHOLD) {
       setPdfCollapsed(true);
       stopDragging(event);
@@ -9681,7 +9688,7 @@ function setupSplitter() {
 
     if (workspace.classList.contains("pdf-hidden")) setPdfCollapsed(false);
     const minRight = Math.min(760, Math.max(getPdfMinimumWidth(), bounds.width * 0.28));
-    const maxLeft = Math.max(minLeft, bounds.width - fileWidth - minRight - splitter.offsetWidth);
+    const maxLeft = Math.max(minLeft, bounds.width - fileWidth - notesWidth - minRight - splitter.offsetWidth);
     const clamped = Math.min(maxLeft, Math.max(minLeft, nextWidth));
     workspace.style.setProperty("--editor-width", `${clamped}px`);
   };
@@ -10096,7 +10103,34 @@ function setupNotesPanel() {
   let strokes = [];
   let activeStroke = null;
   let baseImage = null;
+  let drawUndoStack = [];
+  let drawRedoStack = [];
+  const pendingErase = new Set();
   const boardDpr = () => window.devicePixelRatio || 1;
+
+  function pushDrawHistory() {
+    drawUndoStack.push(strokes.slice());
+    if (drawUndoStack.length > 60) drawUndoStack.shift();
+    drawRedoStack = [];
+  }
+
+  function undoDraw() {
+    if (!drawUndoStack.length) return;
+    drawRedoStack.push(strokes.slice());
+    strokes = drawUndoStack.pop();
+    pendingErase.clear();
+    redrawBoard();
+    scheduleDrawSave();
+  }
+
+  function redoDraw() {
+    if (!drawRedoStack.length) return;
+    drawUndoStack.push(strokes.slice());
+    strokes = drawRedoStack.pop();
+    pendingErase.clear();
+    redrawBoard();
+    scheduleDrawSave();
+  }
 
   function applyStrokeStyle(target, stroke) {
     target.globalAlpha = stroke.tool === "highlighter" ? 0.35 : 1;
@@ -10109,6 +10143,10 @@ function setupNotesPanel() {
 
   function drawStroke(target, stroke) {
     applyStrokeStyle(target, stroke);
+    if (pendingErase.has(stroke)) {
+      target.strokeStyle = "#9ca3af";
+      target.globalAlpha = 0.45;
+    }
     target.beginPath();
     if (stroke.points) {
       const points = stroke.points;
@@ -10228,13 +10266,24 @@ function setupNotesPanel() {
     return false;
   }
 
-  function eraseAt(point) {
-    const remaining = strokes.filter((stroke) => !strokeHit(stroke, point, 12));
-    if (remaining.length !== strokes.length) {
-      strokes = remaining;
-      redrawBoard();
-      scheduleDrawSave();
-    }
+  function markEraseAt(point) {
+    let changed = false;
+    strokes.forEach((stroke) => {
+      if (!pendingErase.has(stroke) && strokeHit(stroke, point, 12)) {
+        pendingErase.add(stroke);
+        changed = true;
+      }
+    });
+    if (changed) redrawBoard();
+  }
+
+  function commitErase() {
+    if (!pendingErase.size) return;
+    pushDrawHistory();
+    strokes = strokes.filter((stroke) => !pendingErase.has(stroke));
+    pendingErase.clear();
+    redrawBoard();
+    scheduleDrawSave();
   }
 
   function scheduleTextSave() {
@@ -10394,7 +10443,8 @@ function setupNotesPanel() {
     const point = pointFromEvent(event);
     lastPoint = point;
     if (drawTool === "eraser") {
-      eraseAt(point);
+      pendingErase.clear();
+      markEraseAt(point);
       return;
     }
     if (isShapeTool()) {
@@ -10409,7 +10459,7 @@ function setupNotesPanel() {
     if (drawingPointer !== event.pointerId || !lastPoint) return;
     const next = pointFromEvent(event);
     if (drawTool === "eraser") {
-      eraseAt(next);
+      markEraseAt(next);
       lastPoint = next;
       return;
     }
@@ -10433,7 +10483,16 @@ function setupNotesPanel() {
   const endStroke = (event) => {
     if (drawingPointer !== event.pointerId) return;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    if (drawTool === "eraser") {
+      if (event.type === "pointercancel") {
+        pendingErase.clear();
+        redrawBoard();
+      } else {
+        commitErase();
+      }
+    }
     if (activeStroke) {
+      pushDrawHistory();
       strokes.push(activeStroke);
       if (activeStroke.tool === "highlighter") redrawBoard();
       scheduleDrawSave();
@@ -10447,6 +10506,12 @@ function setupNotesPanel() {
   canvas.addEventListener("pointercancel", endStroke);
 
   drawToolsBar.addEventListener("click", (event) => {
+    const actionButton = event.target.closest("[data-notes-draw]");
+    if (actionButton) {
+      if (actionButton.dataset.notesDraw === "undo") undoDraw();
+      else if (actionButton.dataset.notesDraw === "redo") redoDraw();
+      return;
+    }
     const button = event.target.closest("button");
     if (button) selectDrawControl(button);
   });
@@ -10509,6 +10574,7 @@ function setupNotesPanel() {
 
   clearButton.addEventListener("click", () => {
     if (isDrawMode()) {
+      pushDrawHistory();
       strokes = [];
       baseImage = null;
       pendingDrawData = null;
@@ -10632,6 +10698,9 @@ function setupNotesPanel() {
       strokes = [];
     }
     baseImage = null;
+    drawUndoStack = [];
+    drawRedoStack = [];
+    pendingErase.clear();
     pendingDrawData = localStorage.getItem(notesKey("Draw")) || null;
     redrawBoard();
     requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });

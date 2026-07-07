@@ -10735,3 +10735,9 @@ body.is-resizing-notes .notes-resize-handle::before {
   justify-self: end;
   width: 42px !important;
 }
+
+/* Rail footer icons sit above the full-rail click target. */
+.file-rail-actions {
+  position: relative !important;
+  z-index: 5 !important;
+}
