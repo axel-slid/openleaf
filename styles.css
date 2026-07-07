@@ -10835,3 +10835,9 @@ body[data-theme="dark"] .template-preview .template-equation {
   background: color-mix(in srgb, var(--text) 34%, transparent) !important;
   border-color: transparent !important;
 }
+
+/* Title block hugs its content so the Compile pill sits immediately left. */
+.preview-pane .pane-header .pdf-title-block {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+}
