@@ -6,6 +6,7 @@ export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/
 
 say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
+main() {
 say "Installing Openleaf..."
 
 if ! command -v npm >/dev/null 2>&1; then
@@ -27,3 +28,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
 else
   say "Openleaf CLI installed. Start it with: openleaf dev"
 fi
+}
+
+# Running through main ensures a truncated download executes nothing.
+main "$@"
