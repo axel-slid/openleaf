@@ -10741,3 +10741,37 @@ body.is-resizing-notes .notes-resize-handle::before {
   position: relative !important;
   z-index: 5 !important;
 }
+
+/* Custom tooltip overlay: instant, theme-aware, replaces native titles. */
+#appTooltip {
+  background: color-mix(in srgb, var(--text) 92%, var(--bg));
+  border-radius: 7px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  color: var(--bg);
+  font: 600 11.5px/1.35 var(--sans);
+  letter-spacing: 0.01em;
+  max-width: 280px;
+  opacity: 0;
+  padding: 5px 9px;
+  pointer-events: none;
+  position: fixed;
+  transition: opacity 80ms ease;
+  z-index: 220;
+}
+
+#appTooltip.visible {
+  opacity: 1;
+}
+
+#appTooltip[hidden] {
+  display: none;
+}
+
+/* Refresh, settings, and help pin to the bottom of the Files banner. */
+.file-rail {
+  align-content: end !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+  padding-bottom: 10px !important;
+}

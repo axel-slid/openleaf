@@ -4342,6 +4342,7 @@ function wireEvents() {
   setupFileSplitter();
   setupSplitter();
   setupNotesPanel();
+  setupTooltips();
   setupTerminalResize();
   setupTerminalTabsResize();
   setupCompileLogResize();
@@ -10060,6 +10061,83 @@ function notesHtmlToMarkdown(root) {
   };
   walkBlocks(root);
   return blocks.join("\n\n");
+}
+
+function setupTooltips() {
+  const tip = document.createElement("div");
+  tip.id = "appTooltip";
+  tip.setAttribute("role", "tooltip");
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  let showTimer = null;
+  let currentTarget = null;
+
+  const adopt = (el) => {
+    if (el.hasAttribute("title")) {
+      const title = el.getAttribute("title");
+      if (title) el.dataset.tip = title;
+      el.removeAttribute("title");
+    }
+    if (!el.dataset.tip) {
+      const aria = el.getAttribute("aria-label");
+      if (aria && !(el.textContent || "").trim()) el.dataset.tip = aria;
+    }
+  };
+
+  const findTarget = (node) => {
+    let el = node instanceof Element ? node : null;
+    while (el && el !== document.body) {
+      adopt(el);
+      if (el.dataset.tip) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+
+  const hide = () => {
+    clearTimeout(showTimer);
+    showTimer = null;
+    currentTarget = null;
+    tip.hidden = true;
+    tip.classList.remove("visible");
+  };
+
+  const show = (target) => {
+    if (!document.contains(target)) return;
+    tip.textContent = target.dataset.tip;
+    tip.hidden = false;
+    const rect = target.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    let x = rect.left + rect.width / 2 - tipRect.width / 2;
+    x = Math.max(8, Math.min(x, window.innerWidth - tipRect.width - 8));
+    let y = rect.bottom + 8;
+    if (y + tipRect.height > window.innerHeight - 8) y = rect.top - tipRect.height - 8;
+    tip.style.left = `${Math.round(x)}px`;
+    tip.style.top = `${Math.round(y)}px`;
+    tip.classList.add("visible");
+  };
+
+  document.addEventListener("mouseover", (event) => {
+    const target = findTarget(event.target);
+    if (!target) {
+      hide();
+      return;
+    }
+    if (target === currentTarget) return;
+    clearTimeout(showTimer);
+    currentTarget = target;
+    showTimer = setTimeout(() => show(target), 110);
+  }, true);
+
+  document.addEventListener("mouseout", (event) => {
+    if (!currentTarget || !(event.target instanceof Element) || !currentTarget.contains(event.target)) return;
+    const next = event.relatedTarget;
+    if (!next || !(next instanceof Element) || !currentTarget.contains(next)) hide();
+  }, true);
+
+  ["mousedown", "wheel", "keydown"].forEach((type) => window.addEventListener(type, hide, true));
+  window.addEventListener("scroll", hide, true);
+  window.addEventListener("blur", () => hide());
 }
 
 function setupNotesPanel() {
