@@ -10078,7 +10078,6 @@ function setupNotesPanel() {
   let drawSize = 3.5;
   let drawingPointer = null;
   let lastPoint = null;
-  let strokeStart = null;
   let shapeSnapshot = null;
   let notesPreviewOn = false;
   let notesPdfRerenderTimer = null;
@@ -10094,43 +10093,59 @@ function setupNotesPanel() {
     return { width: rect.width, height: rect.height };
   }
 
-  const board = document.createElement("canvas");
-  const boardCtx = board.getContext("2d");
+  let strokes = [];
+  let activeStroke = null;
+  let baseImage = null;
   const boardDpr = () => window.devicePixelRatio || 1;
 
-  function ensureBoardSize(cssWidth, cssHeight) {
-    const dpr = boardDpr();
-    const needWidth = Math.max(board.width, Math.round(cssWidth * dpr));
-    const needHeight = Math.max(board.height, Math.round(cssHeight * dpr));
-    if (needWidth === board.width && needHeight === board.height) {
-      boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      return;
-    }
-    const copy = document.createElement("canvas");
-    copy.width = board.width;
-    copy.height = board.height;
-    if (board.width && board.height) copy.getContext("2d").drawImage(board, 0, 0);
-    board.width = needWidth;
-    board.height = needHeight;
-    boardCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    boardCtx.lineCap = "round";
-    boardCtx.lineJoin = "round";
-    if (copy.width && copy.height) {
-      boardCtx.save();
-      boardCtx.setTransform(1, 0, 0, 1, 0, 0);
-      boardCtx.globalCompositeOperation = "source-over";
-      boardCtx.drawImage(copy, 0, 0);
-      boardCtx.restore();
-    }
+  function applyStrokeStyle(target, stroke) {
+    target.globalAlpha = stroke.tool === "highlighter" ? 0.35 : 1;
+    target.globalCompositeOperation = "source-over";
+    target.strokeStyle = stroke.color;
+    target.lineWidth = stroke.tool === "highlighter" ? stroke.size * 4 : stroke.size;
+    target.lineCap = "round";
+    target.lineJoin = "round";
   }
 
-  function repaintViewFromBoard() {
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  function drawStroke(target, stroke) {
+    applyStrokeStyle(target, stroke);
+    target.beginPath();
+    if (stroke.points) {
+      const points = stroke.points;
+      if (!points.length) return;
+      target.moveTo(points[0].x, points[0].y);
+      if (points.length === 1) target.lineTo(points[0].x + 0.01, points[0].y);
+      for (let i = 1; i < points.length; i += 1) target.lineTo(points[i].x, points[i].y);
+    } else if (stroke.tool === "line" || stroke.tool === "arrow") {
+      target.moveTo(stroke.from.x, stroke.from.y);
+      target.lineTo(stroke.to.x, stroke.to.y);
+      if (stroke.tool === "arrow") {
+        const angle = Math.atan2(stroke.to.y - stroke.from.y, stroke.to.x - stroke.from.x);
+        const head = 10 + stroke.size * 2;
+        target.moveTo(stroke.to.x, stroke.to.y);
+        target.lineTo(stroke.to.x - head * Math.cos(angle - Math.PI / 6), stroke.to.y - head * Math.sin(angle - Math.PI / 6));
+        target.moveTo(stroke.to.x, stroke.to.y);
+        target.lineTo(stroke.to.x - head * Math.cos(angle + Math.PI / 6), stroke.to.y - head * Math.sin(angle + Math.PI / 6));
+      }
+    } else if (stroke.tool === "rect") {
+      target.rect(Math.min(stroke.from.x, stroke.to.x), Math.min(stroke.from.y, stroke.to.y), Math.abs(stroke.to.x - stroke.from.x), Math.abs(stroke.to.y - stroke.from.y));
+    } else if (stroke.tool === "ellipse") {
+      target.ellipse((stroke.from.x + stroke.to.x) / 2, (stroke.from.y + stroke.to.y) / 2, Math.abs(stroke.to.x - stroke.from.x) / 2, Math.abs(stroke.to.y - stroke.from.y) / 2, 0, 0, Math.PI * 2);
+    }
+    target.stroke();
+    target.globalAlpha = 1;
+  }
+
+  function redrawBoard() {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
     ctx.globalCompositeOperation = "source-over";
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (board.width && board.height) ctx.drawImage(board, 0, 0);
-    ctx.restore();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    if (baseImage) {
+      const dpr = boardDpr();
+      ctx.drawImage(baseImage, 0, 0, baseImage.width / dpr, baseImage.height / dpr);
+    }
+    strokes.forEach((stroke) => drawStroke(ctx, stroke));
   }
 
   function syncCanvasSize() {
@@ -10140,37 +10155,86 @@ function setupNotesPanel() {
     const dpr = boardDpr();
     const nextWidth = Math.round(width * dpr);
     const nextHeight = Math.round(height * dpr);
-    ensureBoardSize(width, height);
     if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
       canvas.width = nextWidth;
       canvas.height = nextHeight;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
     }
-    repaintViewFromBoard();
-    restorePendingDrawing();
+    redrawBoard();
   }
 
   function restorePendingDrawing() {
-    if (!pendingDrawData || canvasWrap.hidden || !panel.classList.contains("notes-open")) return;
-    const { width, height } = canvasCssSize();
-    if (width < 2 || height < 2) return;
+    if (!pendingDrawData) {
+      return;
+    }
     const data = pendingDrawData;
     pendingDrawData = null;
     const image = new Image();
     image.onload = () => {
-      const dpr = boardDpr();
-      ensureBoardSize(Math.max(width, image.width / dpr), Math.max(height, image.height / dpr));
-      boardCtx.save();
-      boardCtx.setTransform(1, 0, 0, 1, 0, 0);
-      boardCtx.globalCompositeOperation = "source-over";
-      boardCtx.clearRect(0, 0, board.width, board.height);
-      boardCtx.drawImage(image, 0, 0);
-      boardCtx.restore();
-      repaintViewFromBoard();
+      baseImage = image;
+      redrawBoard();
     };
     image.src = data;
+  }
+
+  function distanceToSegment(point, a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lengthSq = dx * dx + dy * dy;
+    if (!lengthSq) return Math.hypot(point.x - a.x, point.y - a.y);
+    let t = ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSq;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
+  }
+
+  function strokeHit(stroke, point, radius) {
+    const reach = radius + (stroke.tool === "highlighter" ? stroke.size * 2 : stroke.size / 2);
+    if (stroke.points) {
+      const points = stroke.points;
+      if (points.length === 1) return Math.hypot(point.x - points[0].x, point.y - points[0].y) <= reach;
+      for (let i = 1; i < points.length; i += 1) {
+        if (distanceToSegment(point, points[i - 1], points[i]) <= reach) return true;
+      }
+      return false;
+    }
+    if (stroke.tool === "line" || stroke.tool === "arrow") {
+      return distanceToSegment(point, stroke.from, stroke.to) <= reach;
+    }
+    if (stroke.tool === "rect") {
+      const x1 = Math.min(stroke.from.x, stroke.to.x);
+      const x2 = Math.max(stroke.from.x, stroke.to.x);
+      const y1 = Math.min(stroke.from.y, stroke.to.y);
+      const y2 = Math.max(stroke.from.y, stroke.to.y);
+      const corners = [{ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 }];
+      for (let i = 0; i < 4; i += 1) {
+        if (distanceToSegment(point, corners[i], corners[(i + 1) % 4]) <= reach) return true;
+      }
+      return false;
+    }
+    if (stroke.tool === "ellipse") {
+      const cx = (stroke.from.x + stroke.to.x) / 2;
+      const cy = (stroke.from.y + stroke.to.y) / 2;
+      const rx = Math.max(1, Math.abs(stroke.to.x - stroke.from.x) / 2);
+      const ry = Math.max(1, Math.abs(stroke.to.y - stroke.from.y) / 2);
+      let prev = { x: cx + rx, y: cy };
+      for (let i = 1; i <= 32; i += 1) {
+        const angle = (i / 32) * Math.PI * 2;
+        const next = { x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) };
+        if (distanceToSegment(point, prev, next) <= reach) return true;
+        prev = next;
+      }
+      return false;
+    }
+    return false;
+  }
+
+  function eraseAt(point) {
+    const remaining = strokes.filter((stroke) => !strokeHit(stroke, point, 12));
+    if (remaining.length !== strokes.length) {
+      strokes = remaining;
+      redrawBoard();
+      scheduleDrawSave();
+    }
   }
 
   function scheduleTextSave() {
@@ -10182,11 +10246,11 @@ function setupNotesPanel() {
     clearTimeout(drawSaveTimer);
     drawSaveTimer = setTimeout(() => {
       try {
-        localStorage.setItem(notesKey("Draw"), board.toDataURL("image/png"));
+        localStorage.setItem(notesKey("Strokes"), JSON.stringify(strokes));
       } catch (error) {
-        // Storage full or canvas unreadable; drawing stays in memory only.
+        // Storage full; strokes stay in memory only.
       }
-    }, 600);
+    }, 500);
   }
 
   function setNotesOpen(open, { persist = true } = {}) {
@@ -10316,47 +10380,6 @@ function setupNotesPanel() {
     }
   }
 
-  function applyStrokeStyle(target) {
-    target.globalAlpha = drawTool === "highlighter" ? 0.35 : 1;
-    target.globalCompositeOperation = drawTool === "eraser" ? "destination-out" : "source-over";
-    target.strokeStyle = drawColor;
-    target.lineWidth = drawTool === "eraser" ? drawSize * 8 : drawTool === "highlighter" ? drawSize * 4 : drawSize;
-    target.lineCap = "round";
-    target.lineJoin = "round";
-  }
-
-  function strokeSegment(target, from, to) {
-    applyStrokeStyle(target);
-    target.beginPath();
-    target.moveTo(from.x, from.y);
-    target.lineTo(to.x, to.y);
-    target.stroke();
-    target.globalAlpha = 1;
-  }
-
-  function drawShape(target, from, to) {
-    applyStrokeStyle(target);
-    target.beginPath();
-    if (drawTool === "line" || drawTool === "arrow") {
-      target.moveTo(from.x, from.y);
-      target.lineTo(to.x, to.y);
-      if (drawTool === "arrow") {
-        const angle = Math.atan2(to.y - from.y, to.x - from.x);
-        const head = 10 + drawSize * 2;
-        target.moveTo(to.x, to.y);
-        target.lineTo(to.x - head * Math.cos(angle - Math.PI / 6), to.y - head * Math.sin(angle - Math.PI / 6));
-        target.moveTo(to.x, to.y);
-        target.lineTo(to.x - head * Math.cos(angle + Math.PI / 6), to.y - head * Math.sin(angle + Math.PI / 6));
-      }
-    } else if (drawTool === "rect") {
-      target.rect(Math.min(from.x, to.x), Math.min(from.y, to.y), Math.abs(to.x - from.x), Math.abs(to.y - from.y));
-    } else if (drawTool === "ellipse") {
-      target.ellipse((from.x + to.x) / 2, (from.y + to.y) / 2, Math.abs(to.x - from.x) / 2, Math.abs(to.y - from.y) / 2, 0, 0, Math.PI * 2);
-    }
-    target.stroke();
-    target.globalAlpha = 1;
-  }
-
   const isShapeTool = () => ["line", "arrow", "rect", "ellipse"].includes(drawTool);
 
   function pointFromEvent(event) {
@@ -10367,40 +10390,58 @@ function setupNotesPanel() {
   canvas.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
     drawingPointer = event.pointerId;
-    canvas.setPointerCapture(event.pointerId);
-    lastPoint = pointFromEvent(event);
-    strokeStart = lastPoint;
-    shapeSnapshot = isShapeTool() ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+    try { canvas.setPointerCapture(event.pointerId); } catch (error) { /* synthetic pointers */ }
+    const point = pointFromEvent(event);
+    lastPoint = point;
+    if (drawTool === "eraser") {
+      eraseAt(point);
+      return;
+    }
+    if (isShapeTool()) {
+      activeStroke = { tool: drawTool, color: drawColor, size: drawSize, from: point, to: point };
+      shapeSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    } else {
+      activeStroke = { tool: drawTool, color: drawColor, size: drawSize, points: [point] };
+    }
   });
 
   canvas.addEventListener("pointermove", (event) => {
     if (drawingPointer !== event.pointerId || !lastPoint) return;
     const next = pointFromEvent(event);
-    if (isShapeTool()) {
-      if (shapeSnapshot) ctx.putImageData(shapeSnapshot, 0, 0);
-      drawShape(ctx, strokeStart, next);
+    if (drawTool === "eraser") {
+      eraseAt(next);
       lastPoint = next;
-    } else {
-      strokeSegment(ctx, lastPoint, next);
-      strokeSegment(boardCtx, lastPoint, next);
-      lastPoint = next;
+      return;
     }
-    scheduleDrawSave();
+    if (!activeStroke) return;
+    if (isShapeTool()) {
+      activeStroke.to = next;
+      if (shapeSnapshot) ctx.putImageData(shapeSnapshot, 0, 0);
+      drawStroke(ctx, activeStroke);
+    } else {
+      applyStrokeStyle(ctx, activeStroke);
+      ctx.beginPath();
+      ctx.moveTo(lastPoint.x, lastPoint.y);
+      ctx.lineTo(next.x, next.y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      activeStroke.points.push(next);
+    }
+    lastPoint = next;
   });
 
   const endStroke = (event) => {
     if (drawingPointer !== event.pointerId) return;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-    if (isShapeTool() && strokeStart && lastPoint && (strokeStart.x !== lastPoint.x || strokeStart.y !== lastPoint.y)) {
-      drawShape(boardCtx, strokeStart, lastPoint);
+    if (activeStroke) {
+      strokes.push(activeStroke);
+      if (activeStroke.tool === "highlighter") redrawBoard();
+      scheduleDrawSave();
     }
+    activeStroke = null;
     drawingPointer = null;
     lastPoint = null;
-    strokeStart = null;
     shapeSnapshot = null;
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = "source-over";
-    scheduleDrawSave();
   };
   canvas.addEventListener("pointerup", endStroke);
   canvas.addEventListener("pointercancel", endStroke);
@@ -10468,14 +10509,12 @@ function setupNotesPanel() {
 
   clearButton.addEventListener("click", () => {
     if (isDrawMode()) {
-      boardCtx.save();
-      boardCtx.setTransform(1, 0, 0, 1, 0, 0);
-      boardCtx.globalCompositeOperation = "source-over";
-      boardCtx.clearRect(0, 0, board.width, board.height);
-      boardCtx.restore();
-      repaintViewFromBoard();
-      localStorage.removeItem(notesKey("Draw"));
+      strokes = [];
+      baseImage = null;
       pendingDrawData = null;
+      localStorage.removeItem(notesKey("Draw"));
+      localStorage.removeItem(notesKey("Strokes"));
+      redrawBoard();
     } else {
       textArea.value = "";
       localStorage.setItem(notesKey("Text"), "");
@@ -10587,10 +10626,14 @@ function setupNotesPanel() {
     setNotesOpen(false, { persist: false });
     textArea.value = localStorage.getItem(notesKey("Text")) || "";
     if (notesPreviewOn && canvasWrap.hidden) renderNotesPreview();
+    try {
+      strokes = JSON.parse(localStorage.getItem(notesKey("Strokes")) || "[]");
+    } catch (error) {
+      strokes = [];
+    }
+    baseImage = null;
     pendingDrawData = localStorage.getItem(notesKey("Draw")) || null;
-    board.width = 0;
-    board.height = 0;
-    repaintViewFromBoard();
+    redrawBoard();
     requestAnimationFrame(() => { syncCanvasSize(); restorePendingDrawing(); });
   };
 
