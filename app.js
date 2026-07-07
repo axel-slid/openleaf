@@ -4349,7 +4349,9 @@ function wireEvents() {
   setupFileOutlineResize();
   updateLogState();
 
+  autoCompileToggle.checked = localStorage.getItem("latexStudioAutoCompile") === "true";
   autoCompileToggle.addEventListener("change", () => {
+    localStorage.setItem("latexStudioAutoCompile", String(autoCompileToggle.checked));
     if (autoCompileToggle.checked) scheduleAutoCompile("Auto compile enabled");
     else {
       clearTimeout(autoCompileTimer);
@@ -6644,6 +6646,7 @@ async function loadManuscript(projectId = activeProject && activeProject.id) {
     await setPdf();
     setSaveState("Saved", "ok");
     setCompileState("PDF loaded", "ok");
+    setPdfStale(false);
     compileLog.textContent = `Loaded ${activeProject.name}.`;
   } catch (error) {
     setSaveState("Load failed", "error");
@@ -7519,6 +7522,7 @@ async function compileManuscript({ manual = false } = {}) {
         result.compileWarning ? "error" : "ok"
       );
       compileLog.textContent = result.output || "Compiled successfully.";
+      setPdfStale(Boolean(result.compileWarning));
       setBusy(false);
       setPdf({ preserveView: true }).catch((error) => {
         setCompileState("PDF render failed", "error");
@@ -7583,6 +7587,7 @@ async function compileManuscript({ manual = false } = {}) {
     setSaveState(`Saved ${timeStamp()}`, "ok");
     setCompileState(`${manual ? "Compiled" : "Auto compiled"} ${timeStamp()}`, "ok");
     compileLog.textContent = result.output.trim() || "Compiled successfully.";
+    setPdfStale(false);
   } catch (error) {
     setSaveState(getSourceText() === savedText ? "Saved" : "Unsaved changes");
     setCompileState("Compile failed", "error");
@@ -7809,6 +7814,7 @@ function handleSourceChanged({ renderVisual = false } = {}) {
   setSaveState(getSourceText() === savedText ? "Saved" : "Unsaved changes");
   if (renderVisual) renderVisualEditor();
   scheduleAutoSave();
+  setPdfStale(true);
   scheduleAutoCompile("Waiting for edits to settle...");
   scheduleHistoryCapture("Edited");
 }
@@ -7946,6 +7952,15 @@ function scheduleAutoSave() {
   autoSaveTimer = setTimeout(() => {
     saveManuscript({ auto: true });
   }, 450);
+}
+
+let pdfStale = false;
+
+function setPdfStale(stale) {
+  pdfStale = Boolean(stale);
+  if (!compileButton) return;
+  compileButton.classList.toggle("stale", pdfStale);
+  compileButton.dataset.tip = pdfStale ? "Compile PDF - out of date" : "Compile PDF - up to date";
 }
 
 function scheduleAutoCompile(message) {
@@ -10078,17 +10093,23 @@ function setupTooltips() {
       if (title) el.dataset.tip = title;
       el.removeAttribute("title");
     }
-    if (!el.dataset.tip) {
+    if (!el.dataset.tip && el.matches("button, [role=button], a, input, select")) {
       const aria = el.getAttribute("aria-label");
       if (aria && !(el.textContent || "").trim()) el.dataset.tip = aria;
     }
+  };
+
+  const hasVisibleLabel = (el) => {
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll(".visually-hidden, .refresh-glyph, .notes-md-glyph").forEach((node) => node.remove());
+    return /[A-Za-z0-9]/.test((clone.textContent || "").trim());
   };
 
   const findTarget = (node) => {
     let el = node instanceof Element ? node : null;
     while (el && el !== document.body) {
       adopt(el);
-      if (el.dataset.tip) return el;
+      if (el.dataset.tip && !hasVisibleLabel(el)) return el;
       el = el.parentElement;
     }
     return null;
@@ -10159,7 +10180,7 @@ function setupNotesPanel() {
   const ctx = canvas.getContext("2d");
 
   let drawTool = "pen";
-  let drawColor = "#111827";
+  let drawColor = "ink";
   let drawSize = 3.5;
   let drawingPointer = null;
   let lastPoint = null;
@@ -10210,10 +10231,16 @@ function setupNotesPanel() {
     scheduleDrawSave();
   }
 
+  function resolveDrawColor(color) {
+    if (color !== "ink") return color;
+    const themed = getComputedStyle(document.body).getPropertyValue("--cm-text").trim();
+    return themed || "#111827";
+  }
+
   function applyStrokeStyle(target, stroke) {
     target.globalAlpha = stroke.tool === "highlighter" ? 0.35 : 1;
     target.globalCompositeOperation = "source-over";
-    target.strokeStyle = stroke.color;
+    target.strokeStyle = resolveDrawColor(stroke.color);
     target.lineWidth = stroke.tool === "highlighter" ? stroke.size * 4 : stroke.size;
     target.lineCap = "round";
     target.lineJoin = "round";

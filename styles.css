@@ -10430,10 +10430,10 @@ body.is-resizing-notes .pdf-viewer-shell {
   transition: none !important;
 }
 
-/* Whiteboard: dot grid surface. */
+/* Whiteboard: theme-aware dot grid surface. */
 .notes-canvas-wrap {
-  background-color: #ffffff;
-  background-image: radial-gradient(circle, rgba(17, 24, 39, 0.16) 1.1px, transparent 1.6px);
+  background-color: var(--cm-bg);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--cm-text) 22%, transparent) 1.1px, transparent 1.6px);
   background-size: 18px 18px;
 }
 
@@ -10774,4 +10774,35 @@ body.is-resizing-notes .notes-resize-handle::before {
   flex-direction: column !important;
   justify-content: flex-end !important;
   padding-bottom: 10px !important;
+}
+
+/* Compile pill: matches the Code/Visual pill styling and shows PDF freshness. */
+.compile-pill {
+  align-items: center !important;
+  background: color-mix(in srgb, var(--panel) 60%, var(--bg)) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+  display: inline-flex !important;
+  font-family: var(--sans) !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  gap: 7px !important;
+  height: 30px !important;
+  padding: 0 14px !important;
+}
+
+.compile-pill:hover {
+  background: color-mix(in srgb, var(--text) 8%, var(--panel)) !important;
+}
+
+.compile-pill {
+  flex: 0 0 auto !important;
+  margin-left: 10px;
+}
+
+.compile-pill.stale {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel)) !important;
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border)) !important;
 }

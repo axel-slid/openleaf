@@ -356,6 +356,7 @@
               <p id="pdfMeta">main.pdf</p>
               <div id="pdfFileMenu" class="pdf-file-menu" hidden></div>
             </div>
+            <button id="compileButton" class="compile-pill" type="button" title="Compile PDF - up to date">Compile</button>
             <div class="pdf-header-actions">
               <button id="pdfSidebarButton" class="pdf-sidebar-button" type="button" aria-pressed="false" aria-label="Show PDF sidebar" title="Show PDF sidebar">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -370,13 +371,6 @@
                 </svg>
               </button>
               <div class="pdf-action-segment" aria-label="PDF actions">
-                <button id="compileButton" class="pdf-action-button" type="button" aria-label="Compile PDF" title="Compile PDF">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 3v4"></path>
-                    <path d="m9 6 3 3 3-3"></path>
-                    <path d="M5 12a7 7 0 0 0 14 0"></path>
-                  </svg>
-                </button>
                 <button id="openPdfButton" class="pdf-action-button" type="button" aria-label="Open PDF in system viewer" title="Open PDF in system viewer">
                   <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
@@ -627,7 +621,7 @@
                   </svg>
                 </button>
                 <span class="notes-tools-divider" aria-hidden="true"></span>
-                <button type="button" class="notes-color active" data-notes-color="#111827" style="--swatch: #111827" aria-label="Ink" title="Ink"></button>
+                <button type="button" class="notes-color active" data-notes-color="ink" style="--swatch: var(--text)" aria-label="Ink" title="Ink"></button>
                 <button type="button" class="notes-color" data-notes-color="#dc2626" style="--swatch: #dc2626" aria-label="Red" title="Red"></button>
                 <button type="button" class="notes-color" data-notes-color="#2563eb" style="--swatch: #2563eb" aria-label="Blue" title="Blue"></button>
                 <button type="button" class="notes-color" data-notes-color="#16a34a" style="--swatch: #16a34a" aria-label="Green" title="Green"></button>
@@ -944,7 +938,7 @@
             </label>
             <label class="setting-row">
               <span>Auto compile</span>
-              <input id="autoCompileToggle" type="checkbox" checked>
+              <input id="autoCompileToggle" type="checkbox">
             </label>
             <label class="setting-row">
               <span>Auto save</span>
