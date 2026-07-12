@@ -154,6 +154,8 @@ try {
     const filesRect = (workspace.classList.contains("files-hidden") ? fileRail : filePane).getBoundingClientRect();
     const workspaceRect = workspace.getBoundingClientRect();
     const handleStyle = getComputedStyle(terminalResizeHandle);
+    const sourceRail = getComputedStyle(sourcePane, "::after");
+    const previewRail = getComputedStyle(previewPane, "::after");
     const bannerRect = (sourcePane.classList.contains("terminal-collapsed")
       ? terminalCollapsedButton
       : terminalPanel.querySelector(".terminal-header")).getBoundingClientRect();
@@ -163,6 +165,8 @@ try {
       && Math.abs(terminalRect.right - notesRect.left) <= 2
       && Math.abs(filesRect.bottom - workspaceRect.bottom) <= 2
       && handleStyle.backgroundColor === "rgba(0, 0, 0, 0)"
+      && (sourceRail.display === "none" || sourceRail.content === "none")
+      && (previewRail.display === "none" || previewRail.content === "none")
       && Math.abs(bannerRect.top - terminalRect.top) <= 2;
   })()`);
 

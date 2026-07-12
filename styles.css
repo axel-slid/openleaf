@@ -12630,6 +12630,24 @@ body[data-theme="dark"] .github-field .settings-text-input {
   display: none !important;
 }
 
+/* The merged Python layout owns the sole collapsed Terminal rail. Do not
+   repaint the legacy source/log rails above it. */
+.workspace.python-terminal-wide .source-pane.terminal-collapsed::after,
+.workspace.python-terminal-wide .preview-pane.python-output-active::after,
+.workspace.python-terminal-wide .preview-pane.python-output-active.log-collapsed::after {
+  content: none !important;
+  display: none !important;
+}
+
+.workspace.python-terminal-wide .source-pane.python-file-active.terminal-collapsed {
+  grid-template-rows: 52px auto 30px minmax(0, 1fr) !important;
+}
+
+.workspace.python-terminal-wide .preview-pane.python-output-active,
+.workspace.python-terminal-wide .preview-pane.python-output-active.log-collapsed {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
 .history-document-preview {
   background: transparent !important;
   border: 0 !important;
