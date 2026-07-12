@@ -264,11 +264,18 @@
                 </svg>
               </button>
             </div>
+            <div id="pythonRuntimeControls" class="python-runtime-controls" hidden>
+              <span id="ipynbVimModeIndicator" class="vim-mode-indicator python-runtime-vim-indicator" data-vim-state="off" hidden></span>
+              <button id="pythonKernelButton" class="python-kernel-button" type="button" aria-haspopup="listbox" aria-expanded="false" title="Select Python kernel">
+                <span id="ipynbKernelLabel">Python</span>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
+              </button>
+            </div>
             <div class="source-mode-actions" aria-label="Editor mode">
               <button class="mode-button active" id="sourceModeButton" type="button" title="Edit LaTeX source">Code</button>
               <button class="mode-button" id="visualModeButton" type="button" title="Visual document editor">Visual</button>
-              <span id="vimModeIndicator" class="vim-mode-indicator" data-vim-state="off" hidden></span>
             </div>
+            <span id="vimModeIndicator" class="vim-mode-indicator" data-vim-state="off" hidden></span>
             <button id="editorFullscreenButton" class="icon-button editor-fullscreen-button" type="button" aria-label="Enter editor fullscreen" title="Enter editor fullscreen" aria-pressed="false">
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
@@ -279,8 +286,27 @@
             </button>
           </div>
           <div id="textTabs" class="text-tabs" aria-label="Open text files"></div>
+          <div id="pythonEditorToolbar" class="python-editor-toolbar" hidden>
+            <button id="pythonRunCellButton" type="button" aria-label="Run current Python cell" title="Run current cell (Shift+Enter)">Run Cell</button>
+            <span aria-hidden="true">|</span>
+            <button id="pythonRunAboveButton" type="button" aria-label="Run Python cells above" title="Run this cell and every cell above it">Run Above</button>
+            <span aria-hidden="true">|</span>
+            <button id="pythonDebugCellButton" type="button" aria-label="Debug current Python cell" title="Run current cell with Python tracing">Debug Cell</button>
+          </div>
           <div class="editor-stack">
             <textarea id="latexSource" spellcheck="false" aria-label="LaTeX source"></textarea>
+            <section id="ipynbNotebookEditor" class="ipynb-notebook-editor" aria-label="Jupyter notebook" hidden>
+              <header class="ipynb-toolbar">
+                <div class="ipynb-toolbar-actions" aria-label="Notebook actions">
+                  <button id="ipynbAddCellButton" type="button" title="Add code cell">+ Code</button>
+                  <button id="ipynbAddMarkdownButton" type="button" title="Add Markdown cell">+ Markdown</button>
+                  <span class="ipynb-toolbar-divider" aria-hidden="true"></span>
+                  <button id="ipynbRunAllButton" type="button" title="Run all notebook cells">▷ Run All</button>
+                  <button id="ipynbClearOutputsButton" type="button" title="Clear all notebook outputs">Clear All Outputs</button>
+                </div>
+              </header>
+              <div id="ipynbNotebookCells" class="ipynb-notebook-cells"></div>
+            </section>
             <div id="visualEditor" class="visual-editor" hidden></div>
             <div id="mediaViewer" class="media-viewer" hidden></div>
             <div id="sourceMinimap" class="source-minimap" aria-hidden="true">
@@ -350,7 +376,7 @@
         </div>
 
         <section class="preview-pane">
-          <div class="pane-header">
+          <div class="pane-header" id="previewPaneHeader">
             <div class="pdf-title-block">
               <h2 id="pdfTitle" title="Choose PDF">main.pdf</h2>
               <p id="pdfMeta">main.pdf</p>
@@ -423,22 +449,42 @@
               </button>
             </div>
           </div>
-          <div class="pdf-viewer-shell">
+          <div class="pdf-viewer-shell" id="pdfViewerShell">
             <aside id="pdfSidebar" class="pdf-sidebar" hidden>
               <div id="pdfThumbnailList" class="pdf-thumbnail-list" aria-label="PDF page thumbnails"></div>
             </aside>
             <div id="pdfViewer" class="pdf-viewer" aria-label="Compiled manuscript pages"></div>
 
           </div>
+          <section id="pythonNotebookPanel" class="python-notebook-panel" aria-label="Python notebook output" hidden>
+            <header class="python-notebook-header">
+              <div class="python-notebook-heading">
+                <div>
+                  <h2 id="pythonNotebookMeta">Connecting to Python…</h2>
+                </div>
+              </div>
+              <div class="python-notebook-actions">
+                <button id="pythonStopButton" type="button" title="Stop Python">Stop</button>
+                <button id="pythonClearButton" type="button" title="Clear outputs">Clear</button>
+              </div>
+            </header>
+            <div id="pythonNotebookFeed" class="python-notebook-feed" aria-live="polite"></div>
+            <footer class="python-notebook-footer" aria-label="Python scratch cell">
+              <button id="pythonScratchRunButton" class="python-scratch-run" type="button" aria-label="Run scratch cell" title="Run scratch cell">
+                <span aria-hidden="true">▷</span>
+              </button>
+              <textarea id="pythonScratchInput" rows="1" spellcheck="false" placeholder="Press Enter to execute."></textarea>
+            </footer>
+          </section>
           <aside id="historyPanel" class="history-panel" hidden>
             <header>
-              <button id="closeHistoryButton" class="history-back-button" type="button" aria-label="Back to PDF" title="Back to PDF">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M15 18 9 12l6-6"></path>
-                </svg>
-                <span>Back</span>
-              </button>
               <h3>History</h3>
+              <button id="closeHistoryButton" class="history-close-button" type="button" aria-label="Close history" title="Close history">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 6 12 12"></path>
+                  <path d="m18 6-12 12"></path>
+                </svg>
+              </button>
             </header>
             <div id="historyPanelBody" class="history-panel-body"></div>
           </aside>
@@ -789,9 +835,8 @@
         </button>
         <div class="settings-nav-group">
           <span class="settings-nav-label">General</span>
-          <button class="settings-nav-button" type="button" data-settings-section="appearance">Appearance</button>
           <button class="settings-nav-button active" type="button" data-settings-section="workspace">Workspace</button>
-          <button class="settings-nav-button" type="button" data-settings-section="shortcuts">Keyboard</button>
+          <button class="settings-nav-button" type="button" data-settings-section="appearance">Appearance</button>
         </div>
         <div class="settings-nav-group settings-nav-project-group">
           <span class="settings-nav-label">Project</span>
@@ -816,7 +861,7 @@
         <div class="settings-content">
           <p id="settingsSearchEmpty" class="settings-search-empty" hidden>No settings found.</p>
           <section class="settings-section" data-settings-panel="appearance">
-            <label class="setting-row">
+            <label class="setting-row theme-preset-select-row">
               <span>Theme preset</span>
               <select id="settingsThemePreset">
                 <option value="custom">Custom</option>
@@ -842,11 +887,21 @@
                   <option value="light-forest-hc">Forest Contrast</option>
                   <option value="light-violet-hc">Violet Contrast Light</option>
                   <option value="light-slate-hc">Slate Contrast</option>
+                  <option value="cobalt-paper-hc">Cobalt Paper</option>
+                  <option value="mint-paper-hc">Mint Paper</option>
+                  <option value="plum-paper-hc">Plum Paper</option>
+                  <option value="coral-paper-hc">Coral Paper</option>
+                  <option value="teal-paper-hc">Teal Paper</option>
+                  <option value="gold-paper-hc">Gold Paper</option>
                 </optgroup>
                 <optgroup label="Transparent">
                   <option value="glass-light">Glass Light</option>
                   <option value="glass-dark">Glass Dark</option>
                   <option value="glass-mocha">Glass Mocha</option>
+                  <option value="glass-ocean">Glass Ocean</option>
+                  <option value="glass-violet">Glass Violet</option>
+                  <option value="glass-forest">Glass Forest</option>
+                  <option value="glass-amber">Glass Amber</option>
                 </optgroup>
                 <optgroup label="Gradient">
                   <option value="prism-light">Prism Light</option>
@@ -890,6 +945,8 @@
                 </optgroup>
               </select>
             </label>
+            <div id="settingsThemeCategoryBar" class="settings-theme-category-bar" role="tablist" aria-label="Theme categories"></div>
+            <div id="settingsThemeGallery" class="settings-theme-gallery" aria-label="Theme presets"></div>
             <label class="setting-row">
               <span>Dark mode</span>
               <input id="settingsThemeToggle" type="checkbox">
@@ -900,32 +957,45 @@
             </label>
             <div class="setting-column">
               <span>Dark PDF rendering</span>
-              <div id="settingsPdfRenderMode" class="settings-choice-group" role="group" aria-label="Dark PDF rendering">
-                <button type="button" data-pdf-render-mode="adaptive">Dark, keep figures</button>
-                <button type="button" data-pdf-render-mode="original">Original pages</button>
-                <button type="button" data-pdf-render-mode="invert">Invert everything</button>
+              <div id="settingsPdfRenderMode" class="settings-choice-group pdf-render-choice" role="group" aria-label="Dark PDF rendering">
+                <button type="button" data-pdf-render-mode="adaptive">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2M12 19v2M3 12h2M19 12h2"></path><circle cx="12" cy="12" r="4"></circle><path d="m5.6 5.6 1.4 1.4M17 17l1.4 1.4"></path></svg>
+                  <span><strong>Adaptive</strong><small>Dark, keep figures</small></span>
+                </button>
+                <button type="button" data-pdf-render-mode="original">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M15 3v5h4"></path></svg>
+                  <span><strong>Original</strong><small>Unchanged pages</small></span>
+                </button>
+                <button type="button" data-pdf-render-mode="invert">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 3a9 9 0 0 1 0 18z"></path></svg>
+                  <span><strong>Invert</strong><small>Everything</small></span>
+                </button>
               </div>
             </div>
           </section>
 
-          <section class="settings-section" data-settings-panel="profile">
-            <label class="setting-column">
+          <section class="settings-section profile-settings-panel" data-settings-panel="profile">
+            <div class="profile-intro">
+              <h3>Your profile</h3>
+              <p>Used to personalize writing assistance and project context.</p>
+            </div>
+            <label class="setting-column profile-field">
               <span>Name</span>
               <input id="profileNameInput" class="settings-text-input" type="text" autocomplete="name">
             </label>
-            <label class="setting-column">
+            <label class="setting-column profile-field">
               <span>Email</span>
               <input id="profileEmailInput" class="settings-text-input" type="email" autocomplete="email">
             </label>
-            <label class="setting-column">
+            <label class="setting-column profile-field profile-field-wide">
               <span>Type of work</span>
               <input id="profileWorkInput" class="settings-text-input" type="text" placeholder="Research, manuscript writing, ML engineering...">
             </label>
-            <label class="setting-column">
+            <label class="setting-column profile-field profile-field-area">
               <span>Bio</span>
               <textarea id="profileBioInput" class="settings-textarea" rows="4" spellcheck="true"></textarea>
             </label>
-            <label class="setting-column">
+            <label class="setting-column profile-field profile-field-area">
               <span>AI context</span>
               <textarea id="profileAiContextInput" class="settings-textarea" rows="5" spellcheck="true" placeholder="Preferences, goals, writing style, project context..."></textarea>
             </label>
@@ -961,6 +1031,18 @@
               <input id="settingsSpellCheckToggle" type="checkbox">
             </label>
             <label class="setting-row">
+              <span>Vim shortcuts</span>
+              <input id="settingsVimModeToggle" type="checkbox">
+            </label>
+            <label class="setting-row">
+              <span>Relative line numbers</span>
+              <input id="settingsRelativeLineNumbersToggle" type="checkbox">
+            </label>
+            <label class="setting-row">
+              <span>Notes panel</span>
+              <input id="settingsNotesToggle" type="checkbox">
+            </label>
+            <label class="setting-row">
               <span>Selection edit agent</span>
               <select id="settingsAgentChoice">
                 <option value="codex">Codex</option>
@@ -970,14 +1052,17 @@
             </label>
           </section>
 
-          <section class="settings-section" data-settings-panel="project">
-            <label class="setting-column">
+          <section class="settings-section github-settings-panel" data-settings-panel="project">
+            <label class="setting-column github-field">
               <span>Project GitHub</span>
               <input id="projectGithubRemoteInput" class="settings-text-input" type="text" placeholder="https://github.com/user/project-latex.git">
             </label>
-            <div class="settings-action-row">
-              <button id="saveProjectSettingsButton" class="settings-action-button primary" type="button">Save Project Settings</button>
-              <button id="pullProjectGithubButton" class="settings-action-button" type="button">Pull</button>
+            <div class="settings-action-row github-action-row">
+              <button id="pullProjectGithubButton" class="settings-action-button" type="button">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                <span>Pull</span>
+              </button>
+              <button id="saveProjectSettingsButton" class="settings-action-button primary" type="button">Save changes</button>
             </div>
             <p id="projectSettingsStatus" class="settings-status"></p>
           </section>
@@ -1038,44 +1123,23 @@
           </section>
 
           <section class="settings-section" data-settings-panel="agents">
-            <div class="setting-column">
-              <span id="agentsPathLabel" class="setting-path">AGENTS.md</span>
+            <div class="setting-column agents-editor-section">
+              <div class="agents-editor-heading">
+                <span id="agentsPathLabel" class="setting-path">AGENTS.md</span>
+                <small>Project instructions for coding agents</small>
+              </div>
               <textarea id="agentsEditor" class="settings-code-editor" spellcheck="false" placeholder="No AGENTS.md loaded."></textarea>
             </div>
-            <div class="settings-action-row">
-              <button id="reloadAgentsButton" class="settings-action-button" type="button">Reload</button>
+            <div class="settings-action-row agents-action-row">
+              <button id="reloadAgentsButton" class="settings-action-button agents-reload-button" type="button" aria-label="Reload AGENTS.md" title="Reload AGENTS.md">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 6v5h-5"></path>
+                  <path d="M18.2 15a7 7 0 1 1 .3-7.5L20 11"></path>
+                </svg>
+              </button>
               <button id="saveAgentsButton" class="settings-action-button primary" type="button">Save AGENTS.md</button>
             </div>
             <p id="agentsStatus" class="settings-status">Open this section to load AGENTS.md.</p>
-          </section>
-
-          <section class="settings-section" data-settings-panel="shortcuts">
-            <label class="setting-row">
-              <span>Vim shortcuts</span>
-              <input id="settingsVimModeToggle" type="checkbox">
-            </label>
-            <label class="setting-row">
-              <span>Relative line numbers</span>
-              <input id="settingsRelativeLineNumbersToggle" type="checkbox">
-            </label>
-            <label class="setting-row">
-              <span>Notes panel</span>
-              <input id="settingsNotesToggle" type="checkbox">
-            </label>
-            <div class="shortcut-list">
-              <div><span>Save</span><kbd>Cmd/Ctrl</kbd><kbd>S</kbd></div>
-              <div><span>Find</span><kbd>Cmd/Ctrl</kbd><kbd>F</kbd></div>
-              <div><span>Find next</span><kbd>Cmd/Ctrl</kbd><kbd>G</kbd></div>
-              <div><span>Compile PDF</span><kbd>Cmd/Ctrl</kbd><kbd>Enter</kbd></div>
-              <div><span>Toggle Code / Visual</span><kbd>Cmd/Ctrl</kbd><kbd>Shift</kbd><kbd>M</kbd></div>
-              <div><span>Toggle files</span><kbd>Cmd/Ctrl</kbd><kbd>Shift</kbd><kbd>F</kbd></div>
-              <div><span>Toggle terminal</span><kbd>Cmd/Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd></div>
-              <div><span>Toggle minimap</span><kbd>/minimap</kbd></div>
-              <div><span>Toggle relative line numbers</span><kbd>/relative</kbd></div>
-              <div><span>Toggle text wrapping</span><kbd>/wrap</kbd></div>
-              <div><span>Open settings</span><kbd>Cmd/Ctrl</kbd><kbd>,</kbd></div>
-              <div><span>Close panel</span><kbd>Esc</kbd></div>
-            </div>
           </section>
 
           <section class="settings-section" data-settings-panel="documentation">
@@ -1100,8 +1164,23 @@ tectonic main.tex</code></pre>
               <p>The AGENTS.md settings page lets you write project instructions for AI-assisted edits. Put build commands, style rules, file ownership notes, and safety constraints there. Save it once, and Openleaf keeps it in the project root so Codex or other agents can read the same context.</p>
               <h3>Command palette</h3>
               <p>Press Cmd+P to open commands. Useful commands include /open, /templates, /settings, /compile, /history, /vim, /minimap, and /relative. Type a project name after /open to jump directly to it.</p>
+              <h3>Keyboard shortcuts</h3>
+              <div class="shortcut-list documentation-shortcut-list" aria-label="Openleaf keyboard shortcuts">
+                <div><span>Save</span><kbd>Cmd/Ctrl</kbd><kbd>S</kbd></div>
+                <div><span>Find</span><kbd>Cmd/Ctrl</kbd><kbd>F</kbd></div>
+                <div><span>Find next</span><kbd>Cmd/Ctrl</kbd><kbd>G</kbd></div>
+                <div><span>Compile PDF</span><kbd>Cmd/Ctrl</kbd><kbd>Enter</kbd></div>
+                <div><span>Toggle Code / Visual</span><kbd>Cmd/Ctrl</kbd><kbd>Shift</kbd><kbd>M</kbd></div>
+                <div><span>Toggle files</span><kbd>Cmd/Ctrl</kbd><kbd>Shift</kbd><kbd>F</kbd></div>
+                <div><span>Toggle terminal</span><kbd>Cmd/Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd></div>
+                <div><span>Toggle minimap</span><kbd>/minimap</kbd></div>
+                <div><span>Toggle relative line numbers</span><kbd>/relative</kbd></div>
+                <div><span>Toggle text wrapping</span><kbd>/wrap</kbd></div>
+                <div><span>Open settings</span><kbd>Cmd/Ctrl</kbd><kbd>,</kbd></div>
+                <div><span>Close panel</span><kbd>Esc</kbd></div>
+              </div>
               <h3>Editing and review</h3>
-              <p>Use Code for source editing and Visual for structured manuscript edits. Cmd+F highlights every match in the current text. If Vim is enabled, the mode indicator appears next to Code and Visual. History shows session edits inside the app so you can review changes without leaving the workspace.</p>
+              <p>Use Code for source editing and Visual for structured manuscript edits. Cmd+F highlights every match in the current text. If Vim is enabled, the mode indicator appears next to Code and Visual. Use <code>:w</code> to save the active file, <code>:q</code> to return to Projects, <code>:q!</code> to return without saving, and <code>:wq</code> or <code>:x</code> to save and return. History shows session edits inside the app so you can review changes without leaving the workspace.</p>
               <h3>PDF and packages</h3>
               <p>Compile PDF saves the active text file and runs the project compiler. Open PDF launches the compiled output. Download PDF saves just the compiled PDF. Download project package exports the whole project as zip, tar, tar.gz, or tgz.</p>
               <h3>Troubleshooting</h3>
@@ -1113,7 +1192,10 @@ tectonic main.tex</code></pre>
     </aside>
   </div>
 
+  <div id="pythonKernelMenu" class="python-kernel-menu" role="listbox" aria-label="Python kernels" hidden></div>
+
   <script src="node_modules/codemirror/lib/codemirror.js"></script>
+  <script src="node_modules/codemirror/addon/runmode/runmode.js"></script>
   <script src="node_modules/codemirror/mode/stex/stex.js"></script>
   <script src="node_modules/codemirror/mode/markdown/markdown.js"></script>
   <script src="node_modules/codemirror/mode/yaml/yaml.js"></script>
@@ -1131,6 +1213,7 @@ tectonic main.tex</code></pre>
   <script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
   <script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
   <script src="node_modules/katex/dist/katex.min.js"></script>
+  <script src="node_modules/plotly.js-dist-min/plotly.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

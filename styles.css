@@ -1711,6 +1711,52 @@ button:disabled {
   color: var(--red);
 }
 
+.file-folder > summary.selected,
+.file-item.selected:not(.active) {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+
+.file-create-row {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  height: 24px;
+  padding: 0 8px 0 calc(21px + var(--depth-indent, 0px));
+  width: 100%;
+}
+
+.file-create-input,
+.file-rename-input {
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 86%, var(--text));
+  border-radius: 2px;
+  box-shadow: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  height: 20px;
+  line-height: 18px;
+  min-width: 0;
+  outline: 0;
+  padding: 0 4px;
+  width: 100%;
+}
+
+.file-create-input:focus,
+.file-rename-input:focus {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 72%, transparent);
+}
+
+.file-create-row.invalid .file-create-input {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 64%, transparent);
+}
+
+.file-create-input:disabled {
+  opacity: 0.72;
+}
+
 .file-preview {
   border-top: 1px solid var(--border);
   color: var(--muted);
@@ -1971,7 +2017,7 @@ button:disabled {
   grid-template-rows: 52px minmax(0, 1fr) 34px;
 }
 
-.splitter {
+.workspace > .splitter {
   background: color-mix(in srgb, var(--panel) 52%, var(--bg));
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
@@ -1979,7 +2025,7 @@ button:disabled {
   position: relative;
 }
 
-.splitter::before {
+.workspace > .splitter::before {
   background: rgba(84, 95, 110, 0.34);
   border-radius: 999px;
   content: "";
@@ -2047,7 +2093,12 @@ button:disabled {
   display: flex;
   gap: 0;
   margin-left: auto;
+  min-width: 164px;
   padding: 4px;
+}
+
+.source-mode-actions:has(#sourceModeButton[hidden]):has(#visualModeButton[hidden]) {
+  display: none;
 }
 
 .source-mode-actions .mode-button {
@@ -2058,6 +2109,7 @@ button:disabled {
   color: var(--text);
   font-size: 14px;
   font-weight: 650;
+  flex: 1 1 50%;
   height: 32px;
   min-width: 76px;
   padding: 0 16px;
@@ -2722,6 +2774,34 @@ body.transparent-theme #compileLog {
   display: flex;
   gap: 10px;
   padding: 10px 12px;
+}
+
+.history-panel > header {
+  justify-content: space-between;
+}
+
+.history-panel > header h3 {
+  margin: 0;
+}
+
+.history-close-button {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  padding: 0 !important;
+  width: 30px;
+}
+
+.history-close-button:hover,
+.history-close-button:focus-visible {
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+  color: var(--text) !important;
 }
 
 .history-back-button {
@@ -4920,6 +5000,11 @@ body[data-theme="dark"] .relative-line-number {
   font-size: 10px;
   line-height: 1;
   padding: 4px 5px;
+}
+
+.documentation-shortcut-list {
+  border-top: 1px solid var(--border);
+  margin: 4px 0 20px;
 }
 
 body[data-theme="dark"] .topbar,
@@ -7841,6 +7926,146 @@ body[data-contrast="high"] .log-collapsed-rail::before {
   display: none !important;
 }
 
+.theme-preset-select-row {
+  display: none !important;
+}
+
+.settings-drawer {
+  grid-template-columns: 232px minmax(0, 1fr) !important;
+  height: min(820px, calc(100vh - 48px)) !important;
+  width: min(1180px, calc(100vw - 48px)) !important;
+}
+
+.settings-theme-gallery {
+  display: grid;
+  gap: 14px;
+  padding: 0 0 12px;
+}
+
+.settings-theme-category-bar {
+  align-items: center;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 4px;
+  margin: 2px 0 14px;
+  overflow-x: auto;
+  padding: 2px 0 7px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.theme-category-button {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  flex: 0 0 auto;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  height: 31px;
+  padding: 0 11px !important;
+}
+
+.theme-category-button:hover,
+.theme-category-button:focus-visible {
+  background: color-mix(in srgb, var(--text) 7%, transparent) !important;
+  color: var(--text) !important;
+}
+
+.theme-category-button.active {
+  background: transparent !important;
+  color: var(--text) !important;
+  box-shadow: inset 0 -2px 0 var(--accent) !important;
+}
+
+.theme-gallery-section {
+  display: grid;
+  gap: 10px;
+}
+
+.theme-card-grid {
+  display: grid;
+  column-gap: 18px;
+  row-gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.theme-card {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 74%, transparent) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 32px minmax(0, 1fr) 20px;
+  height: 54px;
+  min-width: 0;
+  padding: 7px 11px !important;
+  text-align: left;
+}
+
+.theme-card:hover {
+  background: color-mix(in srgb, var(--accent) 7%, transparent) !important;
+  border-bottom-color: var(--border) !important;
+  transform: none !important;
+}
+
+.theme-card.active {
+  border-bottom-color: color-mix(in srgb, var(--accent) 48%, var(--border)) !important;
+  box-shadow: none !important;
+}
+
+.theme-card-circle {
+  background: linear-gradient(
+    135deg,
+    var(--theme-card-surface) 4%,
+    color-mix(in srgb, var(--theme-card-surface) 68%, var(--theme-card-accent)) 42%,
+    color-mix(in srgb, var(--theme-card-surface) 28%, var(--theme-card-accent)) 68%,
+    var(--theme-card-accent) 96%
+  );
+  border: 1px solid var(--theme-card-border);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--panel) 36%, transparent);
+  display: block;
+  height: 28px;
+  width: 28px;
+}
+
+.theme-card-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.theme-card-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-card-copy strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.theme-card-check {
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 800;
+  opacity: 0;
+  text-align: center;
+}
+
+.theme-card.active .theme-card-check {
+  opacity: 1;
+}
+
 .markdown-preview {
   font-family: var(--sans) !important;
   max-width: none !important;
@@ -10081,6 +10306,1068 @@ body.transparent-theme #compileLog {
   width: 16px !important;
 }
 
+/* VS Code-style Files header and inline explorer creation controls. */
+.file-pane-header > div:first-child {
+  display: block !important;
+}
+
+.file-pane-header {
+  background: var(--panel) !important;
+  justify-content: space-between !important;
+}
+
+.file-header-actions {
+  width: auto !important;
+}
+
+.file-header-actions .icon-button {
+  color: var(--muted) !important;
+  height: 28px !important;
+  padding: 0 !important;
+  width: 28px !important;
+}
+
+.file-header-actions .icon-button:hover,
+.file-header-actions .icon-button:focus-visible {
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+  color: var(--text) !important;
+}
+
+.file-header-actions .icon-button::after {
+  display: none !important;
+}
+
+.file-create-input,
+.file-rename-input,
+body.transparent-theme .file-create-input,
+body.transparent-theme .file-rename-input {
+  background: var(--panel) !important;
+  border-color: color-mix(in srgb, var(--accent) 86%, var(--text)) !important;
+  color: var(--text) !important;
+}
+
+.file-create-row.invalid .file-create-input {
+  border-color: var(--red) !important;
+}
+
+/* Notebook output appears in the preview pane only after Python is run. */
+.preview-pane.python-output-active {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.source-pane.python-file-active {
+  grid-template-rows: 52px auto 30px minmax(0, 1fr) var(--terminal-height) !important;
+}
+
+.source-pane.python-file-active.terminal-collapsed {
+  grid-template-rows: 52px auto 30px minmax(0, 1fr) 34px !important;
+}
+
+.workspace.python-terminal-wide {
+  grid-template-rows: minmax(0, 1fr) var(--terminal-height, 254px);
+}
+
+.workspace.python-terminal-wide > :not(.terminal-panel) {
+  grid-row: 1;
+  min-height: 0;
+}
+
+.workspace.python-terminal-wide > .terminal-panel {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+  z-index: 30;
+}
+
+.workspace.python-terminal-wide .source-pane.python-file-active {
+  grid-template-rows: 52px auto 30px minmax(0, 1fr) !important;
+}
+
+.workspace.python-terminal-wide .source-pane.python-file-active.ipynb-notebook-mode {
+  grid-template-rows: 52px auto minmax(0, 1fr) !important;
+}
+
+.workspace.python-terminal-wide .source-pane.python-file-active.ipynb-output-active {
+  grid-template-rows: 52px auto 30px minmax(140px, 1fr) minmax(180px, 0.85fr) !important;
+}
+
+.workspace.python-terminal-wide:has(.source-pane.terminal-collapsed) {
+  grid-template-rows: minmax(0, 1fr) 34px;
+}
+
+.workspace.python-terminal-wide:has(.source-pane.terminal-collapsed) > .terminal-panel {
+  grid-template-rows: 34px;
+  overflow: visible;
+}
+
+.workspace.python-terminal-wide:has(.source-pane.terminal-collapsed) > .terminal-panel .terminal-header,
+.workspace.python-terminal-wide:has(.source-pane.terminal-collapsed) > .terminal-panel .terminal-workbench {
+  display: none !important;
+}
+
+.workspace.python-terminal-wide:has(.source-pane.terminal-collapsed) > .terminal-panel .terminal-collapsed-rail {
+  display: inline-flex;
+}
+
+.workspace.python-terminal-wide:has(.source-pane.terminal-collapsed) > .terminal-panel .terminal-resize-handle {
+  background: var(--terminal-bg);
+  min-height: 34px;
+}
+
+.workspace.python-terminal-wide:has(.source-pane.terminal-collapsed) > .terminal-panel .terminal-resize-handle::before {
+  display: none;
+}
+
+.workspace.python-terminal-wide:has(.source-pane.terminal-maximized) {
+  grid-template-rows: 0 minmax(0, 1fr);
+}
+
+.source-pane.python-file-active.ipynb-output-active {
+  grid-template-rows: 52px auto 30px minmax(140px, 1fr) minmax(180px, 0.85fr) var(--terminal-height) !important;
+}
+
+.source-pane.python-file-active.ipynb-output-active.terminal-collapsed {
+  grid-template-rows: 52px auto 30px minmax(140px, 1fr) minmax(180px, 0.85fr) 34px !important;
+}
+
+.python-editor-toolbar {
+  align-items: center;
+  background: var(--cm-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+  display: flex;
+  font-size: 10px;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 9px;
+}
+
+.python-editor-toolbar[hidden] {
+  display: none !important;
+}
+
+.python-editor-toolbar button {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 3px;
+  box-shadow: none !important;
+  color: inherit !important;
+  font-size: 10px;
+  height: 22px;
+  padding: 0 2px;
+}
+
+.python-editor-toolbar button:hover,
+.python-editor-toolbar button:focus-visible {
+  background: transparent !important;
+  color: var(--text) !important;
+}
+
+.python-notebook-panel {
+  background: var(--cm-bg);
+  color: var(--text);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.python-notebook-panel.python-notebook-embedded {
+  border-top: 1px solid var(--border);
+  min-height: 180px;
+}
+
+.python-notebook-panel.python-notebook-embedded .python-notebook-header {
+  min-height: 38px;
+  padding: 5px 12px;
+}
+
+.ipynb-notebook-editor {
+  background: var(--cm-bg);
+  color: var(--cm-text);
+  grid-column: 1 / -1;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 8px 30px 4px;
+}
+
+.ipynb-toolbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--cm-bg) 94%, var(--panel));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+  margin: 0 -8px 14px -4px;
+  min-height: 46px;
+  padding: 6px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 8;
+}
+
+.ipynb-toolbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ipynb-toolbar button {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 4px;
+  box-shadow: none !important;
+  color: var(--cm-text) !important;
+  font-size: 11px;
+  height: 30px;
+  padding: 0 9px;
+}
+
+.ipynb-toolbar button:hover,
+.ipynb-toolbar button:focus-visible {
+  background: color-mix(in srgb, var(--cm-text) 10%, transparent) !important;
+}
+
+.ipynb-toolbar-divider {
+  background: var(--border-strong);
+  height: 22px;
+  margin: 0 4px;
+  width: 1px;
+}
+
+.ipynb-kernel-label {
+  color: color-mix(in srgb, var(--accent) 35%, var(--cm-text));
+  flex: 0 0 auto;
+  font: 11px/1 var(--mono);
+  padding-right: 4px;
+}
+
+.ipynb-toolbar-status {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.python-runtime-controls {
+  align-items: center;
+  align-self: stretch;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+  margin-left: auto;
+}
+
+.python-runtime-controls[hidden] {
+  display: none !important;
+}
+
+.python-runtime-vim-indicator {
+  align-items: center !important;
+  display: inline-flex !important;
+  font-size: 10px !important;
+  height: 26px !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  min-width: 54px !important;
+  padding: 0 9px !important;
+}
+
+.python-runtime-vim-indicator[hidden] {
+  display: none !important;
+}
+
+.python-kernel-button {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+  color: color-mix(in srgb, var(--accent) 30%, var(--text)) !important;
+  display: inline-flex;
+  font: 10px/1 var(--mono);
+  gap: 5px;
+  height: 30px;
+  max-width: 190px;
+  padding: 0 8px 0 9px !important;
+  position: relative;
+}
+
+.python-kernel-button:hover,
+.python-kernel-button[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--text) 8%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border)) !important;
+}
+
+.python-kernel-button:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border)) !important;
+  outline: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  outline-offset: 1px;
+}
+
+.python-kernel-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.python-kernel-button .icon {
+  flex: 0 0 auto;
+  height: 12px;
+  width: 12px;
+  transition: transform 120ms ease;
+}
+
+.python-kernel-button[aria-expanded="true"] .icon {
+  transform: rotate(180deg);
+}
+
+.python-kernel-menu {
+  background: color-mix(in srgb, var(--panel) 98%, var(--bg));
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
+  max-height: min(360px, calc(100vh - 80px));
+  min-width: 280px;
+  overflow: auto;
+  padding: 5px;
+  position: fixed;
+  width: min(360px, calc(100vw - 20px));
+  z-index: 240;
+}
+
+.python-kernel-menu-title {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  padding: 7px 9px 6px;
+}
+
+.python-kernel-menu[hidden] {
+  display: none !important;
+}
+
+.python-kernel-option {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  min-height: 44px;
+  outline: 0;
+  padding: 6px 9px !important;
+  text-align: left;
+  width: 100%;
+}
+
+.python-kernel-option:hover,
+.python-kernel-option.active,
+.python-kernel-option:focus-visible {
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+.python-kernel-option:focus-visible {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent) !important;
+}
+
+.python-kernel-option span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.python-kernel-option strong,
+.python-kernel-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.python-kernel-option strong {
+  font-size: 11px;
+}
+
+.python-kernel-option small,
+.python-kernel-loading {
+  color: var(--muted);
+  font: 9px/1.3 var(--mono);
+}
+
+.python-kernel-option b {
+  color: var(--accent);
+}
+
+.python-kernel-loading {
+  padding: 12px;
+}
+
+.ipynb-vim-mode-indicator {
+  font-size: 10px !important;
+  height: 24px !important;
+  min-width: 58px !important;
+  padding: 0 10px !important;
+}
+
+.ipynb-run-hint {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 9px;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.ipynb-run-hint kbd {
+  background: color-mix(in srgb, var(--panel) 78%, var(--cm-bg));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--cm-text);
+  font: 8px/1 var(--mono);
+  padding: 3px 4px;
+}
+
+.ipynb-notebook-editor[hidden] {
+  display: none !important;
+}
+
+.ipynb-notebook-cells {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ipynb-cell {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+
+.ipynb-cell-gutter {
+  align-items: flex-end;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  font: 10px/1.3 var(--mono);
+  gap: 3px;
+  padding: 13px 0 0;
+}
+
+.ipynb-cell-run {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--accent) !important;
+  display: flex;
+  font-size: 18px;
+  height: 28px;
+  justify-content: center;
+  padding: 0 !important;
+  border-radius: 5px !important;
+  width: 28px;
+}
+
+.ipynb-cell-run:hover,
+.ipynb-cell-run:focus-visible {
+  background: transparent !important;
+  color: color-mix(in srgb, var(--accent) 72%, var(--cm-text)) !important;
+}
+
+.ipynb-cell-run:disabled {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.ipynb-play-icon {
+  fill: currentColor;
+  height: 16px;
+  overflow: visible;
+  stroke: none;
+  width: 16px;
+}
+
+.ipynb-cell-count {
+  color: color-mix(in srgb, var(--accent) 42%, var(--muted));
+  display: block;
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: center;
+}
+
+.ipynb-cell-body {
+  background: var(--cm-bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: 6px;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.ipynb-cell:focus-within .ipynb-cell-body {
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.ipynb-cell-header {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  display: flex;
+  height: 28px;
+  justify-content: flex-end;
+  padding: 3px 5px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 3;
+}
+
+.ipynb-cell-delete {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  display: flex;
+  height: 22px;
+  justify-content: center;
+  opacity: 0;
+  padding: 0 !important;
+  width: 24px;
+  pointer-events: auto;
+}
+
+.ipynb-cell:hover .ipynb-cell-delete,
+.ipynb-cell:focus-within .ipynb-cell-delete {
+  opacity: 1;
+}
+
+.ipynb-cell-delete:hover {
+  color: var(--red) !important;
+}
+
+.ipynb-cell-delete .icon {
+  height: 13px;
+  width: 13px;
+}
+
+.ipynb-cell .CodeMirror {
+  background: var(--cm-bg) !important;
+  color: var(--cm-text) !important;
+  font: 12px/1.55 var(--mono);
+  height: auto;
+  min-height: 34px;
+  padding-top: 4px;
+}
+
+.ipynb-cell .CodeMirror-scroll {
+  min-height: 34px;
+  overflow-y: hidden !important;
+}
+
+.ipynb-cell-language {
+  color: var(--muted);
+  display: block;
+  font: 10px/1 var(--mono);
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 36px;
+  top: 9px;
+  transition: opacity 120ms ease;
+}
+
+.ipynb-markdown-preview {
+  color: var(--cm-text);
+  cursor: text;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.5;
+  min-height: 36px;
+  padding: 9px 14px;
+}
+
+.ipynb-markdown-preview[hidden] {
+  display: none !important;
+}
+
+.ipynb-markdown-preview > :first-child {
+  margin-top: 0;
+}
+
+.ipynb-markdown-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.ipynb-markdown-preview h1,
+.ipynb-markdown-preview h2,
+.ipynb-markdown-preview h3,
+.ipynb-markdown-preview h4,
+.ipynb-markdown-preview h5,
+.ipynb-markdown-preview h6 {
+  color: var(--cm-text);
+  line-height: 1.25;
+  margin: 0.35em 0;
+}
+
+.ipynb-markdown-preview p,
+.ipynb-markdown-preview ul,
+.ipynb-markdown-preview ol,
+.ipynb-markdown-preview blockquote,
+.ipynb-markdown-preview pre {
+  margin: 0.4em 0;
+}
+
+.ipynb-markdown-preview code,
+.ipynb-markdown-preview pre {
+  background: color-mix(in srgb, var(--accent) 9%, var(--cm-bg));
+  border-radius: 4px;
+  font-family: var(--mono);
+}
+
+.ipynb-markdown-preview pre {
+  overflow: auto;
+  padding: 8px;
+}
+
+.ipynb-markdown-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.ipynb-markdown-rendered .ipynb-cell-language {
+  opacity: 0;
+}
+
+.ipynb-markdown-rendered .ipynb-cell-run {
+  visibility: hidden;
+}
+
+.ipynb-markdown-rendered .ipynb-cell-body,
+.ipynb-markdown-rendered:focus-within .ipynb-cell-body {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.ipynb-markdown-rendered .ipynb-cell-delete {
+  background: color-mix(in srgb, var(--panel) 86%, transparent) !important;
+  border-radius: 4px;
+}
+
+.ipynb-cell:hover .ipynb-cell-language,
+.ipynb-cell:focus-within .ipynb-cell-language {
+  opacity: 0.72;
+}
+
+.ipynb-cell-output:empty {
+  display: none;
+}
+
+.ipynb-cell-output {
+  border-top: 1px solid var(--border);
+  padding: 4px 0 6px;
+}
+
+.ipynb-cell-output .python-run-output {
+  display: block;
+}
+
+.ipynb-add-actions {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  margin: 14px 0 0 44px;
+}
+
+.ipynb-notebook-cells:empty + .ipynb-add-actions {
+  margin-top: 4px;
+}
+
+.ipynb-add-cell {
+  background: transparent !important;
+  border: 1px dashed color-mix(in srgb, var(--accent) 42%, var(--border)) !important;
+  border-radius: 5px;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 11px/1 var(--mono);
+  height: 30px;
+  margin: 0;
+  min-width: 76px;
+  padding: 0 12px;
+}
+
+.ipynb-add-cell:hover,
+.ipynb-add-cell:focus-visible {
+  border-color: var(--accent) !important;
+  color: var(--text) !important;
+}
+
+.python-notebook-panel[hidden] {
+  display: none !important;
+}
+
+#previewPaneHeader[hidden],
+#pdfViewerShell[hidden],
+#compileLogPanel[hidden] {
+  display: none !important;
+}
+
+.python-notebook-header {
+  align-items: center;
+  background: var(--cm-bg);
+  border-bottom: 0;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 8px 40px;
+}
+
+.python-notebook-heading {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.python-notebook-heading h2 {
+  color: color-mix(in srgb, var(--accent) 32%, var(--text));
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0;
+}
+
+.python-notebook-heading p {
+  color: var(--muted);
+  font: 11px/1.35 var(--mono);
+  margin: 3px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.python-notebook-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+}
+
+.python-notebook-actions button {
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 11px;
+  height: 24px;
+  padding: 0 6px;
+}
+
+.python-notebook-actions button:hover,
+.python-notebook-actions button:focus-visible {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  color: var(--text);
+}
+
+.python-notebook-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 10px 28px 8px;
+}
+
+.python-run-card {
+  display: grid;
+  gap: 0 8px;
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+
+.python-execution-count {
+  align-self: end;
+  color: color-mix(in srgb, var(--accent) 38%, var(--muted));
+  font: 11px/1 var(--mono);
+  grid-column: 1;
+  grid-row: 1;
+  padding: 0 0 9px;
+  text-align: right;
+}
+
+.python-run-source,
+.python-run-output {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.python-run-source {
+  background: var(--cm-bg);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 4px;
+  grid-column: 2;
+  grid-row: 1;
+  cursor: pointer;
+  position: relative;
+}
+
+.python-run-source:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 1px;
+}
+
+.python-run-source.collapsed pre {
+  height: 44px;
+  overflow: hidden;
+  white-space: pre;
+}
+
+.python-run-delete {
+  align-items: center;
+  background: color-mix(in srgb, var(--cm-bg) 88%, transparent) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 4px;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  display: flex;
+  height: 26px;
+  justify-content: center;
+  opacity: 0;
+  padding: 0 !important;
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  transition: opacity 100ms ease, color 100ms ease, background 100ms ease;
+  width: 27px;
+  z-index: 2;
+}
+
+.python-run-delete .icon {
+  height: 14px;
+  width: 14px;
+}
+
+.python-run-source:hover .python-run-delete,
+.python-run-source:focus-within .python-run-delete,
+.python-run-delete:focus-visible {
+  opacity: 1;
+}
+
+.python-run-delete:hover,
+.python-run-delete:focus-visible {
+  background: color-mix(in srgb, var(--red) 14%, var(--cm-bg)) !important;
+  color: var(--red) !important;
+}
+
+.python-run-output {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0;
+}
+
+.python-run-label {
+  align-items: center;
+  border-bottom: 0;
+  color: var(--muted);
+  display: flex;
+  font: 11px/1.2 var(--mono);
+  justify-content: flex-start;
+  min-height: 22px;
+  padding: 2px 14px 0;
+}
+
+.python-run-status {
+  font-size: 15px;
+  margin-right: 8px;
+}
+
+.python-run-status.complete { color: #75b879; }
+.python-run-status.error { color: var(--red); }
+.python-run-status.running { color: #d9bd67; }
+
+.python-run-source pre,
+.python-run-output pre {
+  color: var(--text);
+  font: 12px/1.55 var(--mono);
+  margin: 0;
+  overflow: auto;
+  padding: 13px 16px;
+  tab-size: 4;
+  white-space: pre-wrap;
+}
+
+.python-run-source pre {
+  padding-right: 44px;
+}
+
+.python-run-output pre.stderr {
+  color: var(--red);
+}
+
+.python-run-output .python-no-output,
+.python-run-output .python-running {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 3px 14px 8px;
+}
+
+.python-run-output .python-running::before {
+  animation: python-pulse 900ms ease-in-out infinite alternate;
+  background: var(--accent);
+  border-radius: 999px;
+  content: "";
+  display: inline-block;
+  height: 7px;
+  margin-right: 7px;
+  width: 7px;
+}
+
+.python-run-image {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: block;
+  height: auto;
+  margin: 8px 14px 14px;
+  max-width: calc(100% - 28px);
+}
+
+.python-run-plotly {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: block;
+  height: 420px;
+  margin: 8px 14px 14px;
+  max-width: calc(100% - 28px);
+  width: calc(100% - 28px);
+}
+
+.python-run-plotly.error {
+  color: var(--red);
+  font: 12px/1.5 var(--mono);
+  height: auto;
+  padding: 12px;
+}
+
+.python-notebook-footer {
+  align-items: stretch;
+  background: var(--cm-bg);
+  border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  padding: 8px 10px 16px 4px;
+}
+
+.python-scratch-run {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: color-mix(in srgb, var(--accent) 62%, var(--text));
+  display: flex;
+  font-size: 22px;
+  justify-content: center;
+  padding: 0;
+}
+
+.python-scratch-run:hover,
+.python-scratch-run:focus-visible {
+  background: transparent !important;
+  color: var(--accent) !important;
+}
+
+.python-notebook-footer textarea,
+body.transparent-theme .python-notebook-footer textarea {
+  background: var(--cm-bg) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: 4px;
+  color: var(--text);
+  font: 12px/1.45 var(--mono);
+  height: 38px;
+  min-height: 38px;
+  outline: 0;
+  padding: 9px 14px;
+  resize: none;
+  width: 100%;
+}
+
+.python-notebook-footer textarea::placeholder {
+  color: color-mix(in srgb, var(--accent) 22%, var(--muted));
+  font-style: italic;
+}
+
+body[data-theme="dark"] .python-editor-toolbar {
+  background: var(--cm-bg) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body[data-theme="dark"] .python-notebook-panel,
+body[data-theme="dark"] .python-notebook-header,
+body[data-theme="dark"] .python-notebook-footer {
+  background: var(--cm-bg) !important;
+}
+
+body[data-theme="dark"] .python-run-source {
+  background: var(--cm-bg) !important;
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border)) !important;
+}
+
+body[data-theme="dark"] .python-run-output,
+body[data-theme="dark"] .python-notebook-feed {
+  background: var(--cm-bg) !important;
+}
+
+body[data-theme="dark"] .python-notebook-footer textarea,
+body[data-theme="dark"].transparent-theme .python-notebook-footer textarea {
+  background: var(--cm-bg) !important;
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border)) !important;
+  color: var(--text) !important;
+}
+
+/* Python tokens remain legible on dark editor and executed-code surfaces. */
+body[data-theme="dark"] .cm-s-default .cm-def,
+body[data-theme="dark"] .cm-s-default .cm-variable-2,
+body[data-theme="dark"] .cm-s-default .cm-property {
+  color: var(--cm-variable) !important;
+}
+
+body[data-theme="dark"] .cm-s-default .cm-builtin,
+body[data-theme="dark"] .cm-s-default .cm-variable-3 {
+  color: var(--cm-atom) !important;
+}
+
+body[data-theme="dark"] .cm-s-default .cm-operator,
+body[data-theme="dark"] .cm-s-default .cm-meta {
+  color: color-mix(in srgb, var(--cm-keyword) 78%, var(--cm-text)) !important;
+}
+
+body[data-theme="dark"] .cm-s-default .cm-comment {
+  color: color-mix(in srgb, var(--cm-comment) 58%, var(--cm-text)) !important;
+}
+
+@keyframes python-pulse {
+  from { opacity: 0.35; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .notes-panel.notes-fullscreen .notes-body {
   display: grid;
   grid-template-rows: 44px minmax(0, 1fr);
@@ -10744,11 +12031,11 @@ body.is-resizing-notes .notes-resize-handle::before {
 
 /* Custom tooltip overlay: instant, theme-aware, replaces native titles. */
 #appTooltip {
-  background: color-mix(in srgb, var(--text) 92%, var(--bg));
-  border: 1px solid color-mix(in srgb, var(--bg) 45%, var(--text));
+  background: color-mix(in srgb, var(--cm-gutter) 90%, var(--cm-bg));
+  border: 1px solid var(--border-strong);
   border-radius: 7px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
-  color: var(--bg);
+  color: var(--cm-text);
   font: 600 11.5px/1.35 var(--sans);
   letter-spacing: 0.01em;
   max-width: 280px;
@@ -10766,6 +12053,59 @@ body.is-resizing-notes .notes-resize-handle::before {
 
 #appTooltip[hidden] {
   display: none;
+}
+
+/* All resize affordances follow the active theme and share one hover state. */
+.file-splitter,
+.splitter,
+.terminal-resize-handle,
+.log-resize-handle,
+.file-outline-resize-handle,
+.terminal-tabs-resize-handle,
+.notes-resize-handle {
+  background: color-mix(in srgb, var(--panel) 82%, var(--bg)) !important;
+  border-color: var(--border) !important;
+}
+
+/* The primary editor/preview divider stays visible without becoming noisy. */
+.splitter {
+  background: color-mix(in srgb, var(--border-strong) 58%, var(--panel)) !important;
+  border-left-color: color-mix(in srgb, var(--cm-text) 22%, var(--border)) !important;
+  border-right-color: color-mix(in srgb, var(--cm-text) 22%, var(--border)) !important;
+}
+
+.splitter::before {
+  background: color-mix(in srgb, var(--accent) 38%, var(--cm-text)) !important;
+  height: 64px !important;
+  opacity: 0.82;
+  width: 3px !important;
+}
+
+.file-splitter::before,
+.splitter::before,
+.terminal-resize-handle::before,
+.log-resize-handle::before,
+.file-outline-resize-handle::before,
+.terminal-tabs-resize-handle::before,
+.notes-resize-handle::before {
+  background: color-mix(in srgb, var(--cm-text) 30%, transparent) !important;
+}
+
+.file-splitter:hover::before,
+.splitter:hover::before,
+.terminal-resize-handle:hover::before,
+.log-resize-handle:hover::before,
+.file-outline-resize-handle:hover::before,
+.terminal-tabs-resize-handle:hover::before,
+.notes-resize-handle:hover::before,
+.is-resizing-files .file-splitter::before,
+.is-resizing .splitter::before,
+.is-resizing-outline .file-outline-resize-handle::before,
+.is-resizing-terminal .terminal-resize-handle::before,
+.is-resizing-terminal-tabs .terminal-tabs-resize-handle::before,
+.is-resizing-log .log-resize-handle::before,
+body.is-resizing-notes .notes-resize-handle::before {
+  background: var(--accent) !important;
 }
 
 /* Refresh, settings, and help pin to the bottom of the Files banner. */
@@ -10840,4 +12180,463 @@ body[data-theme="dark"] .template-preview .template-equation {
 .preview-pane .pane-header .pdf-title-block {
   flex: 0 1 auto !important;
   min-width: 0 !important;
+}
+
+/* Transparent presets stay glassy without sacrificing editor readability. */
+body.transparent-theme[data-theme="light"] .topbar,
+body.transparent-theme[data-theme="light"] .file-rail,
+body.transparent-theme[data-theme="light"] .source-rail,
+body.transparent-theme[data-theme="light"] .preview-rail,
+body.transparent-theme[data-theme="light"] .file-pane,
+body.transparent-theme[data-theme="light"] .source-pane,
+body.transparent-theme[data-theme="light"] .preview-pane,
+body.transparent-theme[data-theme="light"] .pane-header,
+body.transparent-theme[data-theme="light"] .text-tabs,
+body.transparent-theme[data-theme="light"] .terminal-panel,
+body.transparent-theme[data-theme="light"] .log-panel,
+body.transparent-theme[data-theme="light"] .file-outline {
+  background: rgba(248, 250, 252, 0.78) !important;
+}
+
+body.transparent-theme[data-theme="light"] .editor-stack,
+body.transparent-theme[data-theme="light"] .ipynb-cell-body,
+body.transparent-theme[data-theme="light"] .python-notebook-panel {
+  background: rgba(255, 255, 255, 0.74) !important;
+}
+
+body.transparent-theme[data-theme="dark"] .topbar,
+body.transparent-theme[data-theme="dark"] .file-rail,
+body.transparent-theme[data-theme="dark"] .source-rail,
+body.transparent-theme[data-theme="dark"] .preview-rail,
+body.transparent-theme[data-theme="dark"] .file-pane,
+body.transparent-theme[data-theme="dark"] .source-pane,
+body.transparent-theme[data-theme="dark"] .preview-pane,
+body.transparent-theme[data-theme="dark"] .pane-header,
+body.transparent-theme[data-theme="dark"] .text-tabs,
+body.transparent-theme[data-theme="dark"] .terminal-panel,
+body.transparent-theme[data-theme="dark"] .log-panel,
+body.transparent-theme[data-theme="dark"] .file-outline {
+  background: rgba(9, 13, 22, 0.72) !important;
+}
+
+body.transparent-theme[data-theme="dark"] .editor-stack,
+body.transparent-theme[data-theme="dark"] .ipynb-cell-body,
+body.transparent-theme[data-theme="dark"] .python-notebook-panel {
+  background: rgba(9, 13, 22, 0.66) !important;
+}
+
+body.transparent-theme .CodeMirror,
+body.transparent-theme .CodeMirror-code {
+  color: var(--cm-text) !important;
+}
+
+.ipynb-cell .CodeMirror-gutters {
+  background: color-mix(in srgb, var(--cm-gutter) 88%, var(--cm-bg)) !important;
+  border-right: 1px solid var(--border) !important;
+}
+
+.ipynb-cell .CodeMirror-linenumber {
+  color: color-mix(in srgb, var(--cm-text) 52%, var(--cm-gutter)) !important;
+  padding: 0 7px 0 5px !important;
+}
+
+/* History uses flat panes instead of nested dashboard widgets. */
+.history-panel-body {
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+.history-entry-list {
+  border-right: 1px solid var(--border);
+  gap: 2px !important;
+  padding: 8px;
+}
+
+.history-entry {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  padding: 10px 11px !important;
+}
+
+.history-entry:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent) !important;
+}
+
+.history-entry.active {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.history-entry.active strong {
+  color: var(--text) !important;
+}
+
+.history-entry:not(.active) strong {
+  color: var(--muted) !important;
+}
+
+/* Python output owns one bottom Terminal row, bounded by Files and Notes. */
+.workspace.python-terminal-wide > .terminal-panel {
+  grid-column: 3 / 6;
+  grid-template-rows: 36px minmax(0, 1fr);
+}
+
+.workspace.python-terminal-wide.files-hidden > .terminal-panel {
+  grid-column: 2 / 5;
+}
+
+.workspace.python-terminal-wide > .file-pane,
+.workspace.python-terminal-wide > .file-splitter,
+.workspace.python-terminal-wide > .file-rail,
+.workspace.python-terminal-wide > .notes-panel {
+  grid-row: 1 / -1 !important;
+}
+
+.workspace.python-terminal-wide > .terminal-panel .terminal-resize-handle {
+  background: transparent !important;
+  height: 6px;
+  left: 0;
+  min-height: 6px;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 12;
+}
+
+.workspace.python-terminal-wide > .terminal-panel .terminal-resize-handle::before {
+  display: none !important;
+}
+
+.workspace.python-terminal-wide > .terminal-panel .terminal-header {
+  grid-row: 1;
+}
+
+.workspace.python-terminal-wide > .terminal-panel .terminal-workbench {
+  grid-row: 2;
+}
+
+/* AGENTS.md is a flat editor surface with lightweight actions. */
+.agents-editor-section {
+  gap: 8px !important;
+}
+
+.agents-editor-heading {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.agents-editor-heading small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#agentsEditor,
+body[data-theme="dark"] #agentsEditor {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  border-top: 1px solid var(--border) !important;
+  box-shadow: none !important;
+  min-height: 420px;
+  padding: 14px 2px !important;
+  resize: none;
+}
+
+#agentsEditor:focus {
+  border-bottom-color: var(--accent) !important;
+  border-top-color: var(--accent) !important;
+}
+
+.agents-action-row {
+  justify-content: flex-end;
+  padding-top: 0 !important;
+}
+
+.agents-action-row .settings-action-button,
+.agents-action-row .settings-action-button.primary {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  font-size: 12px;
+  height: 30px;
+  padding: 0 9px !important;
+}
+
+.agents-action-row .settings-action-button.primary {
+  color: var(--accent) !important;
+  font-weight: 700;
+}
+
+.agents-action-row .agents-reload-button {
+  padding: 0 !important;
+  width: 30px;
+}
+
+.agents-action-row .agents-reload-button .icon {
+  height: 15px;
+  width: 15px;
+}
+
+.agents-action-row .settings-action-button:hover,
+.agents-action-row .settings-action-button:focus-visible {
+  background: color-mix(in srgb, var(--text) 8%, transparent) !important;
+  color: var(--text) !important;
+}
+
+/* The terminal resize target overlays the header instead of creating a strip. */
+.terminal-panel,
+.workspace.python-terminal-wide > .terminal-panel {
+  grid-template-rows: 36px minmax(0, 1fr) !important;
+}
+
+.terminal-panel .terminal-resize-handle {
+  background: transparent !important;
+  height: 6px;
+  left: 0;
+  min-height: 6px;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 12;
+}
+
+.terminal-panel .terminal-resize-handle::before {
+  display: none !important;
+}
+
+.terminal-panel .terminal-header {
+  grid-row: 1;
+}
+
+.terminal-panel .terminal-workbench {
+  grid-row: 2;
+}
+
+.source-pane.python-file-active.ipynb-notebook-mode {
+  grid-template-rows: 52px auto minmax(0, 1fr) var(--terminal-height) !important;
+}
+
+.source-pane.python-file-active.ipynb-notebook-mode.terminal-collapsed {
+  grid-template-rows: 52px auto minmax(0, 1fr) 34px !important;
+}
+
+/* One cohesive PDF-rendering segmented control. */
+.pdf-render-choice {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  display: grid !important;
+  gap: 0 !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.pdf-render-choice button {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-right: 1px solid var(--border) !important;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  height: 54px !important;
+  padding: 7px 10px !important;
+  text-align: left;
+}
+
+.pdf-render-choice button:last-child {
+  border-right: 0 !important;
+}
+
+.pdf-render-choice button .icon {
+  color: var(--muted);
+  height: 18px;
+  width: 18px;
+}
+
+.pdf-render-choice button span {
+  display: grid;
+  gap: 3px;
+}
+
+.pdf-render-choice button strong {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.pdf-render-choice button small {
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.pdf-render-choice button:hover,
+.pdf-render-choice button.active {
+  background: color-mix(in srgb, var(--accent) 9%, transparent) !important;
+}
+
+.pdf-render-choice button.active {
+  box-shadow: inset 0 -2px 0 var(--accent) !important;
+}
+
+.pdf-render-choice button.active .icon,
+.pdf-render-choice button.active strong {
+  color: var(--accent);
+}
+
+/* Profile fields use an editorial, flat two-column layout. */
+.profile-settings-panel.active {
+  align-content: start;
+  display: grid !important;
+  gap: 22px 28px !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profile-intro,
+.profile-field-wide {
+  grid-column: 1 / -1;
+}
+
+.profile-intro {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+}
+
+.profile-intro h3 {
+  color: var(--text);
+  font-size: 15px;
+  margin: 0 0 5px;
+}
+
+.profile-intro p {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0;
+}
+
+.profile-field {
+  gap: 6px !important;
+}
+
+.profile-field .settings-text-input,
+.profile-field .settings-textarea,
+body[data-theme="dark"] .profile-field .settings-text-input,
+body[data-theme="dark"] .profile-field .settings-textarea {
+  background: color-mix(in srgb, var(--panel) 78%, var(--cm-bg)) !important;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 72%, var(--border)) !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.profile-field .settings-text-input:focus,
+.profile-field .settings-textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.12) !important;
+}
+
+.profile-field-area .settings-textarea {
+  min-height: 140px;
+  resize: none;
+}
+
+.profile-field .settings-text-input {
+  height: 40px;
+}
+
+/* GitHub settings use compact toolbar actions instead of oversized pills. */
+.github-settings-panel.active {
+  align-content: start;
+  display: grid !important;
+  gap: 12px !important;
+}
+
+.github-field .settings-text-input,
+body[data-theme="dark"] .github-field .settings-text-input {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.github-field .settings-text-input:focus {
+  border-bottom-color: var(--accent) !important;
+}
+
+.github-action-row {
+  justify-content: flex-end;
+  padding-top: 0 !important;
+}
+
+.github-action-row .settings-action-button,
+.github-action-row .settings-action-button.primary {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 6px;
+  height: 31px;
+  padding: 0 9px !important;
+}
+
+.github-action-row .settings-action-button.primary {
+  color: var(--accent) !important;
+  font-weight: 700;
+}
+
+.github-action-row .settings-action-button:hover,
+.github-action-row .settings-action-button:focus-visible {
+  background: color-mix(in srgb, var(--text) 8%, transparent) !important;
+  color: var(--text) !important;
+}
+
+.github-action-row .icon {
+  height: 14px;
+  width: 14px;
+}
+
+@media (max-width: 820px) {
+  .profile-settings-panel.active {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-intro,
+  .profile-field-wide {
+    grid-column: 1;
+  }
+}
+
+/* Python execution uses editor/notebook cells; remove the redundant scratch banner. */
+.python-notebook-panel {
+  grid-template-rows: auto minmax(0, 1fr) !important;
+}
+
+.python-notebook-footer {
+  display: none !important;
+}
+
+.history-document-preview {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.history-document-preview header {
+  background: color-mix(in srgb, var(--panel) 92%, var(--bg));
 }

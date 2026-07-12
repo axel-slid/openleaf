@@ -48,6 +48,17 @@ const mediaViewer = document.getElementById("mediaViewer");
 const sourceMinimap = document.getElementById("sourceMinimap");
 const sourceMinimapLines = sourceMinimap && sourceMinimap.querySelector(".source-minimap-lines");
 const sourceMinimapViewport = sourceMinimap && sourceMinimap.querySelector(".source-minimap-viewport");
+const ipynbNotebookEditor = document.getElementById("ipynbNotebookEditor");
+const ipynbNotebookCells = document.getElementById("ipynbNotebookCells");
+const ipynbAddCellButton = document.getElementById("ipynbAddCellButton");
+const ipynbAddMarkdownButton = document.getElementById("ipynbAddMarkdownButton");
+const ipynbRunAllButton = document.getElementById("ipynbRunAllButton");
+const ipynbClearOutputsButton = document.getElementById("ipynbClearOutputsButton");
+const ipynbKernelLabel = document.getElementById("ipynbKernelLabel");
+const ipynbVimModeIndicator = document.getElementById("ipynbVimModeIndicator");
+const pythonRuntimeControls = document.getElementById("pythonRuntimeControls");
+const pythonKernelButton = document.getElementById("pythonKernelButton");
+const pythonKernelMenu = document.getElementById("pythonKernelMenu");
 const textTabs = document.getElementById("textTabs");
 const workspace = document.getElementById("workspace");
 const sourcePane = document.querySelector(".source-pane");
@@ -65,6 +76,19 @@ const pdfSidebar = document.getElementById("pdfSidebar");
 const pdfThumbnailList = document.getElementById("pdfThumbnailList");
 const pdfViewer = document.getElementById("pdfViewer");
 const previewPane = document.querySelector(".preview-pane");
+const previewPaneHeader = document.getElementById("previewPaneHeader");
+const pdfViewerShell = document.getElementById("pdfViewerShell");
+const pythonNotebookPanel = document.getElementById("pythonNotebookPanel");
+const pythonNotebookMeta = document.getElementById("pythonNotebookMeta");
+const pythonNotebookFeed = document.getElementById("pythonNotebookFeed");
+const pythonEditorToolbar = document.getElementById("pythonEditorToolbar");
+const pythonRunCellButton = document.getElementById("pythonRunCellButton");
+const pythonRunAboveButton = document.getElementById("pythonRunAboveButton");
+const pythonDebugCellButton = document.getElementById("pythonDebugCellButton");
+const pythonStopButton = document.getElementById("pythonStopButton");
+const pythonClearButton = document.getElementById("pythonClearButton");
+const pythonScratchRunButton = document.getElementById("pythonScratchRunButton");
+const pythonScratchInput = document.getElementById("pythonScratchInput");
 const compileLogPanel = document.getElementById("compileLogPanel");
 const compileLogResizeHandle = document.getElementById("compileLogResizeHandle");
 const compileLogCollapsedButton = document.getElementById("compileLogCollapsedButton");
@@ -122,6 +146,8 @@ const settingsSearchEmpty = document.getElementById("settingsSearchEmpty");
 const settingsNavButtons = Array.from(document.querySelectorAll(".settings-nav-button"));
 const settingsPanels = Array.from(document.querySelectorAll("[data-settings-panel]"));
 const settingsThemePreset = document.getElementById("settingsThemePreset");
+const settingsThemeCategoryBar = document.getElementById("settingsThemeCategoryBar");
+const settingsThemeGallery = document.getElementById("settingsThemeGallery");
 const settingsThemeToggle = document.getElementById("settingsThemeToggle");
 const settingsAccentPicker = document.getElementById("settingsAccentPicker");
 const settingsFileSidebarToggle = document.getElementById("settingsFileSidebarToggle");
@@ -237,6 +263,7 @@ const FILE_ICON_EXTENSIONS = new Map([
   [".html", "html.svg"],
   [".xml", "xml.svg"],
   [".py", "python.svg"],
+  [".ipynb", "jupyter.svg"],
   [".r", "r.svg"],
   [".rs", "rust.svg"],
   [".go", "go.svg"],
@@ -448,6 +475,12 @@ const HIGH_CONTRAST_PRESETS = new Set([
   "light-forest-hc",
   "light-violet-hc",
   "light-slate-hc",
+  "cobalt-paper-hc",
+  "mint-paper-hc",
+  "plum-paper-hc",
+  "coral-paper-hc",
+  "teal-paper-hc",
+  "gold-paper-hc",
   "abyss",
   "tomorrow-night-blue",
   "pastel-graphite-hc",
@@ -465,7 +498,11 @@ const HIGH_CONTRAST_PRESETS = new Set([
 const TRANSPARENT_PRESETS = new Set([
   "glass-light",
   "glass-dark",
-  "glass-mocha"
+  "glass-mocha",
+  "glass-ocean",
+  "glass-violet",
+  "glass-forest",
+  "glass-amber"
 ]);
 const THEME_PRESETS = {
   custom: null,
@@ -2210,6 +2247,89 @@ const THEME_PRESETS = {
     }
   }
 };
+
+function lightHighContrastPreset({ accent, tint, text = "#111827", secondary = "#374151" }) {
+  return {
+    theme: "light",
+    accent,
+    background: `linear-gradient(135deg, #ffffff, ${tint} 72%, color-mix(in srgb, ${tint} 76%, ${accent}))`,
+    colors: {
+      "--bg": tint,
+      "--glass": "rgba(255, 255, 255, 0.96)",
+      "--glass-strong": "rgba(255, 255, 255, 0.99)",
+      "--panel": "rgba(255, 255, 255, 0.98)",
+      "--page": "#ffffff",
+      "--text": text,
+      "--muted": secondary,
+      "--border": "rgba(17, 24, 39, 0.5)",
+      "--border-strong": "rgba(17, 24, 39, 0.86)",
+      "--red": "#a40e26",
+      "--green": "#006b3c",
+      "--blue": accent,
+      "--blue-dark": accent,
+      "--cm-bg": "#ffffff",
+      "--cm-gutter": tint,
+      "--cm-text": text,
+      "--cm-keyword": accent,
+      "--cm-variable": "#005ea8",
+      "--cm-atom": "#006b3c",
+      "--cm-comment": secondary,
+      "--cm-string": "#8a2c0d",
+      "--cm-number": "#6b21a8",
+      "--pdf-bg": tint,
+      "--pdf-paper": "#ffffff"
+    }
+  };
+}
+
+function darkGlassPreset({ accent, tint, text, muted, keyword, variable, atom, string, number }) {
+  return {
+    theme: "dark",
+    accent,
+    background: "transparent",
+    transparent: true,
+    colors: {
+      "--bg": `color-mix(in srgb, ${tint} 18%, transparent)`,
+      "--glass": `color-mix(in srgb, ${tint} 28%, transparent)`,
+      "--glass-strong": `color-mix(in srgb, ${tint} 46%, transparent)`,
+      "--panel": `color-mix(in srgb, ${tint} 36%, transparent)`,
+      "--page": "#ffffff",
+      "--text": text,
+      "--muted": muted,
+      "--border": `color-mix(in srgb, ${accent} 28%, transparent)`,
+      "--border-strong": `color-mix(in srgb, ${accent} 48%, transparent)`,
+      "--red": "#fda4af",
+      "--green": "#86efac",
+      "--blue": accent,
+      "--blue-dark": accent,
+      "--cm-bg": `color-mix(in srgb, ${tint} 42%, transparent)`,
+      "--cm-gutter": `color-mix(in srgb, ${tint} 52%, transparent)`,
+      "--cm-text": text,
+      "--cm-keyword": keyword,
+      "--cm-variable": variable,
+      "--cm-atom": atom,
+      "--cm-comment": muted,
+      "--cm-string": string,
+      "--cm-number": number,
+      "--pdf-bg": tint,
+      "--pdf-paper": "#ffffff",
+      "--pdf-page-filter": "invert(0.86) hue-rotate(180deg) contrast(0.9) brightness(1.1)"
+    }
+  };
+}
+
+Object.assign(THEME_PRESETS, {
+  "cobalt-paper-hc": lightHighContrastPreset({ accent: "#0047ab", tint: "#e8f0ff", text: "#07152f", secondary: "#30496f" }),
+  "mint-paper-hc": lightHighContrastPreset({ accent: "#006b4f", tint: "#e5f8f0", text: "#05251c", secondary: "#315c50" }),
+  "plum-paper-hc": lightHighContrastPreset({ accent: "#6b21a8", tint: "#f5e9ff", text: "#260637", secondary: "#5f3a70" }),
+  "coral-paper-hc": lightHighContrastPreset({ accent: "#b42318", tint: "#fff0eb", text: "#35100c", secondary: "#71443e" }),
+  "teal-paper-hc": lightHighContrastPreset({ accent: "#006d77", tint: "#e7f8f8", text: "#062a2d", secondary: "#315f63" }),
+  "gold-paper-hc": lightHighContrastPreset({ accent: "#8a5a00", tint: "#fff6d8", text: "#302000", secondary: "#6c5525" }),
+  "glass-ocean": darkGlassPreset({ accent: "#22d3ee", tint: "#062433", text: "#ecfeff", muted: "#a5d8df", keyword: "#67e8f9", variable: "#7dd3fc", atom: "#5eead4", string: "#bbf7d0", number: "#fdba74" }),
+  "glass-violet": darkGlassPreset({ accent: "#c4b5fd", tint: "#21163b", text: "#faf5ff", muted: "#cfc3e8", keyword: "#e9d5ff", variable: "#c4b5fd", atom: "#a5f3fc", string: "#bbf7d0", number: "#f9a8d4" }),
+  "glass-forest": darkGlassPreset({ accent: "#6ee7b7", tint: "#09291f", text: "#ecfdf5", muted: "#a7d6c4", keyword: "#a7f3d0", variable: "#93c5fd", atom: "#5eead4", string: "#bef264", number: "#fbbf24" }),
+  "glass-amber": darkGlassPreset({ accent: "#fbbf24", tint: "#30210a", text: "#fffbeb", muted: "#dac9a4", keyword: "#fde68a", variable: "#93c5fd", atom: "#86efac", string: "#fcd34d", number: "#fb923c" })
+});
 const DEFAULT_FILE_WIDTH = 240;
 const MIN_FILE_WIDTH = 220;
 const MAX_FILE_WIDTH = 460;
@@ -2296,6 +2416,8 @@ let visualItems = [];
 let visualBlocks = [];
 let markdownVisualTimer = null;
 let suppressSourceChange = false;
+let ipynbCellEditors = [];
+let syncingIpynbSource = false;
 let pdfJsPromise = null;
 let pdfRenderToken = 0;
 let pdfResizeTimer = null;
@@ -2352,7 +2474,15 @@ let historyEvents = [];
 let historyCaptureTimer = null;
 let lastHistoryText = "";
 let historySelectedIndex = 0;
+let selectedThemeCategory = "";
+let lastPythonLayoutFileKey = "";
 let activeFileRenameInput = null;
+let activeFileCreation = null;
+let selectedFileTreeNode = null;
+let expandedFileFolders = new Set();
+let pythonRunSequence = 0;
+const pythonNotebookRuns = new Map();
+const pythonRunningFiles = new Set();
 let sshProjectResolve = null;
 let sshAuthSession = null;
 const pendingTerminalExits = new Map();
@@ -2418,6 +2548,7 @@ function setupSourceEditor() {
   });
   applyEditorKeyMap();
   installVisualLineVimKeys();
+  installVimExCommands();
 
   editor.on("change", () => {
     if (isLoading || !activeProject) return;
@@ -2457,6 +2588,49 @@ function installVisualLineVimKeys() {
     CodeMirror.Vim.mapCommand("k", "motion", "moveByDisplayLines", { forward: false }, {});
     CodeMirror.Vim.__agentDeskDisplayLineKeys = true;
   }
+}
+
+function installVimExCommands() {
+  if (!window.CodeMirror || !CodeMirror.Vim || CodeMirror.Vim.__openleafExCommands) return;
+
+  CodeMirror.Vim.defineEx("write", "w", (_cm, params) => {
+    if (!vimExAllowsBangOnly(params, "w")) return;
+    void saveManuscript();
+  });
+  CodeMirror.Vim.defineEx("quit", "q", (_cm, params) => {
+    void quitProjectFromVim(params);
+  });
+  CodeMirror.Vim.defineEx("wq", "wq", (_cm, params) => {
+    void saveAndQuitProjectFromVim(params, "wq");
+  });
+  CodeMirror.Vim.defineEx("exit", "exit", (_cm, params) => {
+    void saveAndQuitProjectFromVim(params, "exit");
+  });
+  CodeMirror.Vim.defineEx("xit", "x", (_cm, params) => {
+    void saveAndQuitProjectFromVim(params, "x");
+  });
+
+  CodeMirror.Vim.__openleafExCommands = true;
+}
+
+function vimExAllowsBangOnly(params, command) {
+  const argument = String((params && params.argString) || "").trim();
+  if (!argument || argument === "!") return true;
+  compileLog.textContent = `:${command} only accepts an optional ! suffix in Openleaf.`;
+  return false;
+}
+
+async function quitProjectFromVim(params) {
+  if (!vimExAllowsBangOnly(params, "q")) return false;
+  const force = String((params && params.argString) || "").trim() === "!";
+  return showProjects({ discardChanges: force });
+}
+
+async function saveAndQuitProjectFromVim(params, command) {
+  if (!vimExAllowsBangOnly(params, command)) return false;
+  const saved = await saveManuscript();
+  if (!saved) return false;
+  return showProjects();
 }
 
 function latexCompletionHint(cm) {
@@ -2575,6 +2749,7 @@ function setupSettings() {
   updatePdfZoomLabel();
   updateEditorFullscreenButton();
   updateProjectHeroGreeting({ rotate: true });
+  renderThemeGallery();
 
   settingsThemePreset.addEventListener("change", () => {
     applyThemePreset(settingsThemePreset.value);
@@ -2713,6 +2888,91 @@ function applyThemePreset(presetId) {
   localStorage.setItem("latexStudioAccent", preset.accent);
 }
 
+function updateThemeGallerySelection() {
+  if (!settingsThemeGallery) return;
+  const selected = document.body.dataset.themePreset || "custom";
+  settingsThemeGallery.querySelectorAll("[data-theme-card]").forEach((card) => {
+    const active = card.dataset.themeCard === selected;
+    card.classList.toggle("active", active);
+    card.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function themeCategoryLabel(label) {
+  return String(label || "")
+    .replace("Light High Contrast", "Light Contrast")
+    .replace("Dark High Contrast", "Dark Contrast");
+}
+
+function themeCategoryForPreset(presetId) {
+  const option = Array.from(settingsThemePreset?.querySelectorAll("optgroup option") || [])
+    .find((candidate) => candidate.value === presetId);
+  return option?.parentElement?.label || "";
+}
+
+function renderThemeGallery() {
+  if (!settingsThemeGallery || !settingsThemePreset || !settingsThemeCategoryBar) return;
+  const groups = Array.from(settingsThemePreset.querySelectorAll("optgroup"));
+  const availableCategories = groups.map((group) => group.label);
+  if (!availableCategories.includes(selectedThemeCategory)) {
+    selectedThemeCategory = themeCategoryForPreset(document.body.dataset.themePreset) || availableCategories[0] || "";
+  }
+
+  settingsThemeCategoryBar.replaceChildren();
+  groups.forEach((group) => {
+    const button = document.createElement("button");
+    const active = group.label === selectedThemeCategory;
+    button.type = "button";
+    button.className = `theme-category-button${active ? " active" : ""}`;
+    button.dataset.themeCategory = group.label;
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", String(active));
+    button.textContent = themeCategoryLabel(group.label);
+    button.addEventListener("click", () => {
+      selectedThemeCategory = group.label;
+      renderThemeGallery();
+    });
+    settingsThemeCategoryBar.appendChild(button);
+  });
+
+  settingsThemeGallery.replaceChildren();
+  groups.filter((group) => group.label === selectedThemeCategory).forEach((group) => {
+    const section = document.createElement("section");
+    section.className = "theme-gallery-section";
+    const grid = document.createElement("div");
+    grid.className = "theme-card-grid";
+
+    Array.from(group.querySelectorAll("option")).forEach((option) => {
+      const preset = THEME_PRESETS[option.value];
+      if (!preset) return;
+      const colors = preset.colors || {};
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "theme-card";
+      card.dataset.themeCard = option.value;
+      card.setAttribute("aria-label", `Use ${option.textContent} theme`);
+      card.style.setProperty("--theme-card-accent", preset.accent || colors["--blue"] || DEFAULT_ACCENT);
+      card.style.setProperty("--theme-card-surface", colors["--cm-bg"] || colors["--panel"] || colors["--bg"] || "#ffffff");
+      card.style.setProperty("--theme-card-border", colors["--border-strong"] || colors["--border"] || "#94a3b8");
+      card.innerHTML = `
+        <span class="theme-card-circle" aria-hidden="true"></span>
+        <span class="theme-card-copy">
+          <strong>${escapeHtml(option.textContent)}</strong>
+        </span>
+        <span class="theme-card-check" aria-hidden="true">✓</span>
+      `;
+      card.addEventListener("click", () => {
+        applyThemePreset(option.value);
+        renderPdf({ showLoading: false, preserveView: true });
+      });
+      grid.appendChild(card);
+    });
+    section.append(grid);
+    settingsThemeGallery.appendChild(section);
+  });
+  updateThemeGallerySelection();
+}
+
 function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   const normalizedPreset = normalizeThemePreset(presetId);
   const preset = THEME_PRESETS[normalizedPreset];
@@ -2732,6 +2992,7 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   applyThemeVariables(preset);
 
   settingsThemePreset.value = normalizedPreset;
+  updateThemeGallerySelection();
   settingsThemeToggle.checked = normalizedTheme === "dark";
   settingsAccentPicker.value = normalizedAccent;
   sourcePane.dataset.terminalTheme = resolvedTerminalTheme();
@@ -3088,7 +3349,7 @@ async function connectSshProject() {
       setStatusClass(sshProjectStatus, "ok");
     }
     closeSshProjectPanel({ value: remoteWorkspace });
-    if (shouldStartTerminal) await openVerifiedRemoteWorkspace();
+    await openVerifiedRemoteWorkspace({ startTerminal: shouldStartTerminal });
   } catch (error) {
     setSshConnectionState("error", "SSH failed");
     if (sshProjectStatus) {
@@ -3166,7 +3427,7 @@ function cleanupSshAuthSession() {
   sshAuthSession = null;
 }
 
-async function openVerifiedRemoteWorkspace() {
+async function openVerifiedRemoteWorkspace({ startTerminal = true } = {}) {
   setSshConnectionState("connected");
   resetTextTabs();
   selectedPdfRelativePath = "";
@@ -3190,11 +3451,11 @@ async function openVerifiedRemoteWorkspace() {
   setTerminalCollapsed(false, { persist: false });
   setCompileLogCollapsed(true, { persist: false });
   await new Promise((resolve) => setTimeout(resolve, 120));
-  const session = await createTerminalSession("ssh");
-  if (session) {
-    compileLog.textContent = `Connected to ${remoteWorkspaceLabel(remoteWorkspace)}.`;
-  }
   await loadProjectFiles();
+  if (startTerminal) {
+    const session = await createTerminalSession("ssh");
+    if (session) compileLog.textContent = `Connected to ${remoteWorkspaceLabel(remoteWorkspace)}.`;
+  }
 }
 
 function saveProfileFromForm() {
@@ -3272,7 +3533,7 @@ function applyLayoutSettings({ showSidebar, pdfMinWidth = DEFAULT_PDF_MIN_WIDTH,
 
 function applyMinimapVisibility() {
   if (!sourceMinimap) return;
-  sourceMinimap.hidden = !minimapVisible || !visualEditor.hidden || Boolean(mediaViewer && !mediaViewer.hidden);
+  sourceMinimap.hidden = !minimapVisible || isIpynbFile() || !visualEditor.hidden || Boolean(mediaViewer && !mediaViewer.hidden);
   if (sourceMinimap.hidden) workspace.classList.add("minimap-hidden");
   else workspace.classList.remove("minimap-hidden");
   updateMinimapToggleButton();
@@ -3485,6 +3746,7 @@ function getTerminalHeight() {
 function setTerminalHeight(height, { persist = true } = {}) {
   const clamped = clampNumber(height, MIN_TERMINAL_HEIGHT, MAX_TERMINAL_HEIGHT, DEFAULT_TERMINAL_HEIGHT);
   sourcePane.style.setProperty("--terminal-height", `${clamped}px`);
+  workspace.style.setProperty("--terminal-height", `${clamped}px`);
   if (persist) localStorage.setItem("latexStudioTerminalHeight", String(Math.round(clamped)));
   scheduleTerminalFit();
 }
@@ -3497,6 +3759,7 @@ function getTerminalTabsWidth() {
 function setTerminalTabsWidth(width, { persist = true } = {}) {
   const clamped = clampNumber(width, MIN_TERMINAL_TABS_WIDTH, MAX_TERMINAL_TABS_WIDTH, DEFAULT_TERMINAL_TABS_WIDTH);
   sourcePane.style.setProperty("--terminal-tabs-width", `${clamped}px`);
+  workspace.style.setProperty("--terminal-tabs-width", `${clamped}px`);
   if (persist) localStorage.setItem("latexStudioTerminalTabsWidth", String(Math.round(clamped)));
   scheduleTerminalFit();
 }
@@ -3567,6 +3830,7 @@ function setVimMode(enabled) {
   localStorage.setItem("latexStudioVimMode", String(vimModeEnabled));
   settingsVimModeToggle.checked = vimModeEnabled;
   applyEditorKeyMap();
+  ipynbCellEditors.forEach(({ editor: cellEditor }) => cellEditor.setOption("keyMap", vimModeEnabled ? "vim" : "default"));
   updateVimModeIndicator();
   compileLog.textContent = `Vim shortcuts ${vimModeEnabled ? "enabled" : "disabled"}.`;
 }
@@ -3622,10 +3886,26 @@ function updateRelativeLineNumbers() {
   });
 }
 
+function updateIpynbVimModeIndicator(state = vimModeState || "normal") {
+  if (!ipynbVimModeIndicator) return;
+  const visible = vimModeEnabled && isPythonExecutionFile();
+  ipynbVimModeIndicator.hidden = !visible;
+  if (!visible) {
+    ipynbVimModeIndicator.textContent = "";
+    ipynbVimModeIndicator.dataset.vimState = "off";
+    return;
+  }
+  const normalized = String(state || "normal").toLowerCase();
+  ipynbVimModeIndicator.textContent = normalized === "insert" ? "Insert" : normalized === "visual" ? "Visual" : "Normal";
+  ipynbVimModeIndicator.dataset.vimState = normalized;
+}
+
 function updateVimModeIndicator() {
-  if (!vimModeIndicator) return;
   const state = vimModeEnabled ? (vimModeState || "normal") : "off";
-  vimModeIndicator.hidden = !vimModeEnabled;
+  updateIpynbVimModeIndicator(state);
+  if (!vimModeIndicator) return;
+  const sourceVisible = !editor || !editor.getWrapperElement().hidden;
+  vimModeIndicator.hidden = !vimModeEnabled || !sourceVisible || isPythonExecutionFile();
   if (!vimModeEnabled) {
     vimModeIndicator.textContent = "";
     vimModeIndicator.dataset.vimState = "off";
@@ -3805,6 +4085,7 @@ function applyEditorModeForFile(file = activeFile) {
     ".yaml": "yaml",
     ".yml": "yaml",
     ".py": "python",
+    ".ipynb": "python",
     ".js": "javascript",
     ".jsx": { name: "javascript", jsx: true },
     ".ts": { name: "javascript", typescript: true },
@@ -3818,6 +4099,717 @@ function applyEditorModeForFile(file = activeFile) {
     ".json": { name: "javascript", json: true }
   };
   editor.setOption("mode", modeByExtension[extension] || null);
+  const pythonFile = isPythonExecutionFile(file);
+  sourceModeButton.hidden = pythonFile;
+  visualModeButton.hidden = pythonFile;
+  if (pythonFile) setMode("source");
+  updateVimModeIndicator();
+}
+
+function isPythonExecutionFile(file = activeFile) {
+  const name = String((file && (file.relativePath || file.name)) || "").toLowerCase();
+  return name.endsWith(".py") || name.endsWith(".ipynb");
+}
+
+function isIpynbFile(file = activeFile) {
+  const name = String((file && (file.relativePath || file.name)) || "").toLowerCase();
+  return name.endsWith(".ipynb");
+}
+
+function pythonNotebookHistoryKey(projectId = activeProject && activeProject.id, relativePath = activeFile && activeFile.relativePath) {
+  return projectId && relativePath ? `${projectId}:${relativePath}` : "";
+}
+
+function currentPythonRuns() {
+  const key = pythonNotebookHistoryKey();
+  return key ? (pythonNotebookRuns.get(key) || []) : [];
+}
+
+function placePythonNotebookPanel(embedded) {
+  if (!pythonNotebookPanel) return;
+  if (embedded) {
+    if (pythonNotebookPanel.parentElement !== sourcePane) sourcePane.appendChild(pythonNotebookPanel);
+    return;
+  }
+  if (pythonNotebookPanel.parentElement !== previewPane) pdfViewerShell.after(pythonNotebookPanel);
+}
+
+function placeTerminalPanel(wide) {
+  if (!terminalPanel || !workspace || !sourcePane) return;
+  workspace.classList.toggle("python-terminal-wide", wide);
+  if (wide) {
+    if (terminalPanel.parentElement !== workspace) workspace.appendChild(terminalPanel);
+  } else if (terminalPanel.parentElement !== sourcePane) {
+    sourcePane.appendChild(terminalPanel);
+  }
+}
+
+function syncPythonNotebookVisibility() {
+  if (!pythonNotebookPanel || !previewPane) return;
+  const pythonFile = isPythonExecutionFile() && !activeMediaFile;
+  const notebookFile = isIpynbFile();
+  const layoutFileKey = pythonFile ? pythonNotebookHistoryKey() : "";
+  if (layoutFileKey !== lastPythonLayoutFileKey) {
+    if (notebookFile) setTerminalCollapsed(true, { persist: false });
+    lastPythonLayoutFileKey = layoutFileKey;
+  }
+  const visible = pythonFile && !notebookFile && currentPythonRuns().length > 0;
+  const embeddedNotebook = false;
+  const rightSideOutput = visible;
+  if (pythonRuntimeControls) pythonRuntimeControls.hidden = !pythonFile || Boolean(activeProject && activeProject.remote);
+  const lastInterpreter = [...currentPythonRuns()].reverse().find((run) => run.response && run.response.interpreter);
+  updatePythonKernelLabel(lastInterpreter ? lastInterpreter.response.interpreter : "");
+  // Keep the normal Terminal/Log split while the PDF is visible. Only merge
+  // the bottom row when Python output has actually replaced the PDF pane.
+  placeTerminalPanel(rightSideOutput);
+  placePythonNotebookPanel(embeddedNotebook);
+  if (pythonEditorToolbar) pythonEditorToolbar.hidden = !pythonFile || notebookFile;
+  if (sourcePane) sourcePane.classList.toggle("python-file-active", pythonFile);
+  if (sourcePane) sourcePane.classList.toggle("ipynb-notebook-mode", notebookFile);
+  if (sourcePane) sourcePane.classList.toggle("ipynb-output-active", embeddedNotebook);
+  pythonNotebookPanel.hidden = !visible;
+  pythonNotebookPanel.classList.toggle("python-notebook-embedded", embeddedNotebook);
+  previewPane.classList.toggle("python-output-active", rightSideOutput);
+  previewPane.classList.toggle("python-file-preview", pythonFile);
+  if (previewPaneHeader) previewPaneHeader.hidden = rightSideOutput;
+  if (pdfViewerShell) pdfViewerShell.hidden = rightSideOutput;
+  if (compileLogPanel) compileLogPanel.hidden = rightSideOutput;
+  if (previewRailButton) previewRailButton.textContent = rightSideOutput ? "Python" : "PDF";
+  if (visible) {
+    if (historyPanel) historyPanel.hidden = true;
+    renderPythonNotebookFeed();
+  }
+  if (notebookFile) renderIpynbInlineOutputs();
+}
+
+function pythonCellAtCursor() {
+  const text = getSourceText();
+  if (editor.somethingSelected()) {
+    return {
+      code: editor.getSelection(),
+      label: "Selection",
+      nextLine: null
+    };
+  }
+
+  const lines = text.split("\n");
+  const cursorLine = editor.getCursor().line;
+  const markers = [];
+  lines.forEach((line, index) => {
+    if (/^\s*#\s*%%(?:\s*\[[^\]]+\])?\s*$/i.test(line)) markers.push(index);
+  });
+  if (!markers.length) return { code: text, label: activeFileExtension() === ".ipynb" ? "Notebook" : "Script", nextLine: null };
+
+  let markerIndex = -1;
+  markers.forEach((line, index) => {
+    if (line <= cursorLine) markerIndex = index;
+  });
+  const start = markerIndex >= 0 ? markers[markerIndex] + 1 : 0;
+  const nextMarker = markers[markerIndex + 1];
+  const end = Number.isInteger(nextMarker) ? nextMarker : lines.length;
+  return {
+    code: lines.slice(start, end).join("\n"),
+    label: `Cell ${Math.max(1, markerIndex + 1)}`,
+    nextLine: Number.isInteger(nextMarker) ? Math.min(lines.length - 1, nextMarker + 1) : null
+  };
+}
+
+function pythonCellsThroughCursor() {
+  if (editor.somethingSelected()) return pythonCellAtCursor();
+  const text = getSourceText();
+  const lines = text.split("\n");
+  const cursorLine = editor.getCursor().line;
+  const nextMarker = lines.findIndex((line, index) => (
+    index > cursorLine && /^\s*#\s*%%(?:\s*\[[^\]]+\])?\s*$/i.test(line)
+  ));
+  const end = nextMarker === -1 ? lines.length : nextMarker;
+  return {
+    code: lines.slice(0, end).join("\n"),
+    label: "Run above",
+    nextLine: nextMarker === -1 ? null : Math.min(lines.length - 1, nextMarker + 1)
+  };
+}
+
+async function runActivePythonCell({ cell: providedCell = null, save = true, debug = false } = {}) {
+  if (!isPythonExecutionFile() || !activeProject || !activeFile) return false;
+  const projectId = activeProject.id;
+  const relativePath = activeFile.relativePath;
+  const historyKey = pythonNotebookHistoryKey(projectId, relativePath);
+  if (pythonRunningFiles.has(historyKey)) {
+    compileLog.textContent = "This Python session is already running a cell.";
+    return false;
+  }
+  const baseCell = providedCell || pythonCellAtCursor();
+  const cell = debug ? { ...baseCell, label: `Debug ${baseCell.label.toLowerCase()}` } : baseCell;
+  const executionCode = debug
+    ? `import trace as __openleaf_trace\n__openleaf_trace.Trace(trace=True, count=False).runctx(${JSON.stringify(baseCell.code)}, globals(), globals())`
+    : cell.code;
+  if (!cell.code.trim()) {
+    compileLog.textContent = "The current Python cell is empty.";
+    return false;
+  }
+
+  const run = {
+    id: ++pythonRunSequence,
+    label: cell.label,
+    code: cell.code,
+    status: "running",
+    response: null,
+    error: ""
+  };
+  const runs = pythonNotebookRuns.get(historyKey) || [];
+  runs.push(run);
+  pythonNotebookRuns.set(historyKey, runs);
+  pythonRunningFiles.add(historyKey);
+  setPdfCollapsed(false, { persist: false });
+  syncPythonNotebookVisibility();
+  renderPythonNotebookFeed();
+
+  const saved = save ? await saveManuscript() : true;
+  if (!saved) {
+    run.status = "error";
+    run.error = "The file could not be saved, so Python was not run.";
+    pythonRunningFiles.delete(historyKey);
+    renderPythonNotebookFeed();
+    return false;
+  }
+
+  try {
+    const response = await window.localOverleaf.runPythonCell(projectId, relativePath, executionCode, selectedPythonInterpreter());
+    run.status = response.stderr ? "error" : "complete";
+    run.response = response;
+  } catch (error) {
+    run.status = "error";
+    run.error = formatError(error);
+  } finally {
+    pythonRunningFiles.delete(historyKey);
+    if (pythonNotebookHistoryKey() === historyKey) {
+      renderPythonNotebookFeed();
+      if (cell.nextLine !== null) editor.setCursor({ line: cell.nextLine, ch: 0 });
+      editor.focus();
+    }
+  }
+  return run.status === "complete";
+}
+
+async function runPythonScratchCell() {
+  if (!pythonScratchInput) return false;
+  const code = pythonScratchInput.value.trim();
+  if (!code) return false;
+  const completed = await runActivePythonCell({
+    cell: { code, label: "Scratch", nextLine: null },
+    save: false
+  });
+  if (completed) pythonScratchInput.value = "";
+  return completed;
+}
+
+async function stopActivePythonKernel() {
+  if (!activeProject || !activeFile || !isPythonExecutionFile()) return;
+  const historyKey = pythonNotebookHistoryKey();
+  try {
+    await window.localOverleaf.stopPythonKernel(activeProject.id, activeFile.relativePath);
+  } catch (error) {
+    compileLog.textContent = formatError(error);
+  } finally {
+    pythonRunningFiles.delete(historyKey);
+    renderPythonNotebookFeed();
+  }
+}
+
+function clearActivePythonOutputs() {
+  const historyKey = pythonNotebookHistoryKey();
+  if (historyKey) pythonNotebookRuns.delete(historyKey);
+  syncPythonNotebookVisibility();
+}
+
+function deletePythonRun(runId) {
+  const historyKey = pythonNotebookHistoryKey();
+  if (!historyKey) return;
+  const remaining = (pythonNotebookRuns.get(historyKey) || []).filter((run) => run.id !== runId);
+  if (remaining.length) pythonNotebookRuns.set(historyKey, remaining);
+  else pythonNotebookRuns.delete(historyKey);
+  syncPythonNotebookVisibility();
+  if (remaining.length) renderPythonNotebookFeed();
+}
+
+function renderPythonNotebookFeed() {
+  if (isIpynbFile()) {
+    renderIpynbInlineOutputs();
+    return;
+  }
+  if (!pythonNotebookFeed || !isPythonExecutionFile()) return;
+  const runs = currentPythonRuns();
+  pythonNotebookFeed.innerHTML = "";
+  runs.forEach((run) => pythonNotebookFeed.appendChild(renderPythonRunCard(run)));
+  const lastResponse = [...runs].reverse().find((run) => run.response && run.response.interpreter);
+  pythonNotebookMeta.textContent = lastResponse
+    ? `Connected to Python (${pythonEnvironmentLabel(lastResponse.response.interpreter)})`
+    : "Connecting to Python…";
+  const running = pythonRunningFiles.has(pythonNotebookHistoryKey());
+  [pythonRunCellButton, pythonRunAboveButton, pythonDebugCellButton, pythonScratchRunButton]
+    .filter(Boolean)
+    .forEach((button) => { button.disabled = running; });
+  pythonStopButton.disabled = !running;
+  requestAnimationFrame(() => {
+    pythonNotebookFeed.scrollTop = pythonNotebookFeed.scrollHeight;
+  });
+}
+
+function pythonEnvironmentLabel(interpreter) {
+  const parts = String(interpreter || "Python").split(/[\\/]/).filter(Boolean);
+  const binIndex = parts.lastIndexOf("bin");
+  if (binIndex > 0) return parts[binIndex - 1];
+  return parts[parts.length - 1] || "Python";
+}
+
+function pythonKernelPreferenceKey(projectId = activeProject && activeProject.id) {
+  return projectId ? `openleafPythonKernel:${projectId}` : "";
+}
+
+function selectedPythonInterpreter() {
+  const key = pythonKernelPreferenceKey();
+  return key ? (localStorage.getItem(key) || "") : "";
+}
+
+function updatePythonKernelLabel(fallbackInterpreter = "") {
+  if (!ipynbKernelLabel) return;
+  const interpreter = selectedPythonInterpreter() || fallbackInterpreter;
+  ipynbKernelLabel.textContent = interpreter ? `Python (${pythonEnvironmentLabel(interpreter)})` : "Select Kernel";
+}
+
+function closePythonKernelMenu() {
+  if (!pythonKernelMenu || !pythonKernelButton) return;
+  pythonKernelMenu.hidden = true;
+  pythonKernelButton.setAttribute("aria-expanded", "false");
+}
+
+async function selectPythonInterpreter(interpreter) {
+  const key = pythonKernelPreferenceKey();
+  if (!key || !activeFile) return;
+  await window.localOverleaf.stopPythonKernel(activeProject.id, activeFile.relativePath).catch(() => false);
+  localStorage.setItem(key, interpreter);
+  updatePythonKernelLabel(interpreter);
+  closePythonKernelMenu();
+}
+
+async function openPythonKernelMenu() {
+  if (!pythonKernelMenu || !pythonKernelButton || !activeProject || activeProject.remote) return;
+  if (!pythonKernelMenu.hidden) {
+    closePythonKernelMenu();
+    return;
+  }
+  pythonKernelMenu.hidden = false;
+  pythonKernelMenu.innerHTML = '<div class="python-kernel-menu-title">Select Python kernel</div><div class="python-kernel-loading">Finding Python environments…</div>';
+  pythonKernelButton.setAttribute("aria-expanded", "true");
+  const rect = pythonKernelButton.getBoundingClientRect();
+  pythonKernelMenu.style.top = `${Math.round(rect.bottom + 5)}px`;
+  pythonKernelMenu.style.right = `${Math.max(10, Math.round(window.innerWidth - rect.right))}px`;
+  try {
+    const interpreters = await window.localOverleaf.listPythonInterpreters(activeProject.id);
+    const selected = selectedPythonInterpreter();
+    pythonKernelMenu.replaceChildren();
+    const title = document.createElement("div");
+    title.className = "python-kernel-menu-title";
+    title.textContent = "Select Python kernel";
+    pythonKernelMenu.appendChild(title);
+    interpreters.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `python-kernel-option${item.path === selected ? " active" : ""}`;
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", String(item.path === selected));
+      button.innerHTML = `<span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.path)}</small></span><b aria-hidden="true">${item.path === selected ? "✓" : ""}</b>`;
+      button.addEventListener("click", () => void selectPythonInterpreter(item.path));
+      pythonKernelMenu.appendChild(button);
+    });
+    if (!interpreters.length) {
+      const empty = document.createElement("div");
+      empty.className = "python-kernel-loading";
+      empty.textContent = "No Python interpreters found.";
+      pythonKernelMenu.appendChild(empty);
+    } else {
+      const active = pythonKernelMenu.querySelector('.python-kernel-option.active') || pythonKernelMenu.querySelector('.python-kernel-option');
+      if (active) active.focus();
+    }
+  } catch (error) {
+    const loading = pythonKernelMenu.querySelector('.python-kernel-loading');
+    if (loading) loading.textContent = formatError(error);
+  }
+}
+
+function renderPythonRunCard(run) {
+  const card = document.createElement("article");
+  card.className = "python-run-card";
+
+  const executionCount = document.createElement("div");
+  executionCount.className = "python-execution-count";
+  executionCount.textContent = `[${run.id}]`;
+
+  const source = document.createElement("section");
+  source.className = "python-run-source collapsed";
+  source.tabIndex = 0;
+  source.setAttribute("role", "button");
+  source.setAttribute("aria-expanded", "false");
+  source.setAttribute("aria-label", "Show full executed code");
+  source.dataset.tip = "Click to show the full executed code";
+  const sourceCode = document.createElement("pre");
+  sourceCode.className = "cm-s-default";
+  const displayCode = String(run.code || "").replace(/^(?:[ \t]*\r?\n)+/, "");
+  const firstLine = displayCode.split(/\r?\n/, 1)[0];
+  const renderSourceCode = (expanded) => {
+    sourceCode.replaceChildren();
+    const visibleCode = expanded ? displayCode : firstLine;
+    if (window.CodeMirror && typeof window.CodeMirror.runMode === "function") {
+      window.CodeMirror.runMode(visibleCode, "python", sourceCode);
+    } else {
+      sourceCode.textContent = visibleCode;
+    }
+  };
+  renderSourceCode(false);
+  const deleteButton = document.createElement("button");
+  deleteButton.className = "python-run-delete";
+  deleteButton.type = "button";
+  deleteButton.setAttribute("aria-label", `Delete executed cell ${run.id}`);
+  deleteButton.dataset.tip = "Delete this executed cell";
+  deleteButton.innerHTML = TRASH_ICON_SVG;
+  deleteButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    deletePythonRun(run.id);
+  });
+  const toggleSource = () => {
+    const expanded = source.getAttribute("aria-expanded") === "true";
+    source.setAttribute("aria-expanded", String(!expanded));
+    source.classList.toggle("collapsed", expanded);
+    renderSourceCode(!expanded);
+    source.dataset.tip = expanded ? "Click to show the full executed code" : "Click to show only the first line";
+  };
+  source.addEventListener("click", toggleSource);
+  source.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggleSource();
+  });
+  source.append(sourceCode, deleteButton);
+
+  const output = document.createElement("section");
+  output.className = "python-run-output";
+  const outputLabel = document.createElement("div");
+  outputLabel.className = "python-run-label";
+  const elapsed = run.response ? `${Math.max(0.1, run.response.elapsedMs / 1000).toFixed(1)}s` : "";
+  const statusMark = run.status === "complete" ? "✓" : run.status === "error" ? "×" : "●";
+  outputLabel.innerHTML = `<span class="python-run-status ${run.status}">${statusMark}</span><span>${elapsed || run.status}</span>`;
+  output.appendChild(outputLabel);
+
+  if (run.status === "running") {
+    const pending = document.createElement("div");
+    pending.className = "python-running";
+    pending.textContent = "Running cell…";
+    output.appendChild(pending);
+  } else {
+    const stdout = String((run.response && run.response.stdout) || "");
+    const stderr = String((run.response && run.response.stderr) || run.error || "");
+    const images = (run.response && Array.isArray(run.response.images)) ? run.response.images : [];
+    const plotlyOutputs = (run.response && Array.isArray(run.response.plotly)) ? run.response.plotly : [];
+    if (stdout) appendPythonTextOutput(output, stdout, "stdout");
+    if (stderr) appendPythonTextOutput(output, stderr, "stderr");
+    images.forEach((base64, index) => {
+      const image = document.createElement("img");
+      image.className = "python-run-image";
+      image.alt = `Python plot ${index + 1}`;
+      image.src = `data:image/png;base64,${base64}`;
+      output.appendChild(image);
+    });
+    plotlyOutputs.forEach((serializedFigure, index) => {
+      const plot = document.createElement("div");
+      plot.className = "python-run-plotly";
+      plot.setAttribute("aria-label", `Plotly plot ${index + 1}`);
+      output.appendChild(plot);
+      requestAnimationFrame(() => {
+        try {
+          const figure = JSON.parse(serializedFigure);
+          window.Plotly.newPlot(plot, figure.data || [], figure.layout || {}, {
+            displaylogo: false,
+            responsive: true
+          });
+        } catch (error) {
+          plot.textContent = `Could not render Plotly output: ${formatError(error)}`;
+          plot.classList.add("error");
+        }
+      });
+    });
+    if (!stdout && !stderr && !images.length && !plotlyOutputs.length) {
+      const empty = document.createElement("div");
+      empty.className = "python-no-output";
+      empty.textContent = "Completed with no output.";
+      output.appendChild(empty);
+    }
+  }
+
+  card.append(executionCount, source, output);
+  return card;
+}
+
+function appendPythonTextOutput(container, text, className) {
+  const pre = document.createElement("pre");
+  pre.className = className;
+  pre.textContent = text;
+  container.appendChild(pre);
+}
+
+function parseIpynbEditorCells(text = getSourceText()) {
+  if (!String(text || "").trim()) return [{ type: "code", code: "" }];
+  const cells = [];
+  let current = null;
+  const push = () => {
+    if (!current) return;
+    const lines = current.type === "markdown"
+      ? current.lines.map((line) => line.replace(/^# ?/, ""))
+      : current.lines;
+    cells.push({ type: current.type, code: lines.join("\n").replace(/\s+$/, "") });
+  };
+  String(text || "").split("\n").forEach((line) => {
+    const marker = line.match(/^\s*#\s*%%(?:\s*\[(markdown)\])?\s*$/i);
+    if (marker) {
+      push();
+      current = { type: marker[1] ? "markdown" : "code", lines: [] };
+      return;
+    }
+    if (!current) current = { type: "code", lines: [] };
+    current.lines.push(line);
+  });
+  push();
+  return cells;
+}
+
+function serializeIpynbEditorCells() {
+  return ipynbCellEditors.map(({ type, editor: cellEditor }) => {
+    const marker = type === "markdown" ? "# %% [markdown]" : "# %%";
+    const value = type === "markdown"
+      ? cellEditor.getValue().split("\n").map((line) => line ? `# ${line}` : "#").join("\n")
+      : cellEditor.getValue();
+    return `${marker}\n${value}`.trimEnd();
+  }).join("\n\n");
+}
+
+function syncIpynbSourceFromCells() {
+  if (syncingIpynbSource || !isIpynbFile()) return;
+  syncingIpynbSource = true;
+  const text = serializeIpynbEditorCells();
+  suppressSourceChange = true;
+  editor.setValue(text);
+  suppressSourceChange = false;
+  syncingIpynbSource = false;
+  handleSourceChanged();
+}
+
+function destroyIpynbCellEditors() {
+  ipynbCellEditors.forEach(({ editor: cellEditor }) => {
+    if (cellEditor && typeof cellEditor.toTextArea === "function") cellEditor.toTextArea();
+  });
+  ipynbCellEditors = [];
+}
+
+async function runIpynbCell(index, { advance = true } = {}) {
+  const entry = ipynbCellEditors[index];
+  if (!entry || entry.type !== "code") return false;
+  syncIpynbSourceFromCells();
+  const nextExecutionCount = Math.max(0, ...currentPythonRuns().map((run) => Number(run.notebookExecutionCount) || 0)) + 1;
+  const completed = await runActivePythonCell({
+    cell: { code: entry.editor.getValue(), label: `Cell ${index + 1}`, nextLine: null }
+  });
+  const latestRun = currentPythonRuns().at(-1);
+  if (latestRun && latestRun.label === `Cell ${index + 1}`) latestRun.notebookExecutionCount = nextExecutionCount;
+  renderIpynbInlineOutputs();
+  if (advance) {
+    if (index >= ipynbCellEditors.length - 1) addIpynbCell("code");
+    else if (ipynbCellEditors[index + 1]) ipynbCellEditors[index + 1].editor.focus();
+  }
+  return completed;
+}
+
+function advanceIpynbMarkdownCell(index) {
+  syncIpynbSourceFromCells();
+  if (index >= ipynbCellEditors.length - 1) addIpynbCell("code");
+  else if (ipynbCellEditors[index + 1]) ipynbCellEditors[index + 1].editor.focus();
+}
+
+function renderIpynbMarkdownCell(index, { advance = true } = {}) {
+  const entry = ipynbCellEditors[index];
+  if (!entry || entry.type !== "markdown") return;
+  syncIpynbSourceFromCells();
+  const wrapper = entry.editor.getWrapperElement();
+  entry.preview.innerHTML = renderMarkdownToHtml(entry.editor.getValue())
+    || '<p class="ipynb-markdown-empty">Empty Markdown cell</p>';
+  wrapper.hidden = true;
+  entry.preview.hidden = false;
+  entry.card.classList.add("ipynb-markdown-rendered");
+  if (advance) {
+    if (index >= ipynbCellEditors.length - 1) addIpynbCell("code");
+    else if (ipynbCellEditors[index + 1]) ipynbCellEditors[index + 1].editor.focus();
+  }
+}
+
+async function runAllIpynbCells() {
+  const codeIndexes = ipynbCellEditors
+    .map((entry, index) => entry.type === "code" ? index : -1)
+    .filter((index) => index >= 0);
+  for (const index of codeIndexes) await runIpynbCell(index, { advance: false });
+  const last = ipynbCellEditors.at(-1);
+  if (last && (last.type !== "code" || last.editor.getValue().trim())) addIpynbCell("code");
+}
+
+function renderIpynbInlineOutputs() {
+  if (!isIpynbFile() || !ipynbNotebookCells) return;
+  const runs = currentPythonRuns();
+  const lastInterpreter = [...runs].reverse().find((run) => run.response && run.response.interpreter);
+  updatePythonKernelLabel(lastInterpreter ? lastInterpreter.response.interpreter : "");
+  ipynbCellEditors.forEach((entry, index) => {
+    const outputHost = entry.card.querySelector(".ipynb-cell-output");
+    const count = entry.card.querySelector(".ipynb-cell-count");
+    if (entry.type !== "code") {
+      outputHost.replaceChildren();
+      count.textContent = "";
+      return;
+    }
+    const matchingRuns = runs.filter((run) => run.label === `Cell ${index + 1}`);
+    const run = matchingRuns[matchingRuns.length - 1];
+    outputHost.replaceChildren();
+    count.textContent = run ? `[${run.notebookExecutionCount || "…"}]` : "[ ]";
+    if (!run) return;
+    const rendered = renderPythonRunCard(run);
+    const output = rendered.querySelector(".python-run-output");
+    if (output) {
+      const empty = output.querySelector(".python-no-output");
+      if (empty) empty.remove();
+      outputHost.appendChild(output);
+    }
+  });
+}
+
+function renderIpynbNotebookEditor({ focusIndex = null } = {}) {
+  if (!ipynbNotebookEditor || !ipynbNotebookCells || !isIpynbFile()) return;
+  const cells = parseIpynbEditorCells();
+  destroyIpynbCellEditors();
+  ipynbNotebookCells.replaceChildren();
+
+  cells.forEach((cell, index) => {
+    const card = document.createElement("article");
+    card.className = `ipynb-cell ipynb-cell-${cell.type}`;
+    const gutter = document.createElement("div");
+    gutter.className = "ipynb-cell-gutter";
+    const runButton = document.createElement("button");
+    runButton.type = "button";
+    runButton.className = "ipynb-cell-run";
+    runButton.setAttribute("aria-label", `Run notebook cell ${index + 1}`);
+    runButton.dataset.tip = cell.type === "code" ? "Run cell (Shift+Enter)" : "Render Markdown (Shift+Enter)";
+    runButton.innerHTML = '<svg class="ipynb-play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.8 5.6C7.72 4.93 6.35 5.71 6.35 6.98v10.04c0 1.27 1.37 2.05 2.45 1.38l8.45-5.02c1.01-.62 1.01-2.14 0-2.76L8.8 5.6Z"></path></svg>';
+    const count = document.createElement("span");
+    count.className = "ipynb-cell-count";
+    count.textContent = cell.type === "code" ? "[ ]" : "";
+    gutter.append(runButton, count);
+
+    const body = document.createElement("div");
+    body.className = "ipynb-cell-body";
+    const header = document.createElement("header");
+    header.className = "ipynb-cell-header";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "ipynb-cell-delete";
+    remove.setAttribute("aria-label", `Delete notebook cell ${index + 1}`);
+    remove.dataset.tip = "Delete cell";
+    remove.innerHTML = TRASH_ICON_SVG;
+    header.append(remove);
+    const textarea = document.createElement("textarea");
+    textarea.value = cell.code;
+    textarea.setAttribute("aria-label", `${cell.type === "markdown" ? "Markdown" : "Python"} cell ${index + 1}`);
+    const language = document.createElement("span");
+    language.className = "ipynb-cell-language";
+    language.textContent = cell.type === "markdown" ? "Markdown" : "Python";
+    const markdownPreview = document.createElement("div");
+    markdownPreview.className = "ipynb-markdown-preview";
+    markdownPreview.hidden = true;
+    markdownPreview.setAttribute("role", "button");
+    markdownPreview.tabIndex = 0;
+    markdownPreview.setAttribute("aria-label", `Edit Markdown cell ${index + 1}`);
+    markdownPreview.dataset.tip = "Click to edit Markdown";
+    const output = document.createElement("div");
+    output.className = "ipynb-cell-output";
+    body.append(header, textarea, language, markdownPreview, output);
+    card.append(gutter, body);
+    ipynbNotebookCells.appendChild(card);
+
+    const cellEditor = CodeMirror.fromTextArea(textarea, {
+      mode: cell.type === "markdown" ? "markdown" : "python",
+      keyMap: vimModeEnabled ? "vim" : "default",
+      lineNumbers: true,
+      lineWrapping: true,
+      indentUnit: 2,
+      tabSize: 2,
+      viewportMargin: Infinity,
+      extraKeys: {
+        "Shift-Enter": () => cell.type === "code"
+          ? void runIpynbCell(index)
+          : renderIpynbMarkdownCell(index)
+      }
+    });
+    ipynbCellEditors.push({ type: cell.type, editor: cellEditor, card, preview: markdownPreview });
+    cellEditor.on("change", () => {
+      if (!isLoading) syncIpynbSourceFromCells();
+    });
+    cellEditor.on("vim-mode-change", (event) => {
+      vimModeState = String((event && event.mode) || "normal").toLowerCase();
+      updateIpynbVimModeIndicator(vimModeState);
+    });
+    cellEditor.on("focus", () => updateIpynbVimModeIndicator(vimModeState || "normal"));
+    runButton.addEventListener("click", () => cell.type === "code"
+      ? void runIpynbCell(index)
+      : renderIpynbMarkdownCell(index));
+    const editMarkdown = () => {
+      if (cell.type !== "markdown" || markdownPreview.hidden) return;
+      markdownPreview.hidden = true;
+      cellEditor.getWrapperElement().hidden = false;
+      card.classList.remove("ipynb-markdown-rendered");
+      cellEditor.refresh();
+      cellEditor.focus();
+    };
+    markdownPreview.addEventListener("click", editMarkdown);
+    markdownPreview.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      editMarkdown();
+    });
+    remove.addEventListener("click", () => {
+      cellEditor.toTextArea();
+      ipynbCellEditors.splice(index, 1);
+      syncIpynbSourceFromCells();
+      renderIpynbNotebookEditor({ focusIndex: ipynbCellEditors.length ? Math.max(0, index - 1) : null });
+    });
+  });
+
+  renderIpynbInlineOutputs();
+  updateIpynbVimModeIndicator(vimModeEnabled ? "normal" : "off");
+  requestAnimationFrame(() => {
+    ipynbCellEditors.forEach(({ editor: cellEditor }) => cellEditor.refresh());
+    if (Number.isInteger(focusIndex) && ipynbCellEditors[focusIndex]) ipynbCellEditors[focusIndex].editor.focus();
+  });
+}
+
+function addIpynbCell(type = "code") {
+  if (!isIpynbFile()) return;
+  syncIpynbSourceFromCells();
+  const marker = type === "markdown" ? "# %% [markdown]" : "# %%";
+  const existing = getSourceText().trimEnd();
+  const text = existing ? `${existing}\n\n${marker}\n` : `${marker}\n`;
+  suppressSourceChange = true;
+  editor.setValue(text);
+  suppressSourceChange = false;
+  handleSourceChanged();
+  renderIpynbNotebookEditor({ focusIndex: parseIpynbEditorCells(text).length - 1 });
+}
+
+function addIpynbCodeCell() {
+  addIpynbCell("code");
 }
 
 function currentTextTab() {
@@ -3851,6 +4843,7 @@ function resetTextTabs() {
   activeFile = null;
   activeMediaFile = null;
   renderTextTabs();
+  syncPythonNotebookVisibility();
 }
 
 function setActiveLoadedTextFile(file, text, { preview = false } = {}) {
@@ -3891,6 +4884,7 @@ function setActiveLoadedTextFile(file, text, { preview = false } = {}) {
   updateFileOutline();
   resetHistoryEvents(text);
   scheduleSpellGrammarCheck();
+  syncPythonNotebookVisibility();
 }
 
 function updateActiveTextTabAfterSave(file, text) {
@@ -4010,6 +5004,7 @@ function switchTextTab(relativePath) {
   if (!tab) return;
 
   syncActiveTextTabFromEditor();
+  recordHistoryEvent("Edited");
   activeTextTabPath = tab.relativePath;
   activeFile = tab.file;
   activeMediaFile = tab.kind === "image" ? tab.file : null;
@@ -4037,6 +5032,7 @@ function switchTextTab(relativePath) {
     renderTextTabs();
   } finally {
     isLoading = false;
+    syncPythonNotebookVisibility();
     requestAnimationFrame(() => editor.refresh());
   }
 }
@@ -4074,10 +5070,12 @@ function closeTextTab(relativePath) {
     updateStats();
     scheduleSourceMinimapUpdate();
     renderVisualEditor();
+    syncPythonNotebookVisibility();
   }
 
   renderTextTabs();
   renderFileTree();
+  syncPythonNotebookVisibility();
 }
 
 function removeTextTabsUnderPath(relativePath) {
@@ -4109,6 +5107,7 @@ function removeTextTabsUnderPath(relativePath) {
   }
 
   renderTextTabs();
+  syncPythonNotebookVisibility();
 }
 
 function renderTextTabs() {
@@ -4236,6 +5235,7 @@ function openDocumentationSettings() {
 }
 
 function wireEvents() {
+  window.addEventListener("beforeunload", () => recordHistoryEvent("Edited"));
   settingsButtons.forEach((button) => button.addEventListener("click", openSettings));
   closeSettingsButton.addEventListener("click", closeSettings);
   settingsBackdrop.addEventListener("click", closeOverlayModals);
@@ -4333,6 +5333,47 @@ function wireEvents() {
   terminalMaximizeButton.addEventListener("click", toggleTerminalMaximized);
   terminalClosePanelButton.addEventListener("click", () => setTerminalCollapsed(true));
   terminalCollapsedButton.addEventListener("click", () => setTerminalCollapsed(false));
+  if (pythonRunCellButton) pythonRunCellButton.addEventListener("click", () => runActivePythonCell());
+  if (pythonRunAboveButton) pythonRunAboveButton.addEventListener("click", () => runActivePythonCell({ cell: pythonCellsThroughCursor() }));
+  if (pythonDebugCellButton) pythonDebugCellButton.addEventListener("click", () => runActivePythonCell({ debug: true }));
+  if (pythonStopButton) pythonStopButton.addEventListener("click", stopActivePythonKernel);
+  if (pythonClearButton) pythonClearButton.addEventListener("click", clearActivePythonOutputs);
+  if (pythonKernelButton) pythonKernelButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    void openPythonKernelMenu();
+  });
+  document.addEventListener("click", (event) => {
+    if (!pythonKernelMenu || pythonKernelMenu.hidden) return;
+    if (!pythonKernelMenu.contains(event.target) && !pythonKernelButton.contains(event.target)) closePythonKernelMenu();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (!pythonKernelMenu || pythonKernelMenu.hidden) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closePythonKernelMenu();
+      pythonKernelButton.focus();
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const options = [...pythonKernelMenu.querySelectorAll(".python-kernel-option")];
+    if (!options.length) return;
+    event.preventDefault();
+    const current = options.indexOf(document.activeElement);
+    const delta = event.key === "ArrowDown" ? 1 : -1;
+    options[(current + delta + options.length) % options.length].focus();
+  });
+  if (pythonScratchRunButton) pythonScratchRunButton.addEventListener("click", runPythonScratchCell);
+  if (pythonScratchInput) {
+    pythonScratchInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+      event.preventDefault();
+      void runPythonScratchCell();
+    });
+  }
+  if (ipynbAddCellButton) ipynbAddCellButton.addEventListener("click", addIpynbCodeCell);
+  if (ipynbAddMarkdownButton) ipynbAddMarkdownButton.addEventListener("click", () => addIpynbCell("markdown"));
+  if (ipynbRunAllButton) ipynbRunAllButton.addEventListener("click", () => void runAllIpynbCells());
+  if (ipynbClearOutputsButton) ipynbClearOutputsButton.addEventListener("click", clearActivePythonOutputs);
   compileLogCollapsedButton.addEventListener("click", () => setCompileLogCollapsed(false));
   sourceModeButton.addEventListener("click", () => setMode("source"));
   visualModeButton.addEventListener("click", () => setMode("visual"));
@@ -4375,6 +5416,16 @@ function wireEvents() {
     "Cmd-Enter": () => compileManuscript({ manual: true }),
     "Ctrl-Enter": () => compileManuscript({ manual: true })
   });
+
+  // Handle this on the editor input itself so Shift+Enter consistently wins
+  // over CodeMirror's newline handling in both normal and Vim modes.
+  editor.getInputField().addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!isPythonExecutionFile()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void runActivePythonCell();
+  }, true);
 
   window.addEventListener("resize", () => {
     closeFileContextMenu();
@@ -5039,7 +6090,6 @@ function setSettingsPanel(section) {
     remote: "Remote",
     latex: "LaTeX Handbook",
     agents: "AGENTS.md",
-    shortcuts: "Keyboard",
     documentation: "Documentation"
   }[nextSection] || "Settings";
 
@@ -5991,7 +7041,34 @@ async function waitForTerminalReady(session) {
 function resetHistoryEvents(text = "") {
   clearTimeout(historyCaptureTimer);
   lastHistoryText = String(text || "");
-  historyEvents = [makeHistoryEntry("Opened", "Loaded the current document.", lastHistoryText, lastHistoryText)];
+  historyEvents = [];
+  try {
+    const stored = JSON.parse(localStorage.getItem(historyStorageKey()) || "[]");
+    if (Array.isArray(stored)) historyEvents = stored.filter((entry) => entry && typeof entry.text === "string");
+  } catch (error) {
+    historyEvents = [];
+  }
+  if (!historyEvents.length) {
+    historyEvents = [makeHistoryEntry("Opened", "Loaded the current document.", lastHistoryText, lastHistoryText)];
+  } else if (historyEvents[0].text !== lastHistoryText) {
+    historyEvents.unshift(makeHistoryEntry("Opened", summarizeTextChange(historyEvents[0].text, lastHistoryText), historyEvents[0].text, lastHistoryText));
+  }
+  persistHistoryEvents();
+}
+
+function historyStorageKey(projectId = activeProject && activeProject.id, relativePath = activeFile && activeFile.relativePath) {
+  if (!projectId || !relativePath) return "";
+  return `openleafHistory:${encodeURIComponent(String(projectId))}:${encodeURIComponent(String(relativePath))}`;
+}
+
+function persistHistoryEvents() {
+  const key = historyStorageKey();
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(historyEvents));
+  } catch (error) {
+    console.warn("Could not persist document history.", error);
+  }
 }
 
 function scheduleHistoryCapture(reason = "Edited") {
@@ -6005,8 +7082,8 @@ function recordHistoryEvent(reason = "Edited", { force = false } = {}) {
   if (!force && currentText === lastHistoryText) return;
 
   historyEvents.unshift(makeHistoryEntry(reason, summarizeTextChange(lastHistoryText, currentText), lastHistoryText, currentText));
-  historyEvents = historyEvents.slice(0, 40);
   lastHistoryText = currentText;
+  persistHistoryEvents();
 }
 
 function makeHistoryEntry(title, summary, previousText, currentText) {
@@ -6024,7 +7101,7 @@ function makeHistoryEntry(title, summary, previousText, currentText) {
     }),
     added: diff.added,
     removed: diff.removed,
-    text: String(currentText || "").slice(0, 60000)
+    text: String(currentText || "")
   };
 }
 
@@ -6055,7 +7132,7 @@ function summarizeTextChange(previousText, currentText) {
 }
 
 async function openHistoryWindow() {
-  recordHistoryEvent("Current version", { force: true });
+  recordHistoryEvent("Current version");
   const currentText = activeMediaFile ? "" : getSourceText();
   if (!historyEvents.length) resetHistoryEvents(currentText);
   historySelectedIndex = 0;
@@ -6581,6 +7658,9 @@ function projectPathFromFile(file) {
 
 async function openProject(projectId) {
   resetTextTabs();
+  cancelProjectFileCreation();
+  selectedFileTreeNode = null;
+  expandedFileFolders = new Set();
   selectedPdfRelativePath = "";
   clearRemoteCompiledPdf();
   setSshConnectionState("disconnected");
@@ -6602,12 +7682,13 @@ function showEditorShell() {
   requestAnimationFrame(() => editor.refresh());
 }
 
-async function showProjects() {
+async function showProjects({ discardChanges = false } = {}) {
   syncActiveTextTabFromEditor();
+  recordHistoryEvent("Edited");
   togglePdfReaderMode(false);
-  if (activeProject && openTextTabs.some((tab) => tab.dirty)) {
+  if (!discardChanges && activeProject && openTextTabs.some((tab) => tab.dirty)) {
     const confirmed = window.confirm("Return to Projects and keep unsaved editor changes only in this window?");
-    if (!confirmed) return;
+    if (!confirmed) return false;
   }
 
   clearTimeout(autoCompileTimer);
@@ -6616,6 +7697,7 @@ async function showProjects() {
   projectScreen.hidden = false;
   editorScreen.hidden = true;
   await loadProjects();
+  return true;
 }
 
 async function loadManuscript(projectId = activeProject && activeProject.id) {
@@ -6863,17 +7945,19 @@ function renderFileNode(node, depth) {
   if (node.kind === "folder") {
     const details = document.createElement("details");
     details.className = "file-folder";
-    details.open = false;
+    details.open = expandedFileFolders.has(node.relativePath);
     details.style.setProperty("--depth-indent", depthIndent);
 
     const summary = document.createElement("summary");
     summary.dataset.filePath = node.relativePath;
+    summary.classList.toggle("selected", isSelectedFileTreeNode(node));
     summary.innerHTML = `
       <span class="file-folder-icon" aria-hidden="true">
         <img src="${MATERIAL_ICON_BASE}/${folderIconName(node)}" alt="">
       </span>
       <span class="folder-name">${escapeHtml(node.name)}</span>
     `;
+    summary.addEventListener("click", () => selectFileTreeNode(node));
     attachFileContextMenu(summary, node);
     details.appendChild(summary);
 
@@ -6882,6 +7966,10 @@ function renderFileNode(node, depth) {
     children.style.setProperty("--depth-indent", depthIndent);
     (node.children || []).forEach((child) => children.appendChild(renderFileNode(child, depth + 1)));
     details.appendChild(children);
+    details.addEventListener("toggle", () => {
+      if (details.open) expandedFileFolders.add(node.relativePath);
+      else expandedFileFolders.delete(node.relativePath);
+    });
     return details;
   }
 
@@ -6891,13 +7979,18 @@ function renderFileNode(node, depth) {
   button.dataset.filePath = node.relativePath;
   button.style.setProperty("--depth-indent", depthIndent);
   button.classList.toggle("active", Boolean(activeFile && activeFile.relativePath === node.relativePath));
+  button.classList.toggle("selected", isSelectedFileTreeNode(node));
   button.innerHTML = `
     ${fileIconMarkup(node)}
     <span class="file-name">${escapeHtml(node.name)}</span>
   `;
-  button.addEventListener("click", () => selectProjectFile(node, { preview: true }));
+  button.addEventListener("click", () => {
+    selectFileTreeNode(node);
+    selectProjectFile(node, { preview: true });
+  });
   button.addEventListener("dblclick", (event) => {
     event.preventDefault();
+    selectFileTreeNode(node);
     selectProjectFile(node, { preview: false });
   });
   attachFileContextMenu(button, node);
@@ -6994,6 +8087,7 @@ function openMediaFile(node, { preview = true } = {}) {
   renderFileTree();
   updateFileOutline();
   filePreview.hidden = true;
+  syncPythonNotebookVisibility();
 }
 
 function showMediaTab(tab) {
@@ -7009,37 +8103,160 @@ function showMediaTab(tab) {
   applyMinimapVisibility();
 }
 
-async function createProjectFile(kind) {
+function createProjectFile(kind) {
   if (!activeProject) return;
-  const folderNode = currentFileFolderTarget();
-  const label = kind === "folder" ? "New folder name" : "New file name";
-  const fallback = kind === "folder" ? "new-folder" : "untitled.tex";
-  const name = window.prompt(label, fallback);
-  if (name === null || !name.trim()) return;
+  if (isRemoteProject()) {
+    compileLog.textContent = "Use the SSH terminal to create files or folders in a remote workspace.";
+    return;
+  }
+
+  cancelProjectFileCreation();
+  closeFileContextMenu();
+
+  const parentPath = currentFileFolderTarget();
+  const depth = parentPath ? parentPath.split("/").length : 0;
+  const row = document.createElement("div");
+  row.className = "file-create-row";
+  row.style.setProperty("--depth-indent", `${depth * 14}px`);
+
+  const icon = document.createElement("span");
+  icon.className = kind === "folder" ? "file-folder-icon" : "file-icon file-icon-svg";
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML = `<img src="${MATERIAL_ICON_BASE}/${kind === "folder" ? "folder.svg" : "file.svg"}" alt="">`;
+
+  const input = document.createElement("input");
+  input.className = "file-create-input";
+  input.type = "text";
+  input.spellcheck = false;
+  input.autocomplete = "off";
+  input.setAttribute("aria-label", kind === "folder" ? "New folder name" : "New file name");
+
+  row.append(icon, input);
+  const container = fileCreationContainer(parentPath);
+  const emptyMessage = container === fileTree ? fileTree.querySelector(".file-message") : null;
+  if (emptyMessage) emptyMessage.hidden = true;
+  container.prepend(row);
+  activeFileCreation = { kind, parentPath, row, input, emptyMessage, committing: false };
+
+  const cancel = () => cancelProjectFileCreation();
+  const commit = () => commitProjectFileCreation();
+  input.addEventListener("keydown", (event) => {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void commit();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+    }
+  });
+  input.addEventListener("blur", () => {
+    if (input.value.trim()) void commit();
+    else cancel();
+  });
+
+  requestAnimationFrame(() => input.focus());
+}
+
+function fileCreationContainer(parentPath) {
+  if (!parentPath) return fileTree;
+  const summary = Array.from(fileTree.querySelectorAll(".file-folder > summary[data-file-path]"))
+    .find((candidate) => candidate.dataset.filePath === parentPath);
+  const details = summary && summary.parentElement;
+  if (!details) return fileTree;
+  expandedFileFolders.add(parentPath);
+  details.open = true;
+  return Array.from(details.children).find((child) => child.classList.contains("file-children")) || fileTree;
+}
+
+function cancelProjectFileCreation() {
+  if (!activeFileCreation || activeFileCreation.committing) return;
+  const { row, emptyMessage } = activeFileCreation;
+  activeFileCreation = null;
+  row.remove();
+  if (emptyMessage) emptyMessage.hidden = false;
+}
+
+async function commitProjectFileCreation() {
+  const creation = activeFileCreation;
+  if (!creation || creation.committing) return false;
+  const name = creation.input.value.trim();
+  if (!name) {
+    cancelProjectFileCreation();
+    return false;
+  }
+
+  creation.committing = true;
+  creation.input.disabled = true;
+  creation.row.classList.remove("invalid");
 
   try {
-    const result = await window.localOverleaf.projectFileAction(activeProject.id, folderNode, kind === "folder" ? "create-folder" : "create-file", { name });
+    const result = await window.localOverleaf.projectFileAction(
+      activeProject.id,
+      creation.parentPath,
+      creation.kind === "folder" ? "create-folder" : "create-file",
+      { name }
+    );
+    selectedFileTreeNode = result.file
+      ? { relativePath: result.file.relativePath, kind: result.file.kind || creation.kind }
+      : selectedFileTreeNode;
+    activeFileCreation = null;
+    creation.row.remove();
     applyFileActionResult(result);
-    if (kind === "file" && result.file && result.file.editable) {
+    if (creation.kind === "file" && result.file && result.file.editable) {
       await loadProjectFile(result.file.relativePath, { preview: false });
     }
-    compileLog.textContent = `${kind === "folder" ? "Created folder" : "Created file"} ${name.trim()}.`;
+    compileLog.textContent = `${creation.kind === "folder" ? "Created folder" : "Created file"} ${name}.`;
+    return true;
   } catch (error) {
     compileLog.textContent = formatError(error);
+    creation.committing = false;
+    creation.input.disabled = false;
+    creation.row.classList.add("invalid");
+    creation.input.title = formatError(error);
+    requestAnimationFrame(() => {
+      creation.input.focus();
+      creation.input.select();
+    });
+    return false;
   }
 }
 
 function currentFileFolderTarget() {
+  if (selectedFileTreeNode && selectedFileTreeNode.relativePath) {
+    const selectedNode = flattenProjectFileNodes(projectFiles)
+      .find((node) => node.relativePath === selectedFileTreeNode.relativePath);
+    if (selectedNode) {
+      if (selectedNode.kind === "folder") return selectedNode.relativePath;
+      const selectedParts = selectedNode.relativePath.split("/");
+      selectedParts.pop();
+      return selectedParts.join("/");
+    }
+    selectedFileTreeNode = null;
+  }
   if (!activeFile || !activeFile.relativePath) return "";
   const parts = activeFile.relativePath.split("/");
   parts.pop();
   return parts.join("/");
 }
 
+function isSelectedFileTreeNode(node) {
+  return Boolean(selectedFileTreeNode && node && selectedFileTreeNode.relativePath === node.relativePath);
+}
+
+function selectFileTreeNode(node) {
+  if (!node || !node.relativePath) return;
+  selectedFileTreeNode = { relativePath: node.relativePath, kind: node.kind };
+  fileTree.querySelectorAll(".selected").forEach((row) => row.classList.remove("selected"));
+  const selectedRow = Array.from(fileTree.querySelectorAll("[data-file-path]"))
+    .find((candidate) => candidate.dataset.filePath === node.relativePath);
+  if (selectedRow) selectedRow.classList.add("selected");
+}
+
 function updateFileOutline() {
   if (!fileOutline || !fileOutlineBody) return;
   const tab = currentTextTab();
-  if (!tab || tab.kind !== "text") {
+  if (!tab || tab.kind !== "text" || isPythonExecutionFile(tab.file)) {
     fileOutline.hidden = true;
     fileOutlineBody.innerHTML = "";
     return;
@@ -7101,6 +8318,7 @@ function attachFileContextMenu(target, node) {
   target.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    selectFileTreeNode(node);
     showFileContextMenu(event, node);
   });
 }
@@ -7113,6 +8331,13 @@ function showFileContextMenu(event, node) {
   menu.setAttribute("role", "menu");
 
   const actions = [
+    ...(node.kind === "folder"
+      ? [
+          { id: "new-file", label: "New File..." },
+          { id: "new-folder", label: "New Folder..." },
+          { separator: true }
+        ]
+      : []),
     { id: "open", label: node.kind === "folder" ? "Open in Finder" : "Open" },
     { id: "reveal", label: "Reveal in Finder" },
     { separator: true },
@@ -7166,6 +8391,12 @@ async function runFileContextAction(action, node) {
   if (!activeProject || !node || !node.relativePath) return;
 
   try {
+    if (action === "new-file" || action === "new-folder") {
+      selectFileTreeNode(node);
+      createProjectFile(action === "new-folder" ? "folder" : "file");
+      return;
+    }
+
     if (isRemoteProject()) {
       if (action === "open") {
         if (node.editable || node.image) await selectProjectFile(node);
@@ -7332,6 +8563,15 @@ async function renameProjectFileNode(node, nextName) {
     else if (activeFile && activeFile.relativePath && activeFile.relativePath.startsWith(oldPrefix)) {
       activeFile = { ...activeFile, relativePath: `${newPrefix}${activeFile.relativePath.slice(oldPrefix.length)}` };
     }
+    if (selectedFileTreeNode && selectedFileTreeNode.relativePath === previousPath) {
+      selectedFileTreeNode = { relativePath: renamedFile.relativePath, kind: renamedFile.kind || node.kind };
+    } else if (selectedFileTreeNode && selectedFileTreeNode.relativePath.startsWith(oldPrefix)) {
+      selectedFileTreeNode = {
+        ...selectedFileTreeNode,
+        relativePath: `${newPrefix}${selectedFileTreeNode.relativePath.slice(oldPrefix.length)}`
+      };
+    }
+    if (expandedFileFolders.delete(previousPath)) expandedFileFolders.add(renamedFile.relativePath);
   }
 
   applyFileActionResult(result);
@@ -7444,12 +8684,12 @@ async function refreshActiveProject() {
 }
 
 async function saveManuscript({ auto = false } = {}) {
-  if (!activeProject) return;
+  if (!activeProject) return false;
   if (activeMediaFile) {
     if (!auto) compileLog.textContent = "Image tabs do not need saving.";
-    return;
+    return true;
   }
-  if (auto && getSourceText() === savedText) return;
+  if (auto && getSourceText() === savedText) return true;
 
   setBusy(true);
   clearTimeout(autoSaveTimer);
@@ -7468,9 +8708,11 @@ async function saveManuscript({ auto = false } = {}) {
     updateEditorFileTitle();
     updateActiveDocumentTitle();
     setSaveState(`${auto ? "Auto-saved" : "Saved"} ${timeStamp()}`, "ok");
+    return true;
   } catch (error) {
     setSaveState("Save failed", "error");
     compileLog.textContent = formatError(error);
+    return false;
   } finally {
     setBusy(false);
   }
@@ -7478,6 +8720,10 @@ async function saveManuscript({ auto = false } = {}) {
 
 async function compileManuscript({ manual = false } = {}) {
   if (!activeProject) return;
+  if (isPythonExecutionFile()) {
+    if (manual) return runActivePythonCell();
+    return false;
+  }
   if (isRemoteProject()) {
     if (activeMediaFile) {
       compileLog.textContent = "Switch to a text file before compiling.";
@@ -7814,8 +9060,10 @@ function handleSourceChanged({ renderVisual = false } = {}) {
   setSaveState(getSourceText() === savedText ? "Saved" : "Unsaved changes");
   if (renderVisual) renderVisualEditor();
   scheduleAutoSave();
-  setPdfStale(true);
-  scheduleAutoCompile("Waiting for edits to settle...");
+  if (!isPythonExecutionFile()) {
+    setPdfStale(true);
+    scheduleAutoCompile("Waiting for edits to settle...");
+  }
   scheduleHistoryCapture("Edited");
 }
 
@@ -7964,7 +9212,7 @@ function setPdfStale(stale) {
 }
 
 function scheduleAutoCompile(message) {
-  if (!activeProject || !autoCompileToggle.checked || isLoading) return;
+  if (!activeProject || !autoCompileToggle.checked || isLoading || isPythonExecutionFile()) return;
 
   if (isCompiling) {
     pendingCompile = true;
@@ -7988,16 +9236,22 @@ function setMode(mode) {
     return;
   }
 
-  const visual = mode === "visual";
+  const notebook = isIpynbFile();
+  const visual = mode === "visual" && !isPythonExecutionFile();
   sourceModeButton.classList.toggle("active", !visual);
   visualModeButton.classList.toggle("active", visual);
-  editor.getWrapperElement().hidden = visual;
+  editor.getWrapperElement().hidden = visual || notebook;
+  if (ipynbNotebookEditor) ipynbNotebookEditor.hidden = !notebook;
+  if (!notebook && ipynbCellEditors.length) destroyIpynbCellEditors();
   mediaViewer.hidden = true;
   visualEditor.hidden = !visual;
+  if (sourceMinimap) sourceMinimap.hidden = notebook || !minimapVisible;
+  updateVimModeIndicator();
   applyMinimapVisibility();
   updateEditorFileTitle();
 
-  if (visual) renderVisualEditor();
+  if (notebook) renderIpynbNotebookEditor();
+  else if (visual) renderVisualEditor();
   else {
     editor.refresh();
     scheduleSourceMinimapUpdate();
@@ -8649,7 +9903,7 @@ async function setPdf(options = {}) {
 }
 
 async function renderPdf({ showLoading = true, preserveView = false, preserveLogOnError = false } = {}) {
-  if (!activeProject || editorScreen.hidden) return false;
+  if (!activeProject || editorScreen.hidden || previewPane.classList.contains("python-output-active")) return false;
 
   const token = ++pdfRenderToken;
   const zoomForRender = pdfZoom;
@@ -9522,7 +10776,7 @@ function setupTerminalResize() {
   let dragStartHeight = 0;
 
   const maxTerminalHeight = () => {
-    const sourceHeight = sourcePane.getBoundingClientRect().height;
+    const sourceHeight = (workspace.classList.contains("python-terminal-wide") ? workspace : sourcePane).getBoundingClientRect().height;
     return Math.min(MAX_TERMINAL_HEIGHT, Math.max(MIN_TERMINAL_HEIGHT, sourceHeight - 220));
   };
 
@@ -10109,7 +11363,7 @@ function setupTooltips() {
     let el = node instanceof Element ? node : null;
     while (el && el !== document.body) {
       adopt(el);
-      if (el.dataset.tip && !hasVisibleLabel(el)) return el;
+      if (el.dataset.tip) return el;
       el = el.parentElement;
     }
     return null;
@@ -10575,13 +11829,20 @@ function setupNotesPanel() {
       if (shapeSnapshot) ctx.putImageData(shapeSnapshot, 0, 0);
       drawStroke(ctx, activeStroke);
     } else {
-      applyStrokeStyle(ctx, activeStroke);
-      ctx.beginPath();
-      ctx.moveTo(lastPoint.x, lastPoint.y);
-      ctx.lineTo(next.x, next.y);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
       activeStroke.points.push(next);
+      if (activeStroke.tool === "highlighter") {
+        // Redraw the highlighter as one path. Painting individual translucent
+        // segments stacks alpha at every sample and creates visible dots.
+        redrawBoard();
+        drawStroke(ctx, activeStroke);
+      } else {
+        applyStrokeStyle(ctx, activeStroke);
+        ctx.beginPath();
+        ctx.moveTo(lastPoint.x, lastPoint.y);
+        ctx.lineTo(next.x, next.y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
     }
     lastPoint = next;
   });

@@ -1,5 +1,5 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard } = require("electron");
-const { execFile, spawn } = require("node:child_process");
+const { execFile, execFileSync, spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
@@ -17,6 +17,7 @@ const appIconPngPath = path.join(repoRoot, "assets", "icon.png");
 
 let mainWindow;
 const terminalSessions = new Map();
+const pythonSessions = new Map();
 const terminalPath = [
   "/opt/homebrew/bin",
   "/opt/homebrew/sbin",
@@ -30,6 +31,104 @@ const terminalPath = [
   process.env.PATH || ""
 ].join(path.delimiter);
 process.env.PATH = terminalPath;
+
+const PYTHON_KERNEL_SOURCE = String.raw`
+import base64
+import ast
+import contextlib
+import io
+import json
+import os
+import sys
+import time
+import traceback
+
+os.environ.setdefault("MPLBACKEND", "Agg")
+namespace = {"__name__": "__main__"}
+
+for raw_line in sys.stdin:
+    request_id = ""
+    stdout_buffer = io.StringIO()
+    stderr_buffer = io.StringIO()
+    images = []
+    plotly_outputs = []
+    plotly_figures = []
+    started = time.time()
+    try:
+        request = json.loads(raw_line)
+        request_id = str(request.get("id", ""))
+        code = str(request.get("code", ""))
+        filename = str(request.get("filename", "<openleaf-cell>"))
+        plot_module = None
+        plotly_module = None
+        plotly_original_show = None
+        try:
+            import matplotlib.pyplot as plot_module
+        except Exception:
+            plot_module = None
+        try:
+            import plotly.io as plotly_module
+            plotly_original_show = plotly_module.show
+            def openleaf_plotly_show(figure, *args, **kwargs):
+                plotly_figures.append(figure)
+            plotly_module.show = openleaf_plotly_show
+        except Exception:
+            plotly_module = None
+
+        with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
+            try:
+                tree = ast.parse(code, filename=filename, mode="exec")
+                value = None
+                if tree.body and isinstance(tree.body[-1], ast.Expr):
+                    statements = ast.Module(body=tree.body[:-1], type_ignores=tree.type_ignores)
+                    ast.fix_missing_locations(statements)
+                    if statements.body:
+                        exec(compile(statements, filename, "exec"), namespace, namespace)
+                    expression = ast.Expression(body=tree.body[-1].value)
+                    ast.fix_missing_locations(expression)
+                    value = eval(compile(expression, filename, "eval"), namespace, namespace)
+                    if value is not None and value.__class__.__module__.startswith("plotly.") and hasattr(value, "to_html"):
+                        plotly_figures.append(value)
+                    elif value is not None:
+                        print(repr(value))
+                else:
+                    exec(compile(tree, filename, "exec"), namespace, namespace)
+            except BaseException:
+                traceback.print_exc(file=stderr_buffer)
+
+        if plot_module is not None:
+            for figure_number in list(plot_module.get_fignums()):
+                figure = plot_module.figure(figure_number)
+                image_buffer = io.BytesIO()
+                figure.savefig(image_buffer, format="png", bbox_inches="tight", dpi=144)
+                images.append(base64.b64encode(image_buffer.getvalue()).decode("ascii"))
+                plot_module.close(figure)
+        if plotly_module is not None:
+            seen_plotly_figures = set()
+            for figure in plotly_figures:
+                if id(figure) in seen_plotly_figures:
+                    continue
+                seen_plotly_figures.add(id(figure))
+                try:
+                    plotly_outputs.append(figure.to_json())
+                except BaseException:
+                    traceback.print_exc(file=stderr_buffer)
+            if plotly_original_show is not None:
+                plotly_module.show = plotly_original_show
+    except BaseException:
+        traceback.print_exc(file=stderr_buffer)
+
+    response = {
+        "id": request_id,
+        "stdout": stdout_buffer.getvalue(),
+        "stderr": stderr_buffer.getvalue(),
+        "images": images,
+        "plotly": plotly_outputs,
+        "elapsedMs": round((time.time() - started) * 1000),
+    }
+    sys.__stdout__.write(json.dumps(response) + "\n")
+    sys.__stdout__.flush()
+`;
 
 app.setName("Openleaf");
 
@@ -87,6 +186,7 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     killTerminalSessions();
+    killPythonSessions();
     mainWindow = null;
   });
 }
@@ -1930,7 +2030,7 @@ function remoteTextExtensions() {
   return JSON.stringify([
     ".tex", ".ltx", ".bib", ".bst", ".cls", ".sty", ".txt", ".md", ".markdown", ".log",
     ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml", ".toml", ".ini", ".cfg",
-    ".py", ".r", ".jl", ".m", ".js", ".jsx", ".ts", ".tsx", ".css", ".scss", ".html",
+    ".py", ".ipynb", ".r", ".jl", ".m", ".js", ".jsx", ".ts", ".tsx", ".css", ".scss", ".html",
     ".htm", ".xml", ".sql", ".sh", ".bash", ".zsh", ".fish", ".c", ".cc", ".cpp",
     ".h", ".hpp", ".java", ".go", ".rs", ".swift", ".kt", ".kts", ".rb", ".php",
     ".pl", ".lua", ".rst"
@@ -2012,7 +2112,7 @@ function isTextFile(filePath) {
   return [
     ".tex", ".ltx", ".bib", ".bst", ".cls", ".sty", ".txt", ".md", ".markdown", ".log",
     ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml", ".toml", ".ini", ".cfg",
-    ".py", ".r", ".jl", ".m", ".js", ".jsx", ".ts", ".tsx", ".css", ".scss", ".html",
+    ".py", ".ipynb", ".r", ".jl", ".m", ".js", ".jsx", ".ts", ".tsx", ".css", ".scss", ".html",
     ".htm", ".xml", ".sql", ".sh", ".bash", ".zsh", ".fish", ".c", ".cc", ".cpp",
     ".h", ".hpp", ".java", ".go", ".rs", ".swift", ".kt", ".kts", ".rb", ".php",
     ".pl", ".lua", ".dockerfile", ".rst"
@@ -2021,6 +2121,98 @@ function isTextFile(filePath) {
 
 function isImageFile(filePath) {
   return [".png", ".jpg", ".jpeg", ".gif", ".webp", ".tif", ".tiff", ".bmp", ".svg"].includes(path.extname(filePath).toLowerCase());
+}
+
+async function readEditorText(filePath) {
+  const raw = await fsp.readFile(filePath, "utf8");
+  if (path.extname(filePath).toLowerCase() !== ".ipynb") return raw;
+  return notebookJsonToEditorText(raw);
+}
+
+async function writeEditorText(filePath, text) {
+  if (path.extname(filePath).toLowerCase() !== ".ipynb") {
+    await fsp.writeFile(filePath, String(text || ""), "utf8");
+    return;
+  }
+
+  let existing = {};
+  try {
+    existing = JSON.parse(await fsp.readFile(filePath, "utf8"));
+  } catch (error) {
+    existing = {};
+  }
+  const notebook = editorTextToNotebookJson(String(text || ""), existing);
+  await fsp.writeFile(filePath, `${JSON.stringify(notebook, null, 2)}\n`, "utf8");
+}
+
+function notebookJsonToEditorText(raw) {
+  let notebook;
+  try {
+    notebook = JSON.parse(String(raw || "{}"));
+  } catch (error) {
+    throw new Error(`Invalid .ipynb JSON: ${error.message}`);
+  }
+  const cells = Array.isArray(notebook.cells) ? notebook.cells : [];
+  return cells.map((cell) => {
+    const source = Array.isArray(cell.source) ? cell.source.join("") : String(cell.source || "");
+    if (cell.cell_type === "markdown") {
+      const markdown = source.split("\n").map((line) => line ? `# ${line}` : "#").join("\n");
+      return `# %% [markdown]\n${markdown}`.trimEnd();
+    }
+    return `# %%\n${source}`.trimEnd();
+  }).join("\n\n");
+}
+
+function editorTextToNotebookJson(text, existing = {}) {
+  const lines = String(text || "").split("\n");
+  const cells = [];
+  let current = null;
+  const pushCurrent = () => {
+    if (!current) return;
+    const previousCell = Array.isArray(existing.cells) ? existing.cells[cells.length] : null;
+    let sourceLines = current.lines;
+    if (current.type === "markdown") {
+      sourceLines = sourceLines.map((line) => line.replace(/^# ?/, ""));
+    }
+    const source = sourceLines.join("\n").replace(/\s+$/, "");
+    if (current.type === "markdown") {
+      cells.push({
+        cell_type: "markdown",
+        ...(previousCell && previousCell.id ? { id: previousCell.id } : {}),
+        metadata: previousCell && previousCell.cell_type === "markdown" && previousCell.metadata ? previousCell.metadata : {},
+        ...(previousCell && previousCell.cell_type === "markdown" && previousCell.attachments ? { attachments: previousCell.attachments } : {}),
+        source: source ? [`${source}\n`] : []
+      });
+    } else {
+      cells.push({
+        cell_type: "code",
+        ...(previousCell && previousCell.id ? { id: previousCell.id } : {}),
+        execution_count: previousCell && previousCell.cell_type === "code" ? (previousCell.execution_count ?? null) : null,
+        metadata: previousCell && previousCell.cell_type === "code" && previousCell.metadata ? previousCell.metadata : {},
+        outputs: previousCell && previousCell.cell_type === "code" && Array.isArray(previousCell.outputs) ? previousCell.outputs : [],
+        source: source ? [`${source}\n`] : []
+      });
+    }
+  };
+
+  lines.forEach((line) => {
+    const marker = line.match(/^\s*#\s*%%(?:\s*\[(markdown)\])?\s*$/i);
+    if (marker) {
+      pushCurrent();
+      current = { type: marker[1] ? "markdown" : "code", lines: [] };
+      return;
+    }
+    if (!current) current = { type: "code", lines: [] };
+    current.lines.push(line);
+  });
+  pushCurrent();
+
+  return {
+    cells,
+    metadata: existing && typeof existing.metadata === "object" ? existing.metadata : {},
+    nbformat: Number(existing.nbformat) || 4,
+    nbformat_minor: Number(existing.nbformat_minor) || 5
+  };
 }
 
 function importTargetDir(project, fileName) {
@@ -2474,6 +2666,216 @@ function killTerminalSessions() {
   terminalSessions.clear();
 }
 
+function pythonSessionKey(projectId, relativePath) {
+  return `${projectId}:${String(relativePath || "").replace(/\\/g, "/")}`;
+}
+
+function pythonInterpreterCandidates(project) {
+  const root = projectRootFor(project);
+  const executableName = process.platform === "win32" ? "python.exe" : "python";
+  const projectCandidates = process.platform === "win32"
+    ? [path.join(root, ".venv", "Scripts", executableName), path.join(root, "venv", "Scripts", executableName)]
+    : [path.join(root, ".venv", "bin", executableName), path.join(root, "venv", "bin", executableName)];
+  const environmentCandidates = process.platform === "win32"
+    ? [
+        process.env.CONDA_PREFIX && path.join(process.env.CONDA_PREFIX, "python.exe"),
+        process.env.VIRTUAL_ENV && path.join(process.env.VIRTUAL_ENV, "Scripts", "python.exe")
+      ]
+    : [
+        process.env.CONDA_PREFIX && path.join(process.env.CONDA_PREFIX, "bin", "python"),
+        process.env.VIRTUAL_ENV && path.join(process.env.VIRTUAL_ENV, "bin", "python"),
+        "/opt/anaconda3/bin/python3",
+        "/opt/homebrew/bin/python3",
+        "/usr/local/bin/python3",
+        "/Library/Frameworks/Python.framework/Versions/Current/bin/python3",
+        "/usr/bin/python3"
+      ];
+  if (process.platform !== "win32") {
+    [path.join(homeDir, "anaconda3", "envs"), path.join(homeDir, "miniconda3", "envs"), "/opt/anaconda3/envs"].forEach((envRoot) => {
+      try {
+        fs.readdirSync(envRoot, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .forEach((entry) => environmentCandidates.push(path.join(envRoot, entry.name, "bin", "python")));
+      } catch (error) {
+      }
+    });
+  }
+  return [...projectCandidates, ...environmentCandidates]
+    .filter((candidate, index, values) => candidate && values.indexOf(candidate) === index && fs.existsSync(candidate));
+}
+
+function pythonExecutableForProject(project) {
+  const available = pythonInterpreterCandidates(project);
+  const projectPython = available.find((candidate) => candidate.includes(`${path.sep}.venv${path.sep}`) || candidate.includes(`${path.sep}venv${path.sep}`));
+  if (projectPython) return projectPython;
+  const plottingPython = available.find((candidate) => {
+    try {
+      execFileSync(candidate, ["-c", "import matplotlib"], { stdio: "ignore", timeout: 2500 });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  });
+  return plottingPython || available[0] || resolveExecutable(process.platform === "win32" ? "python" : "python3");
+}
+
+async function listPythonInterpreters(_event, payload = {}) {
+  const project = await getProject(payload.projectId);
+  return pythonInterpreterCandidates(project).map((executable) => ({
+    path: executable,
+    label: pythonInterpreterLabel(executable, project),
+    project: executable.startsWith(projectRootFor(project))
+  }));
+}
+
+function pythonInterpreterLabel(executable, project) {
+  const normalized = String(executable);
+  if (normalized.includes(`${path.sep}.venv${path.sep}`)) return `${project.name} (.venv)`;
+  if (normalized.includes(`${path.sep}venv${path.sep}`)) return `${project.name} (venv)`;
+  const environmentName = path.basename(path.dirname(path.dirname(normalized)));
+  if (environmentName && !["usr", "local", "homebrew"].includes(environmentName.toLowerCase())) return environmentName;
+  return `${path.basename(normalized)} (system)`;
+}
+
+function selectedPythonExecutable(project, requested = "") {
+  if (!requested) return pythonExecutableForProject(project);
+  const normalized = path.resolve(String(requested));
+  const allowed = pythonInterpreterCandidates(project).map((candidate) => path.resolve(candidate));
+  if (!allowed.includes(normalized)) throw new Error("The selected Python interpreter is no longer available.");
+  return normalized;
+}
+
+function createPythonSession(project, relativePath, executable = pythonExecutableForProject(project)) {
+  const key = pythonSessionKey(project.id, relativePath);
+  const cwd = projectRootFor(project);
+  const child = spawn(executable, ["-u", "-c", PYTHON_KERNEL_SOURCE], {
+    cwd,
+    env: {
+      ...process.env,
+      PATH: terminalPath,
+      PYTHONUNBUFFERED: "1",
+      MPLBACKEND: "Agg"
+    },
+    stdio: ["pipe", "pipe", "pipe"]
+  });
+  const session = {
+    key,
+    child,
+    executable,
+    pending: new Map(),
+    stdoutBuffer: "",
+    bootError: "",
+    closed: false
+  };
+  pythonSessions.set(key, session);
+
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    session.stdoutBuffer += chunk;
+    let newline = session.stdoutBuffer.indexOf("\n");
+    while (newline !== -1) {
+      const line = session.stdoutBuffer.slice(0, newline).trim();
+      session.stdoutBuffer = session.stdoutBuffer.slice(newline + 1);
+      if (line) resolvePythonKernelLine(session, line);
+      newline = session.stdoutBuffer.indexOf("\n");
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    session.bootError += chunk;
+  });
+  child.on("error", (error) => closePythonSession(session, error));
+  child.on("close", (code, signal) => {
+    const detail = session.bootError.trim() || `Python stopped (${signal || code || 0}).`;
+    closePythonSession(session, new Error(detail));
+  });
+  return session;
+}
+
+function resolvePythonKernelLine(session, line) {
+  let response;
+  try {
+    response = JSON.parse(line);
+  } catch (error) {
+    session.bootError += `${line}\n`;
+    return;
+  }
+  const pending = session.pending.get(String(response.id || ""));
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  session.pending.delete(String(response.id));
+  pending.resolve({ ...response, interpreter: session.executable });
+}
+
+function closePythonSession(session, error = new Error("Python session stopped.")) {
+  if (!session || session.closed) return;
+  session.closed = true;
+  if (pythonSessions.get(session.key) === session) pythonSessions.delete(session.key);
+  session.pending.forEach((pending) => {
+    clearTimeout(pending.timer);
+    pending.reject(error);
+  });
+  session.pending.clear();
+}
+
+async function runPythonCell(_event, payload = {}) {
+  const project = await getProject(payload.projectId);
+  const relativePath = String(payload.relativePath || "");
+  const extension = path.extname(relativePath).toLowerCase();
+  if (![".py", ".ipynb"].includes(extension)) throw new Error("Open a .py or .ipynb file to run Python.");
+  safeProjectPath(project, relativePath);
+
+  const code = String(payload.code || "");
+  if (!code.trim()) {
+    return { stdout: "", stderr: "", images: [], elapsedMs: 0, skipped: true };
+  }
+  if (Buffer.byteLength(code, "utf8") > 4 * 1024 * 1024) throw new Error("This Python cell is too large to run.");
+
+  const key = pythonSessionKey(project.id, relativePath);
+  const executable = selectedPythonExecutable(project, payload.interpreter);
+  let session = pythonSessions.get(key);
+  if (session && session.executable !== executable) {
+    session.child.kill("SIGTERM");
+    closePythonSession(session, new Error("Python kernel changed."));
+    session = null;
+  }
+  if (!session || session.closed || session.child.stdin.destroyed) {
+    session = createPythonSession(project, relativePath, executable);
+  }
+  const id = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      session.pending.delete(id);
+      if (!session.closed) session.child.kill("SIGTERM");
+      reject(new Error("Python execution timed out after 120 seconds. The session was restarted."));
+    }, 120000);
+    session.pending.set(id, { resolve, reject, timer });
+    session.child.stdin.write(`${JSON.stringify({ id, code, filename: relativePath })}\n`, (error) => {
+      if (!error) return;
+      clearTimeout(timer);
+      session.pending.delete(id);
+      reject(error);
+    });
+  });
+}
+
+async function stopPythonKernel(_event, payload = {}) {
+  const key = pythonSessionKey(payload.projectId, payload.relativePath);
+  const session = pythonSessions.get(key);
+  if (!session) return false;
+  session.child.kill("SIGTERM");
+  closePythonSession(session, new Error("Python execution stopped."));
+  return true;
+}
+
+function killPythonSessions() {
+  pythonSessions.forEach((session) => {
+    if (!session.closed) session.child.kill("SIGTERM");
+    closePythonSession(session);
+  });
+  pythonSessions.clear();
+}
+
 function clampTerminalDimension(value, min, max, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -2486,7 +2888,7 @@ async function loadManuscript(_event, payload) {
   const relativePath = typeof payload === "object" && payload.relativePath ? payload.relativePath : relativeProjectPath(project, project.texPath);
   const filePath = safeProjectPath(project, relativePath);
   if (!isTextFile(filePath)) throw new Error("Only text project files can be opened in the editor.");
-  const tex = await fsp.readFile(filePath, "utf8");
+  const tex = await readEditorText(filePath);
   await touchProject(project.id);
 
   return {
@@ -2507,7 +2909,7 @@ async function readProjectFile(_event, payload = {}) {
   return {
     project: decorateProject(project),
     file: fileDescriptor(project, filePath),
-    tex: await fsp.readFile(filePath, "utf8")
+    tex: await readEditorText(filePath)
   };
 }
 
@@ -2719,7 +3121,7 @@ async function chooseProjectFiles(_event, projectId) {
     buttonLabel: "Add",
     properties: ["openFile", "openDirectory", "multiSelections"],
     filters: [
-      { name: "Project assets", extensions: ["tex", "ltx", "bib", "bst", "cls", "sty", "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf", "csv", "tsv", "txt", "md", "json", "yaml", "yml", "py", "js", "ts", "tsx", "jsx", "css", "html", "xml", "sh"] },
+      { name: "Project assets", extensions: ["tex", "ltx", "bib", "bst", "cls", "sty", "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf", "csv", "tsv", "txt", "md", "json", "yaml", "yml", "py", "ipynb", "js", "ts", "tsx", "jsx", "css", "html", "xml", "sh"] },
       { name: "All files", extensions: ["*"] }
     ]
   });
@@ -2899,6 +3301,9 @@ function defaultContentForNewFile(name) {
   }
   if (extension === ".md") return "# Notes\n";
   if (extension === ".py") return "";
+  if (extension === ".ipynb") {
+    return `${JSON.stringify({ cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 }, null, 2)}\n`;
+  }
   return "";
 }
 
@@ -2931,7 +3336,7 @@ async function saveManuscript(_event, payload) {
   const project = await getProject(payload.projectId);
   const filePath = safeProjectPath(project, payload.relativePath || relativeProjectPath(project, project.texPath));
   if (!isTextFile(filePath)) throw new Error("Only text project files can be saved from the editor.");
-  await fsp.writeFile(filePath, payload.tex, "utf8");
+  await writeEditorText(filePath, payload.tex);
   await touchProject(project.id);
 
   return {
@@ -3602,6 +4007,9 @@ ipcMain.handle("import-project-files", importProjectFiles);
 ipcMain.handle("load-manuscript", loadManuscript);
 ipcMain.handle("read-project-file", readProjectFile);
 ipcMain.handle("save-manuscript", saveManuscript);
+ipcMain.handle("list-python-interpreters", listPythonInterpreters);
+ipcMain.handle("run-python-cell", runPythonCell);
+ipcMain.handle("stop-python-kernel", stopPythonKernel);
 ipcMain.handle("compile-manuscript", compileManuscript);
 ipcMain.handle("read-pdf", readPdf);
 ipcMain.handle("open-pdf", openPdf);
@@ -3620,7 +4028,10 @@ ipcMain.handle("terminal-kill", killTerminal);
 ipcMain.on("terminal-write", writeTerminal);
 ipcMain.on("terminal-resize", resizeTerminal);
 
-app.on("before-quit", killTerminalSessions);
+app.on("before-quit", () => {
+  killTerminalSessions();
+  killPythonSessions();
+});
 
 app.whenReady().then(() => {
   app.setName("Openleaf");
