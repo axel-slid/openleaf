@@ -57,7 +57,7 @@ const Pane = ({title, subtitle, color, left, top, start, frame, symbol}) => {
 };
 
 export const OpenleafDemo = () => {
-  const frame = useCurrentFrame();
+  const frame = useCurrentFrame() * (240 / 360);
   const {fps} = useVideoConfig();
   const intro = spring({
     frame,
