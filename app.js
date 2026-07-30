@@ -1,5 +1,66 @@
 const projectScreen = document.getElementById("projectScreen");
 const editorScreen = document.getElementById("editorScreen");
+const presentationScreen = document.getElementById("presentationScreen");
+const pptxMenubar = document.getElementById("pptxMenubar");
+const pptxMenusToggle = document.getElementById("pptxMenusToggle");
+const pptxPrintButton = document.getElementById("pptxPrintButton");
+const pptxFitButton = document.getElementById("pptxFitButton");
+const pptxBackButton = document.getElementById("pptxBackButton");
+const pptxProjectTitle = document.getElementById("pptxProjectTitle");
+const pptxSaveStatus = document.getElementById("pptxSaveStatus");
+const pptxSaveButton = document.getElementById("pptxSaveButton");
+const pptxPresentButton = document.getElementById("pptxPresentButton");
+const pptxPresentControls = document.getElementById("pptxPresentControls");
+const pptxPresentPreviousButton = document.getElementById("pptxPresentPreviousButton");
+const pptxPresentNextButton = document.getElementById("pptxPresentNextButton");
+const pptxPresentExitButton = document.getElementById("pptxPresentExitButton");
+const pptxPresentStatus = document.getElementById("pptxPresentStatus");
+const pptxUndoButton = document.getElementById("pptxUndoButton");
+const pptxRedoButton = document.getElementById("pptxRedoButton");
+const pptxSelectButton = document.getElementById("pptxSelectButton");
+const pptxAddTextButton = document.getElementById("pptxAddTextButton");
+const pptxAddRectangleButton = document.getElementById("pptxAddRectangleButton");
+const pptxAddEllipseButton = document.getElementById("pptxAddEllipseButton");
+const pptxAddLineButton = document.getElementById("pptxAddLineButton");
+const pptxAddImageButton = document.getElementById("pptxAddImageButton");
+const pptxAddChartButton = document.getElementById("pptxAddChartButton");
+const pptxAddTableButton = document.getElementById("pptxAddTableButton");
+const pptxImageFileInput = document.getElementById("pptxImageFileInput");
+const pptxBackgroundButton = document.getElementById("pptxBackgroundButton");
+const pptxBackgroundColorInput = document.getElementById("pptxBackgroundColorInput");
+const pptxLayoutButton = document.getElementById("pptxLayoutButton");
+const pptxThemeButton = document.getElementById("pptxThemeButton");
+const pptxTransitionButton = document.getElementById("pptxTransitionButton");
+const pptxDeleteElementButton = document.getElementById("pptxDeleteElementButton");
+const pptxSlideCount = document.getElementById("pptxSlideCount");
+const pptxSlideList = document.getElementById("pptxSlideList");
+const pptxStageLabel = document.getElementById("pptxStageLabel");
+const pptxStatusSlide = document.getElementById("pptxStatusSlide");
+const pptxZoomRange = document.getElementById("pptxZoomRange");
+const pptxZoomOutButton = document.getElementById("pptxZoomOutButton");
+const pptxZoomInButton = document.getElementById("pptxZoomInButton");
+const pptxZoomOutput = document.getElementById("pptxZoomOutput");
+const pptxStageViewport = document.getElementById("pptxStageViewport");
+const pptxSlideCanvas = document.getElementById("pptxSlideCanvas");
+const pptxBackgroundCanvas = document.getElementById("pptxBackgroundCanvas");
+const pptxElementLayer = document.getElementById("pptxElementLayer");
+const pptxElementType = document.getElementById("pptxElementType");
+const pptxInspectorEmpty = document.getElementById("pptxInspectorEmpty");
+const pptxInspectorFields = document.getElementById("pptxInspectorFields");
+const pptxTextInput = document.getElementById("pptxTextInput");
+const pptxXInput = document.getElementById("pptxXInput");
+const pptxYInput = document.getElementById("pptxYInput");
+const pptxWidthInput = document.getElementById("pptxWidthInput");
+const pptxHeightInput = document.getElementById("pptxHeightInput");
+const pptxFontSizeInput = document.getElementById("pptxFontSizeInput");
+const pptxColorInput = document.getElementById("pptxColorInput");
+const pptxFontFamilyInput = document.getElementById("pptxFontFamilyInput");
+const pptxBoldButton = document.getElementById("pptxBoldButton");
+const pptxItalicButton = document.getElementById("pptxItalicButton");
+const pptxUnderlineButton = document.getElementById("pptxUnderlineButton");
+const pptxAlignSelect = document.getElementById("pptxAlignSelect");
+const pptxTerminalSlot = document.getElementById("pptxTerminalSlot");
+const pptxTerminalToggle = document.getElementById("pptxTerminalToggle");
 const projectGrid = document.getElementById("projectGrid");
 const projectEmpty = document.getElementById("projectEmpty");
 const projectHeroTitle = document.getElementById("projectHeroTitle");
@@ -247,6 +308,8 @@ const FILE_ICON_EXTENSIONS = new Map([
   [".bst", "bibtex-style.svg"],
   [".bib", "bibliography.svg"],
   [".pdf", "pdf.svg"],
+  [".ppt", "powerpoint.svg"],
+  [".pptx", "powerpoint.svg"],
   [".md", "markdown.svg"],
   [".txt", "document.svg"],
   [".log", "log.svg"],
@@ -2459,6 +2522,26 @@ let commandPaletteActiveIndex = 0;
 let copiedProjectItem = null;
 let draggedTextTabPath = "";
 let activeMediaFile = null;
+const PPTX_EMU_PER_INCH = 914400;
+let activePresentation = null;
+let activePresentationPdf = null;
+let activePresentationThumbnailPdf = null;
+let activePresentationSlideIndex = 0;
+let selectedPresentationElement = null;
+let presentationChangeMap = new Map();
+let presentationDirty = false;
+let presentationRenderToken = 0;
+let presentationThumbnailToken = 0;
+let presentationBackgroundRenderTask = null;
+let presentationZoomRenderFrame = 0;
+let presentationZoomAnchor = null;
+let presentationCanvasScale = 1;
+let presentationDragState = null;
+let presentationSelectionScope = "canvas";
+let presentationSlideClipboard = null;
+let presentationUndoStack = [];
+let presentationRedoStack = [];
+let presentationHistorySuspended = false;
 let historyPanelOpen = false;
 let sourceMinimapFrame = 0;
 let sourceMinimapDragging = false;
@@ -2996,6 +3079,7 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   settingsThemeToggle.checked = normalizedTheme === "dark";
   settingsAccentPicker.value = normalizedAccent;
   sourcePane.dataset.terminalTheme = resolvedTerminalTheme();
+  if (presentationScreen) presentationScreen.dataset.terminalTheme = resolvedTerminalTheme();
   compileLogPanel.dataset.logTheme = resolvedCompileLogTheme();
   refreshTerminalThemes();
   scheduleSourceMinimapUpdate();
@@ -3007,6 +3091,7 @@ function syncSurfaceThemesToAppTheme(theme, { persist = true } = {}) {
   pdfDarkMode = mode === "dark";
 
   sourcePane.dataset.terminalTheme = mode;
+  if (presentationScreen) presentationScreen.dataset.terminalTheme = mode;
   compileLogPanel.dataset.logTheme = mode;
   applyPdfRenderMode();
   refreshTerminalThemes();
@@ -3738,8 +3823,27 @@ function getPdfMinimumWidth() {
   return DEFAULT_PDF_MIN_WIDTH;
 }
 
+function presentationTerminalIsActive() {
+  return Boolean(
+    presentationScreen
+    && !presentationScreen.hidden
+    && pptxTerminalSlot
+    && terminalPanel.parentElement === pptxTerminalSlot
+  );
+}
+
+function terminalLayoutHost() {
+  return presentationTerminalIsActive() ? presentationScreen : sourcePane;
+}
+
+function terminalIsCollapsed() {
+  return presentationTerminalIsActive()
+    ? !presentationScreen.classList.contains("pptx-terminal-open")
+    : sourcePane.classList.contains("terminal-collapsed");
+}
+
 function getTerminalHeight() {
-  const current = Number.parseFloat(getComputedStyle(sourcePane).getPropertyValue("--terminal-height"));
+  const current = Number.parseFloat(getComputedStyle(terminalLayoutHost()).getPropertyValue("--terminal-height"));
   return clampNumber(current, MIN_TERMINAL_HEIGHT, MAX_TERMINAL_HEIGHT, DEFAULT_TERMINAL_HEIGHT);
 }
 
@@ -3747,12 +3851,13 @@ function setTerminalHeight(height, { persist = true } = {}) {
   const clamped = clampNumber(height, MIN_TERMINAL_HEIGHT, MAX_TERMINAL_HEIGHT, DEFAULT_TERMINAL_HEIGHT);
   sourcePane.style.setProperty("--terminal-height", `${clamped}px`);
   workspace.style.setProperty("--terminal-height", `${clamped}px`);
+  if (presentationScreen) presentationScreen.style.setProperty("--terminal-height", `${clamped}px`);
   if (persist) localStorage.setItem("latexStudioTerminalHeight", String(Math.round(clamped)));
   scheduleTerminalFit();
 }
 
 function getTerminalTabsWidth() {
-  const current = Number.parseFloat(getComputedStyle(sourcePane).getPropertyValue("--terminal-tabs-width"));
+  const current = Number.parseFloat(getComputedStyle(terminalLayoutHost()).getPropertyValue("--terminal-tabs-width"));
   return clampNumber(current, MIN_TERMINAL_TABS_WIDTH, MAX_TERMINAL_TABS_WIDTH, DEFAULT_TERMINAL_TABS_WIDTH);
 }
 
@@ -3760,6 +3865,7 @@ function setTerminalTabsWidth(width, { persist = true } = {}) {
   const clamped = clampNumber(width, MIN_TERMINAL_TABS_WIDTH, MAX_TERMINAL_TABS_WIDTH, DEFAULT_TERMINAL_TABS_WIDTH);
   sourcePane.style.setProperty("--terminal-tabs-width", `${clamped}px`);
   workspace.style.setProperty("--terminal-tabs-width", `${clamped}px`);
+  if (presentationScreen) presentationScreen.style.setProperty("--terminal-tabs-width", `${clamped}px`);
   if (persist) localStorage.setItem("latexStudioTerminalTabsWidth", String(Math.round(clamped)));
   scheduleTerminalFit();
 }
@@ -3771,6 +3877,10 @@ function applyTerminalLayout({ height = getTerminalHeight(), collapsed = sourceP
 }
 
 function setTerminalCollapsed(collapsed, { persist = true } = {}) {
+  if (presentationTerminalIsActive()) {
+    setPresentationTerminalOpen(!collapsed, { persist });
+    return;
+  }
   sourcePane.classList.toggle("terminal-collapsed", collapsed);
   if (collapsed) sourcePane.classList.remove("terminal-maximized");
   if (persist) localStorage.setItem("latexStudioTerminalCollapsed", String(collapsed));
@@ -4136,12 +4246,49 @@ function placePythonNotebookPanel(embedded) {
 
 function placeTerminalPanel(wide) {
   if (!terminalPanel || !workspace || !sourcePane) return;
+  if (presentationTerminalIsActive()) return;
   workspace.classList.toggle("python-terminal-wide", wide);
   if (wide) {
     if (terminalPanel.parentElement !== workspace) workspace.appendChild(terminalPanel);
   } else if (terminalPanel.parentElement !== sourcePane) {
     sourcePane.appendChild(terminalPanel);
   }
+}
+
+function placePresentationTerminalPanel() {
+  if (!terminalPanel || !pptxTerminalSlot) return;
+  workspace.classList.remove("python-terminal-wide");
+  if (terminalPanel.parentElement !== pptxTerminalSlot) pptxTerminalSlot.appendChild(terminalPanel);
+  terminalCollapsedButton.hidden = true;
+  presentationScreen.dataset.terminalTheme = resolvedTerminalTheme();
+}
+
+function restoreEditorTerminalPanel() {
+  if (!terminalPanel || !sourcePane) return;
+  if (terminalPanel.parentElement !== sourcePane) sourcePane.appendChild(terminalPanel);
+  terminalCollapsedButton.hidden = false;
+  presentationScreen.classList.remove("pptx-terminal-open", "pptx-terminal-maximized");
+  if (pptxTerminalSlot) pptxTerminalSlot.classList.remove("open");
+  if (pptxTerminalToggle) pptxTerminalToggle.setAttribute("aria-expanded", "false");
+}
+
+function setPresentationTerminalOpen(open, { persist = true } = {}) {
+  const expanded = Boolean(open);
+  presentationScreen.classList.toggle("pptx-terminal-open", expanded);
+  if (!expanded) presentationScreen.classList.remove("pptx-terminal-maximized");
+  if (pptxTerminalSlot) pptxTerminalSlot.classList.toggle("open", expanded);
+  if (pptxTerminalToggle) {
+    pptxTerminalToggle.setAttribute("aria-expanded", String(expanded));
+    pptxTerminalToggle.classList.toggle("active", expanded);
+  }
+  if (persist) localStorage.setItem("openleafPresentationTerminalOpen", String(expanded));
+  if (expanded) {
+    if (!terminalSessions.length) void createTerminalSession("shell");
+    scheduleTerminalFit();
+  }
+  requestAnimationFrame(() => {
+    if (activePresentation && !presentationScreen.hidden) void renderPresentationSlide({ preserveSelection: true });
+  });
 }
 
 function syncPythonNotebookVisibility() {
@@ -5297,6 +5444,143 @@ function wireEvents() {
   projectGridButton.addEventListener("click", () => setProjectView("grid"));
   projectRowsButton.addEventListener("click", () => setProjectView("rows"));
   backToProjectsButton.addEventListener("click", showProjects);
+  if (pptxBackButton) pptxBackButton.addEventListener("click", showProjects);
+  if (pptxSaveButton) pptxSaveButton.addEventListener("click", saveActivePresentation);
+  if (pptxPresentButton) pptxPresentButton.addEventListener("click", () => void setPresentationView(true));
+  if (pptxPresentPreviousButton) {
+    pptxPresentPreviousButton.addEventListener("click", () => void selectPresentationSlideByOffset(-1));
+  }
+  if (pptxPresentNextButton) {
+    pptxPresentNextButton.addEventListener("click", () => void selectPresentationSlideByOffset(1));
+  }
+  if (pptxPresentExitButton) {
+    pptxPresentExitButton.addEventListener("click", () => void setPresentationView(false));
+  }
+  if (pptxUndoButton) pptxUndoButton.addEventListener("click", () => void undoPresentationChange());
+  if (pptxRedoButton) pptxRedoButton.addEventListener("click", () => void redoPresentationChange());
+  if (pptxSelectButton) {
+    pptxSelectButton.addEventListener("click", () => {
+      selectPresentationElement(null);
+      presentationSelectionScope = "canvas";
+      pptxStageViewport.focus({ preventScroll: true });
+    });
+  }
+  if (pptxAddTextButton) pptxAddTextButton.addEventListener("click", addPresentationTextBox);
+  if (pptxAddRectangleButton) pptxAddRectangleButton.addEventListener("click", () => addPresentationShape("rect"));
+  if (pptxAddEllipseButton) pptxAddEllipseButton.addEventListener("click", () => addPresentationShape("ellipse"));
+  if (pptxAddLineButton) pptxAddLineButton.addEventListener("click", addPresentationLine);
+  if (pptxAddImageButton && pptxImageFileInput) {
+    pptxAddImageButton.addEventListener("click", () => {
+      pptxImageFileInput.value = "";
+      pptxImageFileInput.click();
+    });
+    pptxImageFileInput.addEventListener("change", async () => {
+      const [file] = Array.from(pptxImageFileInput.files || []);
+      if (file) await addPresentationImageFile(file);
+    });
+  }
+  if (pptxAddChartButton) pptxAddChartButton.addEventListener("click", addPresentationChart);
+  if (pptxAddTableButton) pptxAddTableButton.addEventListener("click", addPresentationTable);
+  if (pptxMenusToggle && pptxMenubar) {
+    pptxMenusToggle.addEventListener("click", () => {
+      const collapsed = pptxMenubar.classList.toggle("collapsed");
+      pptxMenusToggle.setAttribute("aria-pressed", String(collapsed));
+      requestAnimationFrame(() => renderPresentationSlide({ preserveSelection: true }));
+    });
+  }
+  if (pptxPrintButton) pptxPrintButton.addEventListener("click", () => window.print());
+  if (pptxFitButton) {
+    pptxFitButton.addEventListener("click", () => {
+      setPresentationZoom(100);
+    });
+  }
+  if (pptxBackgroundButton && pptxBackgroundColorInput) {
+    pptxBackgroundButton.addEventListener("click", () => pptxBackgroundColorInput.click());
+    pptxBackgroundColorInput.addEventListener("input", () => setPresentationBackground(pptxBackgroundColorInput.value));
+  }
+  if (pptxLayoutButton) pptxLayoutButton.addEventListener("click", addPresentationTitleLayout);
+  if (pptxThemeButton) {
+    pptxThemeButton.addEventListener("click", () => {
+      openSettings();
+      setSettingsPanel("appearance");
+    });
+  }
+  if (pptxTransitionButton) pptxTransitionButton.addEventListener("click", setPresentationFadeTransition);
+  if (pptxMenubar) {
+    pptxMenubar.querySelectorAll("[data-pptx-menu]").forEach((button) => {
+      button.addEventListener("click", () => handlePresentationMenu(button.dataset.pptxMenu));
+    });
+  }
+  if (pptxDeleteElementButton) pptxDeleteElementButton.addEventListener("click", deleteSelectedPresentationElement);
+  if (pptxTerminalToggle) {
+    pptxTerminalToggle.addEventListener("click", () => {
+      setPresentationTerminalOpen(!presentationScreen.classList.contains("pptx-terminal-open"));
+    });
+  }
+  if (pptxZoomRange) {
+    pptxZoomRange.addEventListener("input", () => {
+      setPresentationZoom(pptxZoomRange.value);
+    });
+  }
+  if (pptxZoomOutButton) pptxZoomOutButton.addEventListener("click", () => stepPresentationZoom(-1));
+  if (pptxZoomInButton) pptxZoomInButton.addEventListener("click", () => stepPresentationZoom(1));
+  if (pptxElementLayer) {
+    pptxElementLayer.addEventListener("pointerdown", (event) => {
+      if (event.target === pptxElementLayer) selectPresentationElement(null);
+    });
+  }
+  if (pptxStageViewport) {
+    pptxStageViewport.addEventListener("click", () => {
+      if (presentationViewIsActive()) void selectPresentationSlideByOffset(1);
+    });
+    pptxStageViewport.addEventListener("wheel", (event) => {
+      if ((!event.metaKey && !event.ctrlKey) || presentationViewIsActive()) return;
+      const delta = event.deltaY || event.deltaX;
+      if (!delta) return;
+      event.preventDefault();
+      stepPresentationZoom(delta < 0 ? 1 : -1, {
+        clientX: event.clientX,
+        clientY: event.clientY
+      });
+    }, { passive: false });
+  }
+  document.addEventListener("fullscreenchange", () => {
+    if (presentationViewIsActive() && !document.fullscreenElement) {
+      void setPresentationView(false, { manageFullscreen: false });
+    }
+  });
+  [
+    [pptxTextInput, "text", (value) => value],
+    [pptxXInput, "x", (value) => Number(value) * PPTX_EMU_PER_INCH],
+    [pptxYInput, "y", (value) => Number(value) * PPTX_EMU_PER_INCH],
+    [pptxWidthInput, "cx", (value) => Math.max(0.05, Number(value)) * PPTX_EMU_PER_INCH],
+    [pptxHeightInput, "cy", (value) => Math.max(0.05, Number(value)) * PPTX_EMU_PER_INCH],
+    [pptxFontSizeInput, "fontSize", (value) => Math.max(6, Number(value))],
+    [pptxFontFamilyInput, "fontFamily", (value) => value]
+  ].forEach(([control, property, transform]) => {
+    if (!control) return;
+    control.addEventListener("input", () => updateSelectedPresentationElement(property, transform(control.value)));
+  });
+  if (pptxColorInput) {
+    pptxColorInput.addEventListener("input", () => {
+      const isText = selectedPresentationElement
+        && (selectedPresentationElement.type === "text" || selectedPresentationElement.hasTextBody);
+      updateSelectedPresentationElement(isText ? "color" : "fillColor", pptxColorInput.value);
+    });
+  }
+  [
+    [pptxBoldButton, "bold"],
+    [pptxItalicButton, "italic"],
+    [pptxUnderlineButton, "underline"]
+  ].forEach(([button, property]) => {
+    if (!button) return;
+    button.addEventListener("click", () => {
+      if (selectedPresentationElement) updateSelectedPresentationElement(property, !selectedPresentationElement[property]);
+    });
+  });
+  if (pptxAlignSelect) {
+    pptxAlignSelect.addEventListener("change", () => updateSelectedPresentationElement("align", pptxAlignSelect.value));
+  }
   topRefreshFilesButton.addEventListener("click", refreshActiveProject);
   railRefreshFilesButton.addEventListener("click", refreshActiveProject);
   wireFileDrop(filePane);
@@ -5432,6 +5716,10 @@ function wireEvents() {
     clearTimeout(pdfResizeTimer);
     pdfResizeTimer = setTimeout(() => renderPdf({ showLoading: false }), 180);
     scheduleTerminalFit();
+    if (presentationScreen && !presentationScreen.hidden) {
+      clearTimeout(pdfResizeTimer);
+      pdfResizeTimer = setTimeout(() => renderPresentationSlide({ preserveSelection: true }), 120);
+    }
   });
   window.addEventListener("click", () => {
     closeFileContextMenu();
@@ -5445,6 +5733,7 @@ function wireEvents() {
     closeFileContextMenu();
     closeProjectContextMenu();
   }, true);
+  document.addEventListener("keydown", handlePresentationHistoryShortcut, true);
   window.addEventListener("keydown", handleGlobalShortcut);
 
   if (window.localOverleaf) {
@@ -5452,7 +5741,10 @@ function wireEvents() {
       if (command === "add-project") toggleNewProjectPanel(true);
       if (command === "command-palette") openCommandPalette();
       if (command === "projects") showProjects();
-      if (command === "save") saveManuscript();
+      if (command === "save") {
+        if (presentationScreen && !presentationScreen.hidden) saveActivePresentation();
+        else saveManuscript();
+      }
       if (command === "compile") compileManuscript({ manual: true });
       if (command === "open-pdf") openPdf();
       if (command === "reload") reloadFromDisk();
@@ -5468,6 +5760,7 @@ function wireEvents() {
 
 function handleGlobalShortcut(event) {
   if (event.defaultPrevented) return;
+  if (handlePresentationShortcut(event)) return;
 
   if (event.key === "Escape") {
     if (!selectionCodexPopover.hidden) {
@@ -5557,7 +5850,8 @@ function handleGlobalShortcut(event) {
 
   if (key === "s") {
     event.preventDefault();
-    saveManuscript();
+    if (presentationScreen && !presentationScreen.hidden) saveActivePresentation();
+    else saveManuscript();
     return;
   }
 
@@ -5577,7 +5871,7 @@ function handleGlobalShortcut(event) {
 
   if (key === "t") {
     event.preventDefault();
-    setTerminalCollapsed(!sourcePane.classList.contains("terminal-collapsed"));
+    setTerminalCollapsed(!terminalIsCollapsed());
     return;
   }
 
@@ -6812,10 +7106,12 @@ async function splitActiveTerminal() {
 }
 
 function toggleTerminalMaximized() {
-  const maximized = sourcePane.classList.toggle("terminal-maximized");
+  const host = terminalLayoutHost();
+  const maximizeClass = presentationTerminalIsActive() ? "pptx-terminal-maximized" : "terminal-maximized";
+  const maximized = host.classList.toggle(maximizeClass);
   if (maximized) {
     setTerminalCollapsed(false);
-    setTerminalHeight(Math.max(MIN_TERMINAL_HEIGHT, sourcePane.getBoundingClientRect().height - 90), { persist: false });
+    setTerminalHeight(Math.max(MIN_TERMINAL_HEIGHT, host.getBoundingClientRect().height - 116), { persist: false });
   } else {
     const height = clampNumber(Number(localStorage.getItem("latexStudioTerminalHeight")), MIN_TERMINAL_HEIGHT, MAX_TERMINAL_HEIGHT, DEFAULT_TERMINAL_HEIGHT);
     setTerminalHeight(height);
@@ -7656,6 +7952,1483 @@ function projectPathFromFile(file) {
   }
 }
 
+function currentPresentationSlide() {
+  return activePresentation && activePresentation.slides
+    ? activePresentation.slides[activePresentationSlideIndex] || null
+    : null;
+}
+
+function presentationViewIsActive() {
+  return Boolean(presentationScreen && presentationScreen.classList.contains("pptx-presenting"));
+}
+
+function updatePresentationViewControls() {
+  if (!activePresentation) return;
+  const slideCount = activePresentation.slides.length;
+  if (pptxPresentStatus) pptxPresentStatus.value = `${activePresentationSlideIndex + 1} / ${slideCount}`;
+  if (pptxPresentPreviousButton) pptxPresentPreviousButton.disabled = activePresentationSlideIndex <= 0;
+  if (pptxPresentNextButton) pptxPresentNextButton.disabled = activePresentationSlideIndex >= slideCount - 1;
+}
+
+async function setPresentationView(enabled, { manageFullscreen = true } = {}) {
+  if (!presentationScreen || presentationScreen.hidden || !activePresentation) return;
+  const shouldPresent = Boolean(enabled);
+  const fullscreenPromise = shouldPresent
+    && manageFullscreen
+    && !document.fullscreenElement
+    && presentationScreen.requestFullscreen
+    ? presentationScreen.requestFullscreen().catch(() => {})
+    : null;
+
+  presentationScreen.classList.toggle("pptx-presenting", shouldPresent);
+  if (presentationZoomRenderFrame) {
+    cancelAnimationFrame(presentationZoomRenderFrame);
+    presentationZoomRenderFrame = 0;
+  }
+  presentationZoomAnchor = null;
+  if (pptxPresentControls) pptxPresentControls.hidden = !shouldPresent;
+  if (shouldPresent) {
+    presentationSelectionScope = "canvas";
+    selectPresentationElement(null, { rerender: false });
+  }
+  updatePresentationViewControls();
+
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await renderPresentationSlide({ preserveSelection: false });
+  if (shouldPresent) {
+    pptxStageViewport.focus({ preventScroll: true });
+    if (fullscreenPromise) await fullscreenPromise;
+  } else if (
+    manageFullscreen
+    && document.fullscreenElement === presentationScreen
+    && document.exitFullscreen
+  ) {
+    await document.exitFullscreen().catch(() => {});
+  }
+}
+
+function presentationElementKey(slide, element) {
+  return `${slide.path}:${element.id}`;
+}
+
+function clonePresentationValue(value) {
+  if (typeof structuredClone === "function") return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+
+function presentationHistorySnapshot() {
+  const slide = currentPresentationSlide();
+  return {
+    presentation: clonePresentationValue(activePresentation),
+    changes: clonePresentationValue(Array.from(presentationChangeMap.entries())),
+    dirty: presentationDirty,
+    slideIndex: activePresentationSlideIndex,
+    selectionScope: presentationSelectionScope,
+    selectedSlidePath: slide ? slide.path : "",
+    selectedElementId: selectedPresentationElement ? selectedPresentationElement.id : ""
+  };
+}
+
+function updatePresentationHistoryButtons() {
+  if (pptxUndoButton) pptxUndoButton.disabled = presentationUndoStack.length === 0;
+  if (pptxRedoButton) pptxRedoButton.disabled = presentationRedoStack.length === 0;
+}
+
+function pushPresentationUndoSnapshot(snapshot) {
+  if (presentationHistorySuspended || !snapshot) return;
+  presentationUndoStack.push(snapshot);
+  if (presentationUndoStack.length > 60) presentationUndoStack.shift();
+  presentationRedoStack = [];
+  updatePresentationHistoryButtons();
+}
+
+function recordPresentationUndo() {
+  if (!activePresentation || presentationHistorySuspended) return;
+  pushPresentationUndoSnapshot(presentationHistorySnapshot());
+}
+
+async function restorePresentationHistorySnapshot(snapshot) {
+  if (!snapshot) return;
+  presentationHistorySuspended = true;
+  activePresentation = clonePresentationValue(snapshot.presentation);
+  presentationChangeMap = new Map(clonePresentationValue(snapshot.changes));
+  presentationDirty = Boolean(snapshot.dirty);
+  activePresentationSlideIndex = Math.max(
+    0,
+    Math.min(Number(snapshot.slideIndex) || 0, Math.max(0, activePresentation.slides.length - 1))
+  );
+  presentationSelectionScope = snapshot.selectionScope || "canvas";
+  const slide = currentPresentationSlide();
+  selectedPresentationElement = slide && snapshot.selectedElementId
+    ? slide.elements.find((element) => element.id === snapshot.selectedElementId && !element.deleted) || null
+    : null;
+  pptxSlideCount.textContent = `${activePresentation.slides.length}`;
+  await renderPresentationSlideList();
+  await renderPresentationSlide({ preserveSelection: true });
+  renderPresentationInspector();
+  setPresentationStatus(presentationDirty ? "Unsaved changes" : "Saved", presentationDirty ? "unsaved" : "ok");
+  presentationHistorySuspended = false;
+  updatePresentationHistoryButtons();
+}
+
+async function undoPresentationChange() {
+  if (!presentationUndoStack.length || !activePresentation) return;
+  const target = presentationUndoStack.pop();
+  presentationRedoStack.push(presentationHistorySnapshot());
+  await restorePresentationHistorySnapshot(target);
+}
+
+async function redoPresentationChange() {
+  if (!presentationRedoStack.length || !activePresentation) return;
+  const target = presentationRedoStack.pop();
+  presentationUndoStack.push(presentationHistorySnapshot());
+  await restorePresentationHistorySnapshot(target);
+}
+
+function setPresentationStatus(message, state = "") {
+  if (!pptxSaveStatus) return;
+  pptxSaveStatus.textContent = message;
+  pptxSaveStatus.dataset.state = state;
+}
+
+async function loadPresentationPdf(pdfBuffer, thumbnailPdfBuffer) {
+  if (presentationZoomRenderFrame) {
+    cancelAnimationFrame(presentationZoomRenderFrame);
+    presentationZoomRenderFrame = 0;
+  }
+  presentationZoomAnchor = null;
+  if (presentationBackgroundRenderTask) {
+    presentationBackgroundRenderTask.cancel();
+    try {
+      await presentationBackgroundRenderTask.promise;
+    } catch (error) {
+    }
+    presentationBackgroundRenderTask = null;
+  }
+  if (activePresentationPdf && activePresentationPdf.destroy) {
+    try {
+      await activePresentationPdf.destroy();
+    } catch (error) {
+    }
+  }
+  if (activePresentationThumbnailPdf && activePresentationThumbnailPdf.destroy) {
+    try {
+      await activePresentationThumbnailPdf.destroy();
+    } catch (error) {
+    }
+  }
+  const pdfjsLib = await loadPdfJs();
+  const backgroundTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+  const thumbnailTask = pdfjsLib.getDocument({
+    data: new Uint8Array(thumbnailPdfBuffer || pdfBuffer.slice(0))
+  });
+  [activePresentationPdf, activePresentationThumbnailPdf] = await Promise.all([
+    backgroundTask.promise,
+    thumbnailTask.promise
+  ]);
+}
+
+async function openPresentationProject(project) {
+  clearTimeout(autoCompileTimer);
+  stopExternalSourcePolling();
+  activeProject = project;
+  activePresentation = null;
+  selectedPresentationElement = null;
+  presentationChangeMap = new Map();
+  presentationDirty = false;
+  presentationSelectionScope = "canvas";
+  presentationUndoStack = [];
+  presentationRedoStack = [];
+  updatePresentationHistoryButtons();
+  activePresentationSlideIndex = 0;
+  projectScreen.hidden = true;
+  editorScreen.hidden = true;
+  presentationScreen.hidden = false;
+  presentationScreen.classList.remove("pptx-presenting");
+  if (pptxPresentControls) pptxPresentControls.hidden = true;
+  placePresentationTerminalPanel();
+  setPresentationTerminalOpen(localStorage.getItem("openleafPresentationTerminalOpen") === "true", { persist: false });
+  pptxProjectTitle.textContent = project.displayName || project.name || project.texName || "Presentation";
+  pptxSlideList.innerHTML = '<div class="file-message">Loading slides...</div>';
+  pptxElementLayer.innerHTML = "";
+  setPresentationStatus("Loading PowerPoint…");
+  pptxSaveButton.disabled = true;
+
+  try {
+    const data = await window.localOverleaf.loadPresentationProject(project.id);
+    activeProject = data.project || project;
+    activePresentation = data.presentation;
+    await loadPresentationPdf(data.pdf, data.thumbnailPdf);
+    pptxProjectTitle.textContent = activePresentation.fileName || activeProject.displayName || activeProject.name;
+    pptxSlideCount.textContent = `${activePresentation.slides.length}`;
+    presentationScreen.style.setProperty("--pptx-aspect", `${activePresentation.width} / ${activePresentation.height}`);
+    await renderPresentationSlideList();
+    await renderPresentationSlide();
+    renderPresentationInspector();
+    setPresentationStatus("Saved", "ok");
+    pptxSaveButton.disabled = false;
+  } catch (error) {
+    pptxSlideList.innerHTML = `<div class="file-message file-error">${escapeHtml(formatError(error))}</div>`;
+    setPresentationStatus("Load failed", "error");
+  }
+}
+
+async function renderPresentationSlideList() {
+  if (!activePresentation) return;
+  const token = ++presentationThumbnailToken;
+  pptxSlideList.innerHTML = "";
+  activePresentation.slides.forEach((slide, index) => {
+    const button = document.createElement("button");
+    button.className = "pptx-slide-thumb";
+    button.classList.toggle("active", index === activePresentationSlideIndex);
+    button.type = "button";
+    button.dataset.slideIndex = String(index);
+    button.setAttribute("aria-label", `Slide ${index + 1}: ${slide.title || `Slide ${index + 1}`}`);
+    button.innerHTML = `
+      <span class="pptx-slide-thumb-number">${index + 1}</span>
+      <span class="pptx-slide-thumb-preview"><canvas></canvas></span>
+    `;
+    button.addEventListener("click", async () => {
+      presentationSelectionScope = "slide";
+      activePresentationSlideIndex = index;
+      selectedPresentationElement = null;
+      pptxSlideList.querySelectorAll(".pptx-slide-thumb").forEach((thumbnail, thumbnailIndex) => {
+        thumbnail.classList.toggle("active", thumbnailIndex === activePresentationSlideIndex);
+      });
+      await renderPresentationSlide();
+      renderPresentationInspector();
+    });
+    button.addEventListener("focus", () => {
+      presentationSelectionScope = "slide";
+    });
+    pptxSlideList.appendChild(button);
+  });
+  await renderPresentationThumbnails(token);
+}
+
+async function renderPresentationThumbnails(token) {
+  const thumbnailDocument = activePresentationThumbnailPdf || activePresentationPdf;
+  if (!thumbnailDocument || !activePresentation) return;
+  const buttons = Array.from(pptxSlideList.querySelectorAll(".pptx-slide-thumb"));
+  for (let index = 0; index < buttons.length; index += 1) {
+    if (token !== presentationThumbnailToken) return;
+    const canvas = buttons[index].querySelector("canvas");
+    if (!canvas) continue;
+    const slide = activePresentation.slides[index];
+    const pageIndex = Math.max(0, Number(slide.previewPageIndex ?? slide.index ?? index));
+    const page = await thumbnailDocument.getPage(Math.min(thumbnailDocument.numPages, pageIndex + 1));
+    const baseViewport = page.getViewport({ scale: 1 });
+    const preview = buttons[index].querySelector(".pptx-slide-thumb-preview");
+    const targetWidth = Math.max(132, Math.min(220, Math.round(preview?.clientWidth || 168)));
+    const viewport = page.getViewport({ scale: targetWidth / baseViewport.width });
+    const outputScale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+    canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+    canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
+    const context = canvas.getContext("2d");
+    context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+    await page.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
+  }
+}
+
+function capturePresentationZoomAnchor({ clientX, clientY } = {}) {
+  if (!pptxStageViewport || !pptxSlideCanvas) return null;
+  const viewportRect = pptxStageViewport.getBoundingClientRect();
+  const canvasRect = pptxSlideCanvas.getBoundingClientRect();
+  if (!canvasRect.width || !canvasRect.height) return null;
+  const focusX = Number.isFinite(clientX)
+    ? Math.max(viewportRect.left, Math.min(viewportRect.right, clientX))
+    : viewportRect.left + (viewportRect.width / 2);
+  const focusY = Number.isFinite(clientY)
+    ? Math.max(viewportRect.top, Math.min(viewportRect.bottom, clientY))
+    : viewportRect.top + (viewportRect.height / 2);
+  return {
+    focusX,
+    focusY,
+    slideX: Math.max(0, Math.min(1, (focusX - canvasRect.left) / canvasRect.width)),
+    slideY: Math.max(0, Math.min(1, (focusY - canvasRect.top) / canvasRect.height))
+  };
+}
+
+function restorePresentationZoomAnchor(anchor) {
+  if (!anchor || !pptxStageViewport || !pptxSlideCanvas) return;
+  const canvasRect = pptxSlideCanvas.getBoundingClientRect();
+  const anchoredX = canvasRect.left + (canvasRect.width * anchor.slideX);
+  const anchoredY = canvasRect.top + (canvasRect.height * anchor.slideY);
+  pptxStageViewport.scrollLeft += anchoredX - anchor.focusX;
+  pptxStageViewport.scrollTop += anchoredY - anchor.focusY;
+}
+
+function setPresentationZoom(value, focalPoint = {}) {
+  if (!pptxZoomRange || presentationViewIsActive()) return;
+  const minimum = Number(pptxZoomRange.min || 25);
+  const maximum = Number(pptxZoomRange.max || 400);
+  const clamped = Math.max(minimum, Math.min(maximum, Number(value) || 100));
+  presentationZoomAnchor = capturePresentationZoomAnchor(focalPoint);
+  pptxZoomRange.value = String(clamped);
+  if (pptxZoomOutput) pptxZoomOutput.value = `${clamped}%`;
+  if (presentationZoomRenderFrame) cancelAnimationFrame(presentationZoomRenderFrame);
+  presentationZoomRenderFrame = requestAnimationFrame(() => {
+    presentationZoomRenderFrame = 0;
+    const anchor = presentationZoomAnchor;
+    presentationZoomAnchor = null;
+    void renderPresentationSlide({ preserveSelection: true }).then(() => {
+      requestAnimationFrame(() => restorePresentationZoomAnchor(anchor));
+    });
+  });
+}
+
+function stepPresentationZoom(direction, focalPoint = {}) {
+  const step = Number(pptxZoomRange?.step || 5);
+  setPresentationZoom(Number(pptxZoomRange?.value || 100) + (direction * step), focalPoint);
+}
+
+function presentationCanvasDimensions() {
+  const presenting = presentationViewIsActive();
+  const canvasPadding = presenting ? 0 : 72;
+  const availableWidth = Math.max(320, (pptxStageViewport.clientWidth || 900) - canvasPadding);
+  const availableHeight = Math.max(180, (pptxStageViewport.clientHeight || 640) - canvasPadding);
+  const aspect = activePresentation.width / activePresentation.height;
+  const fitWidth = Math.min(presenting ? availableWidth : 1100, availableWidth, availableHeight * aspect);
+  const zoom = presenting ? 1 : Math.max(0.5, Number(pptxZoomRange.value || 100) / 100);
+  return {
+    width: Math.max(320, fitWidth * zoom),
+    height: Math.max(180, (fitWidth / aspect) * zoom)
+  };
+}
+
+async function renderPresentationSlide({ preserveSelection = false } = {}) {
+  const slide = currentPresentationSlide();
+  if (!slide || !activePresentationPdf) return;
+  const token = ++presentationRenderToken;
+  if (presentationBackgroundRenderTask) {
+    presentationBackgroundRenderTask.cancel();
+    try {
+      await presentationBackgroundRenderTask.promise;
+    } catch (error) {
+    }
+    presentationBackgroundRenderTask = null;
+    if (token !== presentationRenderToken) return;
+  }
+  const selectedId = preserveSelection && selectedPresentationElement ? selectedPresentationElement.id : "";
+  const dimensions = presentationCanvasDimensions();
+  const cssWidth = Math.round(dimensions.width);
+  const cssHeight = Math.round(dimensions.height);
+  presentationCanvasScale = cssWidth / activePresentation.width;
+  pptxSlideCanvas.style.width = `${cssWidth}px`;
+  pptxSlideCanvas.style.height = `${cssHeight}px`;
+  pptxStageLabel.textContent = `Slide ${activePresentationSlideIndex + 1} of ${activePresentation.slides.length}`;
+  if (pptxStatusSlide) pptxStatusSlide.textContent = `Slide ${activePresentationSlideIndex + 1} of ${activePresentation.slides.length}`;
+  updatePresentationViewControls();
+  if (pptxZoomOutput) pptxZoomOutput.value = `${pptxZoomRange.value}%`;
+  if (pptxBackgroundColorInput && /^#[0-9a-f]{6}$/i.test(slide.backgroundColor || "")) {
+    pptxBackgroundColorInput.value = slide.backgroundColor;
+  }
+  if (pptxBackgroundButton) {
+    pptxBackgroundButton.style.setProperty("--pptx-background-swatch", slide.backgroundColor || "#ffffff");
+  }
+  if (pptxTransitionButton) {
+    const hasFade = slide.transition === "fade";
+    pptxTransitionButton.classList.toggle("active", hasFade);
+    pptxTransitionButton.textContent = hasFade ? "Transition: Fade" : "Transition";
+  }
+  pptxBackgroundCanvas.style.width = `${cssWidth}px`;
+  pptxBackgroundCanvas.style.height = `${cssHeight}px`;
+  const outputScale = Math.max(1, Math.min(
+    2.5,
+    Math.max(1.5, window.devicePixelRatio || 1),
+    8192 / Math.max(1, cssWidth),
+    8192 / Math.max(1, cssHeight)
+  ));
+  pptxBackgroundCanvas.width = Math.floor(cssWidth * outputScale);
+  pptxBackgroundCanvas.height = Math.floor(cssHeight * outputScale);
+
+  renderPresentationElements();
+  const pageIndex = Math.max(0, Number(slide.previewPageIndex ?? slide.index ?? activePresentationSlideIndex));
+  const page = await activePresentationPdf.getPage(Math.min(activePresentationPdf.numPages, pageIndex + 1));
+  if (token !== presentationRenderToken) return;
+  const baseViewport = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({ scale: cssWidth / baseViewport.width });
+  const context = pptxBackgroundCanvas.getContext("2d");
+  context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+  context.clearRect(0, 0, cssWidth, cssHeight);
+  const renderTask = page.render({ canvasContext: context, viewport, background: "#ffffff" });
+  presentationBackgroundRenderTask = renderTask;
+  try {
+    await renderTask.promise;
+  } catch (error) {
+    if (error?.name !== "RenderingCancelledException") throw error;
+    return;
+  } finally {
+    if (presentationBackgroundRenderTask === renderTask) presentationBackgroundRenderTask = null;
+  }
+  if (token !== presentationRenderToken) return;
+  if (selectedId) {
+    const selected = slide.elements.find((element) => element.id === selectedId && !element.deleted);
+    selectPresentationElement(selected || null, { rerender: false });
+  }
+}
+
+function presentationTextAlign(value) {
+  if (value === "ctr") return "center";
+  if (value === "r") return "right";
+  if (value === "just") return "justify";
+  return "left";
+}
+
+function positionPresentationElementNode(node, element) {
+  const scale = presentationCanvasScale;
+  node.style.left = `${element.x * scale}px`;
+  node.style.top = `${element.y * scale}px`;
+  node.style.width = `${Math.max(2, element.cx * scale)}px`;
+  node.style.height = `${Math.max(2, element.cy * scale)}px`;
+  node.style.transform = element.rotation ? `rotate(${element.rotation}deg)` : "";
+}
+
+function decorateSelectedPresentationElementNode(node, element) {
+  if (!node || !element) return;
+  node.classList.add("selected");
+  if (node.querySelector(".pptx-element-handle")) return;
+  const handle = document.createElement("span");
+  handle.className = "pptx-element-handle";
+  handle.addEventListener("pointerdown", (event) => beginPresentationElementResize(event, element, node));
+  node.appendChild(handle);
+}
+
+function renderPresentationElements() {
+  const slide = currentPresentationSlide();
+  if (!slide) return;
+  pptxElementLayer.innerHTML = "";
+  slide.elements.filter((element) => !element.deleted).forEach((element) => {
+    const node = document.createElement("div");
+    const isText = element.type === "text" || element.hasTextBody;
+    node.className = `pptx-element ${isText ? "pptx-text-element" : "pptx-nontext-element"}`;
+    node.dataset.elementId = element.id;
+    node.style.zIndex = String(Math.max(1, element.zIndex + 1));
+    node.style.color = element.color || "#1f2937";
+    node.style.fontFamily = element.fontFamily || "Aptos";
+    node.style.fontSize = `${Math.max(4, element.fontSize * (pptxSlideCanvas.clientWidth / activePresentation.widthInches) / 72)}px`;
+    node.style.fontWeight = element.bold ? "700" : "400";
+    node.style.fontStyle = element.italic ? "italic" : "normal";
+    node.style.textDecoration = element.underline ? "underline" : "none";
+    node.style.textAlign = presentationTextAlign(element.align);
+    node.style.justifyContent = element.verticalAlign === "ctr" ? "center" : element.verticalAlign === "b" ? "flex-end" : "flex-start";
+    positionPresentationElementNode(node, element);
+
+    if (isText) {
+      const text = document.createElement("span");
+      text.className = "pptx-element-text";
+      text.textContent = element.text || "";
+      text.style.padding = `${element.marginTop * presentationCanvasScale}px ${element.marginRight * presentationCanvasScale}px ${element.marginBottom * presentationCanvasScale}px ${element.marginLeft * presentationCanvasScale}px`;
+      node.appendChild(text);
+      node.addEventListener("dblclick", (event) => beginPresentationInlineEdit(event, element, text, node));
+    } else {
+      if (element.type === "image" && element.imageData) {
+        const image = document.createElement("img");
+        image.className = "pptx-inserted-image";
+        image.src = element.imageData;
+        image.alt = element.name || "Inserted image";
+        image.draggable = false;
+        node.appendChild(image);
+      }
+      if (element.type === "shape" && element.fillColor && (
+        element.isNew || presentationChangeMap.has(presentationElementKey(slide, element))
+      )) {
+        node.style.background = element.fillColor;
+        node.style.borderColor = `color-mix(in srgb, ${element.fillColor} 72%, #111827)`;
+        if (element.shapeType === "ellipse") node.style.borderRadius = "50%";
+      }
+      const label = document.createElement("span");
+      label.className = "pptx-nontext-label";
+      label.textContent = element.type;
+      node.appendChild(label);
+    }
+
+    node.addEventListener("pointerdown", (event) => beginPresentationElementDrag(event, element, node));
+    if (selectedPresentationElement && selectedPresentationElement.id === element.id) {
+      decorateSelectedPresentationElementNode(node, element);
+    }
+    pptxElementLayer.appendChild(node);
+  });
+}
+
+function selectPresentationElement(element, { rerender = true } = {}) {
+  selectedPresentationElement = element || null;
+  presentationSelectionScope = selectedPresentationElement ? "element" : "canvas";
+  if (pptxDeleteElementButton) pptxDeleteElementButton.disabled = !selectedPresentationElement;
+  renderPresentationInspector();
+  if (rerender) renderPresentationElements();
+}
+
+function renderPresentationInspector() {
+  const element = selectedPresentationElement;
+  pptxInspectorEmpty.hidden = Boolean(element);
+  pptxInspectorFields.hidden = !element;
+  pptxElementType.textContent = element ? `${element.type} · ${element.name}` : "No selection";
+  if (!element) return;
+  const isText = element.type === "text" || element.hasTextBody;
+  pptxTextInput.disabled = !isText;
+  pptxTextInput.value = isText ? (element.text || "") : "";
+  pptxXInput.value = (element.x / PPTX_EMU_PER_INCH).toFixed(2);
+  pptxYInput.value = (element.y / PPTX_EMU_PER_INCH).toFixed(2);
+  pptxWidthInput.value = (element.cx / PPTX_EMU_PER_INCH).toFixed(2);
+  pptxHeightInput.value = (element.cy / PPTX_EMU_PER_INCH).toFixed(2);
+  pptxFontSizeInput.disabled = !isText;
+  pptxFontSizeInput.value = Math.round(element.fontSize || 18);
+  const canFill = element.type === "shape";
+  const selectedColor = isText ? element.color : element.fillColor;
+  pptxColorInput.disabled = !(isText || canFill);
+  pptxColorInput.value = /^#[0-9a-f]{6}$/i.test(selectedColor || "") ? selectedColor : (isText ? "#1f2937" : "#5B9BD5");
+  pptxFontFamilyInput.disabled = !isText;
+  pptxFontFamilyInput.value = element.fontFamily || "Aptos";
+  pptxBoldButton.disabled = !isText;
+  pptxItalicButton.disabled = !isText;
+  pptxUnderlineButton.disabled = !isText;
+  pptxBoldButton.setAttribute("aria-pressed", element.bold ? "true" : "false");
+  pptxItalicButton.setAttribute("aria-pressed", element.italic ? "true" : "false");
+  pptxUnderlineButton.setAttribute("aria-pressed", element.underline ? "true" : "false");
+  pptxAlignSelect.disabled = !isText;
+  pptxAlignSelect.value = ["l", "ctr", "r"].includes(element.align) ? element.align : "l";
+}
+
+function markPresentationElementChanged(element) {
+  const slide = currentPresentationSlide();
+  if (!slide || !element) return;
+  presentationChangeMap.set(presentationElementKey(slide, element), {
+    slidePath: slide.path,
+    id: element.id,
+    name: element.name,
+    type: element.type,
+    shapeType: element.shapeType,
+    isNew: Boolean(element.isNew),
+    deleted: Boolean(element.deleted),
+    text: element.text,
+    x: element.x,
+    y: element.y,
+    cx: element.cx,
+    cy: element.cy,
+    fontSize: element.fontSize,
+    fontFamily: element.fontFamily,
+    color: element.color,
+    fillColor: element.fillColor,
+    imageData: element.imageData,
+    imageFileName: element.imageFileName,
+    imageMediaType: element.imageMediaType,
+    bold: Boolean(element.bold),
+    italic: Boolean(element.italic),
+    underline: Boolean(element.underline),
+    align: element.align
+  });
+  presentationDirty = true;
+  setPresentationStatus("Unsaved changes", "unsaved");
+}
+
+function updateSelectedPresentationElement(property, value, { rerender = true } = {}) {
+  if (!selectedPresentationElement) return;
+  if (selectedPresentationElement[property] === value) return;
+  recordPresentationUndo();
+  selectedPresentationElement[property] = value;
+  markPresentationElementChanged(selectedPresentationElement);
+  renderPresentationInspector();
+  if (rerender) renderPresentationElements();
+}
+
+function beginPresentationElementDrag(event, element, node) {
+  if (event.button !== 0 || event.target.classList.contains("pptx-element-handle")) return;
+  if (node.classList.contains("editing")) return;
+  event.preventDefault();
+  event.stopPropagation();
+  selectPresentationElement(element, { rerender: false });
+  pptxElementLayer.querySelectorAll(".pptx-element.selected").forEach((selectedNode) => {
+    if (selectedNode !== node) selectedNode.classList.remove("selected");
+  });
+  decorateSelectedPresentationElementNode(node, element);
+  presentationDragState = {
+    mode: "move",
+    element,
+    node,
+    historySnapshot: presentationHistorySnapshot(),
+    startX: event.clientX,
+    startY: event.clientY,
+    originalX: element.x,
+    originalY: element.y,
+    changed: false
+  };
+  window.addEventListener("pointermove", updatePresentationDrag);
+  window.addEventListener("pointerup", finishPresentationDrag, { once: true });
+}
+
+function beginPresentationElementResize(event, element, node) {
+  event.preventDefault();
+  event.stopPropagation();
+  presentationDragState = {
+    mode: "resize",
+    element,
+    node,
+    historySnapshot: presentationHistorySnapshot(),
+    startX: event.clientX,
+    startY: event.clientY,
+    originalCx: element.cx,
+    originalCy: element.cy,
+    changed: false
+  };
+  window.addEventListener("pointermove", updatePresentationDrag);
+  window.addEventListener("pointerup", finishPresentationDrag, { once: true });
+}
+
+function updatePresentationDrag(event) {
+  if (!presentationDragState || !activePresentation) return;
+  const deltaX = (event.clientX - presentationDragState.startX) / presentationCanvasScale;
+  const deltaY = (event.clientY - presentationDragState.startY) / presentationCanvasScale;
+  const element = presentationDragState.element;
+  if (presentationDragState.mode === "move") {
+    const nextX = Math.max(0, Math.min(activePresentation.width - element.cx, presentationDragState.originalX + deltaX));
+    const nextY = Math.max(0, Math.min(activePresentation.height - element.cy, presentationDragState.originalY + deltaY));
+    presentationDragState.changed = presentationDragState.changed
+      || Math.abs(nextX - presentationDragState.originalX) > 1
+      || Math.abs(nextY - presentationDragState.originalY) > 1;
+    element.x = nextX;
+    element.y = nextY;
+  } else {
+    const nextCx = Math.max(PPTX_EMU_PER_INCH * 0.1, Math.min(activePresentation.width - element.x, presentationDragState.originalCx + deltaX));
+    const nextCy = Math.max(PPTX_EMU_PER_INCH * 0.1, Math.min(activePresentation.height - element.y, presentationDragState.originalCy + deltaY));
+    presentationDragState.changed = presentationDragState.changed
+      || Math.abs(nextCx - presentationDragState.originalCx) > 1
+      || Math.abs(nextCy - presentationDragState.originalCy) > 1;
+    element.cx = nextCx;
+    element.cy = nextCy;
+  }
+  if (presentationDragState.node) positionPresentationElementNode(presentationDragState.node, element);
+  renderPresentationInspector();
+}
+
+function finishPresentationDrag() {
+  window.removeEventListener("pointermove", updatePresentationDrag);
+  const changed = Boolean(presentationDragState && presentationDragState.element && presentationDragState.changed);
+  if (changed) {
+    pushPresentationUndoSnapshot(presentationDragState.historySnapshot);
+    markPresentationElementChanged(presentationDragState.element);
+  }
+  presentationDragState = null;
+  if (changed) renderPresentationElements();
+}
+
+function beginPresentationInlineEdit(event, element, textNode, elementNode) {
+  if (!(element.type === "text" || element.hasTextBody)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  selectPresentationElement(element, { rerender: false });
+  decorateSelectedPresentationElementNode(elementNode, element);
+  elementNode.classList.add("editing");
+  textNode.contentEditable = "true";
+  textNode.focus();
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(textNode);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  const originalText = element.text || "";
+  const historySnapshot = presentationHistorySnapshot();
+  const finish = () => {
+    textNode.contentEditable = "false";
+    elementNode.classList.remove("editing");
+    const nextText = textNode.innerText;
+    if (nextText !== originalText) {
+      pushPresentationUndoSnapshot(historySnapshot);
+      element.text = nextText;
+      markPresentationElementChanged(element);
+    }
+    renderPresentationInspector();
+    renderPresentationElements();
+  };
+  textNode.addEventListener("blur", finish, { once: true });
+  textNode.addEventListener("keydown", (keyEvent) => {
+    if (keyEvent.key === "Escape") {
+      keyEvent.preventDefault();
+      textNode.blur();
+    }
+    if ((keyEvent.metaKey || keyEvent.ctrlKey) && keyEvent.key === "Enter") {
+      keyEvent.preventDefault();
+      textNode.blur();
+    }
+  });
+}
+
+function addPresentationTextBox() {
+  const slide = currentPresentationSlide();
+  if (!slide || !activePresentation) return;
+  recordPresentationUndo();
+  const element = {
+    id: `new-${Date.now()}`,
+    name: "Openleaf Text Box",
+    type: "text",
+    tagName: "p:sp",
+    zIndex: slide.elements.length + 1,
+    text: "New text",
+    hasTextBody: true,
+    isNew: true,
+    x: activePresentation.width * 0.12,
+    y: activePresentation.height * 0.12,
+    cx: activePresentation.width * 0.42,
+    cy: activePresentation.height * 0.14,
+    rotation: 0,
+    fontSize: 24,
+    fontFamily: "Aptos",
+    color: "#1f2937",
+    bold: false,
+    italic: false,
+    underline: false,
+    align: "l",
+    verticalAlign: "t",
+    marginLeft: 91440,
+    marginRight: 91440,
+    marginTop: 45720,
+    marginBottom: 45720
+  };
+  slide.elements.push(element);
+  markPresentationElementChanged(element);
+  selectPresentationElement(element);
+}
+
+function addPresentationShape(shapeType) {
+  const slide = currentPresentationSlide();
+  if (!slide || !activePresentation) return;
+  recordPresentationUndo();
+  const normalizedShape = shapeType === "ellipse" ? "ellipse" : "rect";
+  const element = {
+    id: `new-${normalizedShape}-${Date.now()}`,
+    name: normalizedShape === "ellipse" ? "Openleaf Ellipse" : "Openleaf Rectangle",
+    type: "shape",
+    shapeType: normalizedShape,
+    tagName: "p:sp",
+    zIndex: slide.elements.length + 1,
+    text: "",
+    hasTextBody: false,
+    isNew: true,
+    x: activePresentation.width * 0.18,
+    y: activePresentation.height * 0.2,
+    cx: activePresentation.width * 0.28,
+    cy: activePresentation.height * 0.18,
+    rotation: 0,
+    fillColor: normalizedShape === "ellipse" ? "#6BAED6" : "#5B9BD5"
+  };
+  slide.elements.push(element);
+  markPresentationElementChanged(element);
+  selectPresentationElement(element);
+}
+
+function addPresentationLine() {
+  if (!activePresentation || !currentPresentationSlide()) return;
+  const element = presentationShapePrimitive({
+    id: `new-line-${Date.now()}`,
+    name: "Openleaf Line",
+    x: activePresentation.width * 0.24,
+    y: activePresentation.height * 0.48,
+    cx: activePresentation.width * 0.5,
+    cy: Math.max(14000, activePresentation.height * 0.006),
+    fillColor: "#475569"
+  });
+  addPresentationElements([element]);
+}
+
+function addPresentationTitleLayout() {
+  if (!activePresentation || !currentPresentationSlide()) return;
+  const stamp = Date.now();
+  const title = presentationTextPrimitive({
+    id: `new-layout-title-${stamp}`,
+    name: "Title placeholder",
+    text: "Presentation title",
+    x: activePresentation.width * 0.1,
+    y: activePresentation.height * 0.12,
+    cx: activePresentation.width * 0.8,
+    cy: activePresentation.height * 0.15,
+    fontSize: 30,
+    bold: true,
+    align: "ctr"
+  });
+  const body = presentationTextPrimitive({
+    id: `new-layout-body-${stamp}`,
+    name: "Body placeholder",
+    text: "Add supporting content",
+    x: activePresentation.width * 0.15,
+    y: activePresentation.height * 0.38,
+    cx: activePresentation.width * 0.7,
+    cy: activePresentation.height * 0.22,
+    fontSize: 20,
+    color: "#475569",
+    align: "ctr"
+  });
+  addPresentationElements([title, body], { select: title });
+}
+
+function markPresentationSlideChange(kind, payload = {}) {
+  const slide = currentPresentationSlide();
+  if (!slide) return;
+  presentationChangeMap.set(`${slide.path}:__${kind}__`, {
+    slidePath: slide.path,
+    type: kind,
+    ...payload
+  });
+  presentationDirty = true;
+  setPresentationStatus("Unsaved changes", "unsaved");
+}
+
+function setPresentationBackground(color) {
+  if (!/^#[0-9a-f]{6}$/i.test(String(color || ""))) return;
+  const slide = currentPresentationSlide();
+  if (!slide) return;
+  if (slide.backgroundColor === color) return;
+  recordPresentationUndo();
+  slide.backgroundColor = color;
+  markPresentationSlideChange("slide-background", { color });
+  pptxBackgroundButton.style.setProperty("--pptx-background-swatch", color);
+}
+
+function setPresentationFadeTransition() {
+  const slide = currentPresentationSlide();
+  if (!slide) return;
+  if (slide.transition === "fade") return;
+  recordPresentationUndo();
+  slide.transition = "fade";
+  markPresentationSlideChange("slide-transition", { transition: "fade" });
+  pptxTransitionButton.classList.add("active");
+  pptxTransitionButton.textContent = "Transition: Fade";
+}
+
+function handlePresentationMenu(menu) {
+  if (menu === "file") {
+    void saveActivePresentation();
+    return;
+  }
+  if (menu === "view") {
+    setPresentationTerminalOpen(!presentationScreen.classList.contains("pptx-terminal-open"));
+    return;
+  }
+  if (menu === "insert") {
+    addPresentationTextBox();
+    return;
+  }
+  if (menu === "edit") {
+    const slide = currentPresentationSlide();
+    const target = selectedPresentationElement || (slide && slide.elements.find((element) => element.type === "text" && !element.deleted));
+    if (target) {
+      selectPresentationElement(target);
+      if (!pptxTextInput.disabled) pptxTextInput.focus();
+    }
+    return;
+  }
+  if (menu === "format" && selectedPresentationElement) {
+    pptxInspectorFields.scrollIntoView({ block: "nearest" });
+    if (!pptxTextInput.disabled) pptxTextInput.focus();
+    return;
+  }
+  if (menu === "slide") {
+    addPresentationTitleLayout();
+    return;
+  }
+  if (menu === "arrange") {
+    if (selectedPresentationElement && activePresentation) {
+      recordPresentationUndo();
+      selectedPresentationElement.x = Math.max(0, (activePresentation.width - selectedPresentationElement.cx) / 2);
+      selectedPresentationElement.y = Math.max(0, (activePresentation.height - selectedPresentationElement.cy) / 2);
+      markPresentationElementChanged(selectedPresentationElement);
+      renderPresentationElements();
+      renderPresentationInspector();
+    }
+    return;
+  }
+  if (menu === "tools") {
+    openSettings();
+    return;
+  }
+  if (menu === "extensions") {
+    setPresentationTerminalOpen(true);
+    return;
+  }
+  if (menu === "help") {
+    openDocumentationSettings();
+  }
+}
+
+function addPresentationElements(elements, { select = null } = {}) {
+  const slide = currentPresentationSlide();
+  if (!slide || !activePresentation || !Array.isArray(elements) || !elements.length) return;
+  recordPresentationUndo();
+  elements.forEach((element) => {
+    element.zIndex = slide.elements.length + 1;
+    slide.elements.push(element);
+    markPresentationElementChanged(element);
+  });
+  selectPresentationElement(select || elements[elements.length - 1]);
+}
+
+function presentationTextPrimitive({
+  id,
+  name,
+  text,
+  x,
+  y,
+  cx,
+  cy,
+  fontSize = 16,
+  color = "#1f2937",
+  fillColor = "",
+  bold = false,
+  align = "l"
+}) {
+  return {
+    id,
+    name,
+    type: "text",
+    tagName: "p:sp",
+    text,
+    hasTextBody: true,
+    isNew: true,
+    x,
+    y,
+    cx,
+    cy,
+    rotation: 0,
+    fontSize,
+    fontFamily: "Aptos",
+    color,
+    fillColor,
+    bold,
+    italic: false,
+    underline: false,
+    align,
+    verticalAlign: "ctr",
+    marginLeft: 45720,
+    marginRight: 45720,
+    marginTop: 22860,
+    marginBottom: 22860
+  };
+}
+
+function presentationShapePrimitive({ id, name, x, y, cx, cy, fillColor, shapeType = "rect" }) {
+  return {
+    id,
+    name,
+    type: "shape",
+    shapeType,
+    tagName: "p:sp",
+    text: "",
+    hasTextBody: false,
+    isNew: true,
+    x,
+    y,
+    cx,
+    cy,
+    rotation: 0,
+    fillColor
+  };
+}
+
+function addPresentationChart() {
+  if (!activePresentation || !currentPresentationSlide()) return;
+  const stamp = Date.now();
+  const left = activePresentation.width * 0.2;
+  const top = activePresentation.height * 0.18;
+  const width = activePresentation.width * 0.58;
+  const height = activePresentation.height * 0.58;
+  const axisColor = "#475569";
+  const colors = ["#8B1E3F", "#2F7F8D", "#DB8B38", "#6B7A99"];
+  const values = [0.68, 0.86, 0.52, 0.74];
+  const elements = [
+    presentationTextPrimitive({
+      id: `new-chart-title-${stamp}`,
+      name: "Chart title",
+      text: "Results",
+      x: left,
+      y: top,
+      cx: width,
+      cy: height * 0.12,
+      fontSize: 22,
+      bold: true,
+      align: "ctr"
+    }),
+    presentationShapePrimitive({
+      id: `new-chart-y-axis-${stamp}`,
+      name: "Chart y-axis",
+      x: left + width * 0.08,
+      y: top + height * 0.16,
+      cx: Math.max(11000, width * 0.006),
+      cy: height * 0.72,
+      fillColor: axisColor
+    }),
+    presentationShapePrimitive({
+      id: `new-chart-x-axis-${stamp}`,
+      name: "Chart x-axis",
+      x: left + width * 0.08,
+      y: top + height * 0.875,
+      cx: width * 0.86,
+      cy: Math.max(11000, height * 0.008),
+      fillColor: axisColor
+    })
+  ];
+  values.forEach((value, index) => {
+    const barWidth = width * 0.12;
+    const barHeight = height * 0.62 * value;
+    const x = left + width * (0.16 + index * 0.2);
+    const y = top + height * 0.87 - barHeight;
+    elements.push(
+      presentationShapePrimitive({
+        id: `new-chart-bar-${stamp}-${index}`,
+        name: `Chart bar ${index + 1}`,
+        x,
+        y,
+        cx: barWidth,
+        cy: barHeight,
+        fillColor: colors[index]
+      }),
+      presentationTextPrimitive({
+        id: `new-chart-label-${stamp}-${index}`,
+        name: `Chart label ${index + 1}`,
+        text: `Group ${index + 1}`,
+        x: x - width * 0.02,
+        y: top + height * 0.9,
+        cx: width * 0.16,
+        cy: height * 0.08,
+        fontSize: 11,
+        align: "ctr"
+      })
+    );
+  });
+  addPresentationElements(elements, { select: elements[0] });
+}
+
+function addPresentationTable() {
+  if (!activePresentation || !currentPresentationSlide()) return;
+  const stamp = Date.now();
+  const rows = 4;
+  const columns = 3;
+  const left = activePresentation.width * 0.18;
+  const top = activePresentation.height * 0.2;
+  const width = activePresentation.width * 0.64;
+  const height = activePresentation.height * 0.48;
+  const cellWidth = width / columns;
+  const cellHeight = height / rows;
+  const elements = [];
+  const labels = [
+    ["Metric", "Baseline", "Fine-tuned"],
+    ["Depth error", "1.00", "0.55"],
+    ["Scale error", "30%", "15%"],
+    ["Volume MAE", "0.82", "0.43"]
+  ];
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const cellId = `${stamp}-${row}-${column}`;
+      const fillColor = row === 0 ? "#8B1E3F" : (row % 2 ? "#F1F5F9" : "#FFFFFF");
+      const textColor = row === 0 ? "#FFFFFF" : "#1F2937";
+      elements.push(
+        presentationShapePrimitive({
+          id: `new-table-cell-${cellId}`,
+          name: `Table cell ${row + 1}, ${column + 1}`,
+          x: left + column * cellWidth,
+          y: top + row * cellHeight,
+          cx: cellWidth - 5500,
+          cy: cellHeight - 5500,
+          fillColor
+        }),
+        presentationTextPrimitive({
+          id: `new-table-text-${cellId}`,
+          name: `Table text ${row + 1}, ${column + 1}`,
+          text: labels[row][column],
+          x: left + column * cellWidth,
+          y: top + row * cellHeight,
+          cx: cellWidth - 5500,
+          cy: cellHeight - 5500,
+          fontSize: row === 0 ? 15 : 14,
+          color: textColor,
+          bold: row === 0,
+          align: column === 0 ? "l" : "ctr"
+        })
+      );
+    }
+  }
+  addPresentationElements(elements, { select: elements[1] });
+}
+
+function fileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
+    reader.addEventListener("error", () => reject(reader.error || new Error("Could not read image.")), { once: true });
+    reader.readAsDataURL(file);
+  });
+}
+
+function imageDimensions(dataUrl) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve({ width: image.naturalWidth || 1, height: image.naturalHeight || 1 }), { once: true });
+    image.addEventListener("error", () => resolve({ width: 4, height: 3 }), { once: true });
+    image.src = dataUrl;
+  });
+}
+
+async function addPresentationImageFile(file) {
+  try {
+    const dataUrl = await fileAsDataUrl(file);
+    const dimensions = await imageDimensions(dataUrl);
+    addPresentationImage({
+      dataUrl,
+      fileName: file.name || "image.png",
+      mediaType: file.type || "image/png",
+      ...dimensions
+    });
+  } catch (error) {
+    window.alert(formatError(error));
+  }
+}
+
+function addPresentationImage({ dataUrl, fileName = "image.png", mediaType = "image/png", width = 4, height = 3 } = {}) {
+  const slide = currentPresentationSlide();
+  if (!slide || !activePresentation || !dataUrl) return;
+  recordPresentationUndo();
+  const targetWidth = activePresentation.width * 0.42;
+  const targetHeight = Math.min(activePresentation.height * 0.48, targetWidth * Math.max(0.15, height / Math.max(1, width)));
+  const element = {
+    id: `new-image-${Date.now()}`,
+    name: fileName,
+    type: "image",
+    tagName: "p:pic",
+    zIndex: slide.elements.length + 1,
+    text: "",
+    hasTextBody: false,
+    isNew: true,
+    x: (activePresentation.width - targetWidth) / 2,
+    y: (activePresentation.height - targetHeight) / 2,
+    cx: targetWidth,
+    cy: targetHeight,
+    rotation: 0,
+    imageData: dataUrl,
+    imageFileName: fileName,
+    imageMediaType: mediaType
+  };
+  slide.elements.push(element);
+  markPresentationElementChanged(element);
+  selectPresentationElement(element);
+}
+
+function deleteSelectedPresentationElement() {
+  if (!selectedPresentationElement) return;
+  recordPresentationUndo();
+  selectedPresentationElement.deleted = true;
+  markPresentationElementChanged(selectedPresentationElement);
+  selectedPresentationElement = null;
+  renderPresentationInspector();
+  renderPresentationElements();
+  pptxDeleteElementButton.disabled = true;
+}
+
+function refreshPresentationSlideMetadata() {
+  if (!activePresentation) return;
+  activePresentation.slides.forEach((slide, index) => {
+    slide.index = index;
+    slide.number = index + 1;
+  });
+  pptxSlideCount.textContent = `${activePresentation.slides.length}`;
+}
+
+function syncPresentationSlideOrderChange() {
+  if (!activePresentation) return;
+  presentationChangeMap.set("__slide-order__", {
+    type: "slide-order",
+    slidePaths: activePresentation.slides.map((slide) => slide.path)
+  });
+  presentationDirty = true;
+  setPresentationStatus("Unsaved changes", "unsaved");
+}
+
+function focusActivePresentationThumbnail() {
+  const thumbnail = pptxSlideList.querySelector(
+    `.pptx-slide-thumb[data-slide-index="${activePresentationSlideIndex}"]`
+  );
+  if (thumbnail) thumbnail.focus({ preventScroll: true });
+}
+
+function copyActivePresentationSlide() {
+  const slide = currentPresentationSlide();
+  if (!slide || !activeProject) return false;
+  presentationSlideClipboard = {
+    projectId: activeProject.id,
+    sourceSlidePath: slide.sourceSlidePath || slide.path,
+    slide: clonePresentationValue(slide)
+  };
+  return true;
+}
+
+async function pastePresentationSlide() {
+  if (
+    !activePresentation
+    || !presentationSlideClipboard
+    || !activeProject
+    || presentationSlideClipboard.projectId !== activeProject.id
+  ) return false;
+  recordPresentationUndo();
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const temporaryPath = `openleaf://slide-copy/${stamp}`;
+  const clone = clonePresentationValue(presentationSlideClipboard.slide);
+  clone.path = temporaryPath;
+  clone.sourceSlidePath = presentationSlideClipboard.sourceSlidePath;
+  clone.previewPageIndex = Number(
+    presentationSlideClipboard.slide.previewPageIndex
+    ?? presentationSlideClipboard.slide.index
+    ?? activePresentationSlideIndex
+  );
+  clone.elements = Array.isArray(clone.elements) ? clone.elements : [];
+  activePresentation.slides.splice(activePresentationSlideIndex + 1, 0, clone);
+  activePresentationSlideIndex += 1;
+  selectedPresentationElement = null;
+  presentationSelectionScope = "slide";
+  presentationChangeMap.set(`${temporaryPath}:__slide-copy__`, {
+    type: "slide-copy",
+    slidePath: temporaryPath,
+    sourceSlidePath: presentationSlideClipboard.sourceSlidePath
+  });
+  clone.elements.forEach((element) => markPresentationElementChanged(element));
+  if (/^#[0-9a-f]{6}$/i.test(clone.backgroundColor || "")) {
+    presentationChangeMap.set(`${temporaryPath}:__slide-background__`, {
+      type: "slide-background",
+      slidePath: temporaryPath,
+      color: clone.backgroundColor
+    });
+  }
+  if (clone.transition === "fade") {
+    presentationChangeMap.set(`${temporaryPath}:__slide-transition__`, {
+      type: "slide-transition",
+      slidePath: temporaryPath,
+      transition: "fade"
+    });
+  }
+  refreshPresentationSlideMetadata();
+  syncPresentationSlideOrderChange();
+  await renderPresentationSlideList();
+  await renderPresentationSlide();
+  renderPresentationInspector();
+  focusActivePresentationThumbnail();
+  return true;
+}
+
+async function deleteActivePresentationSlide() {
+  if (!activePresentation || activePresentation.slides.length <= 1) return false;
+  const slide = currentPresentationSlide();
+  if (!slide) return false;
+  recordPresentationUndo();
+  activePresentation.slides.splice(activePresentationSlideIndex, 1);
+  Array.from(presentationChangeMap.keys()).forEach((key) => {
+    if (key.startsWith(`${slide.path}:`)) presentationChangeMap.delete(key);
+  });
+  activePresentationSlideIndex = Math.min(activePresentationSlideIndex, activePresentation.slides.length - 1);
+  selectedPresentationElement = null;
+  presentationSelectionScope = "slide";
+  refreshPresentationSlideMetadata();
+  syncPresentationSlideOrderChange();
+  await renderPresentationSlideList();
+  await renderPresentationSlide();
+  renderPresentationInspector();
+  focusActivePresentationThumbnail();
+  return true;
+}
+
+async function selectPresentationSlideByOffset(offset) {
+  if (!activePresentation || !activePresentation.slides.length) return;
+  const nextIndex = Math.max(
+    0,
+    Math.min(activePresentation.slides.length - 1, activePresentationSlideIndex + offset)
+  );
+  presentationSelectionScope = "slide";
+  selectedPresentationElement = null;
+  if (nextIndex !== activePresentationSlideIndex) {
+    activePresentationSlideIndex = nextIndex;
+    pptxSlideList.querySelectorAll(".pptx-slide-thumb").forEach((thumbnail, index) => {
+      thumbnail.classList.toggle("active", index === activePresentationSlideIndex);
+    });
+    await renderPresentationSlide();
+    renderPresentationInspector();
+  }
+  updatePresentationViewControls();
+  if (!presentationViewIsActive()) focusActivePresentationThumbnail();
+}
+
+function presentationShortcutTargetBlocksSlideActions(target) {
+  const element = target && target.nodeType === 1 ? target : null;
+  if (!element || !element.closest) return false;
+  if (element.closest("input, textarea, select, [contenteditable='true'], .CodeMirror, .xterm")) return true;
+  return Boolean(element.closest("button") && !element.closest(".pptx-slide-thumb"));
+}
+
+function handlePresentationHistoryShortcut(event) {
+  if (
+    !presentationScreen
+    || presentationScreen.hidden
+    || !activePresentation
+    || presentationViewIsActive()
+  ) return false;
+  const shortcut = event.metaKey || event.ctrlKey;
+  const key = String(event.key || "").toLowerCase();
+  if (!shortcut || (key !== "z" && key !== "y")) return false;
+  event.preventDefault();
+  if (key === "y" || event.shiftKey) void redoPresentationChange();
+  else void undoPresentationChange();
+  return true;
+}
+
+function handlePresentationShortcut(event) {
+  if (!presentationScreen || presentationScreen.hidden || !activePresentation) return false;
+  if (presentationViewIsActive()) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      void setPresentationView(false);
+      return true;
+    }
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp" || event.key === "PageUp") {
+      event.preventDefault();
+      void selectPresentationSlideByOffset(-1);
+      return true;
+    }
+    if (
+      event.key === "ArrowRight"
+      || event.key === "ArrowDown"
+      || event.key === "PageDown"
+      || event.key === " "
+      || event.key === "Enter"
+    ) {
+      event.preventDefault();
+      void selectPresentationSlideByOffset(1);
+      return true;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      void selectPresentationSlideByOffset(-activePresentation.slides.length);
+      return true;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      void selectPresentationSlideByOffset(activePresentation.slides.length);
+      return true;
+    }
+    event.preventDefault();
+    return true;
+  }
+  if (event.key === "F5") {
+    event.preventDefault();
+    void setPresentationView(true);
+    return true;
+  }
+  const shortcut = event.metaKey || event.ctrlKey;
+  const key = String(event.key || "").toLowerCase();
+
+  if (handlePresentationHistoryShortcut(event)) return true;
+  if (presentationShortcutTargetBlocksSlideActions(event.target)) return false;
+  if (!event.altKey && (key === "+" || key === "=")) {
+    event.preventDefault();
+    stepPresentationZoom(1);
+    return true;
+  }
+  if (!event.altKey && (key === "-" || key === "_")) {
+    event.preventDefault();
+    stepPresentationZoom(-1);
+    return true;
+  }
+  if (shortcut && key === "p") {
+    event.preventDefault();
+    window.print();
+    return true;
+  }
+  if (presentationSelectionScope === "slide" && shortcut && key === "c") {
+    event.preventDefault();
+    copyActivePresentationSlide();
+    return true;
+  }
+  if (presentationSelectionScope === "slide" && shortcut && key === "x") {
+    event.preventDefault();
+    if (copyActivePresentationSlide()) void deleteActivePresentationSlide();
+    return true;
+  }
+  if (presentationSelectionScope === "slide" && shortcut && key === "v") {
+    event.preventDefault();
+    void pastePresentationSlide();
+    return true;
+  }
+  if (presentationSelectionScope === "slide" && shortcut && key === "d") {
+    event.preventDefault();
+    if (copyActivePresentationSlide()) void pastePresentationSlide();
+    return true;
+  }
+  if (!shortcut && (event.key === "Backspace" || event.key === "Delete")) {
+    if (presentationSelectionScope === "slide") {
+      event.preventDefault();
+      void deleteActivePresentationSlide();
+      return true;
+    }
+    if (selectedPresentationElement) {
+      event.preventDefault();
+      deleteSelectedPresentationElement();
+      return true;
+    }
+  }
+  if (presentationSelectionScope === "slide" && !shortcut && !event.altKey) {
+    if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      event.preventDefault();
+      void selectPresentationSlideByOffset(-1);
+      return true;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      event.preventDefault();
+      void selectPresentationSlideByOffset(1);
+      return true;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      void selectPresentationSlideByOffset(-activePresentation.slides.length);
+      return true;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      void selectPresentationSlideByOffset(activePresentation.slides.length);
+      return true;
+    }
+  }
+  return false;
+}
+
+async function saveActivePresentation() {
+  if (!activeProject || !activePresentation || !presentationDirty) {
+    setPresentationStatus("Saved", "ok");
+    return;
+  }
+  pptxSaveButton.disabled = true;
+  setPresentationStatus("Saving PowerPoint…");
+  const slideIndex = activePresentationSlideIndex;
+  try {
+    const result = await window.localOverleaf.savePresentationProject(
+      activeProject.id,
+      Array.from(presentationChangeMap.values())
+    );
+    activeProject = result.project || activeProject;
+    activePresentation = result.presentation;
+    await loadPresentationPdf(result.pdf, result.thumbnailPdf);
+    activePresentationSlideIndex = Math.min(slideIndex, activePresentation.slides.length - 1);
+    selectedPresentationElement = null;
+    presentationChangeMap = new Map();
+    presentationDirty = false;
+    presentationSelectionScope = "canvas";
+    presentationUndoStack = [];
+    presentationRedoStack = [];
+    updatePresentationHistoryButtons();
+    await renderPresentationSlideList();
+    await renderPresentationSlide();
+    renderPresentationInspector();
+    setPresentationStatus("Saved · backup created", "ok");
+  } catch (error) {
+    setPresentationStatus("Save failed", "error");
+    window.alert(formatError(error));
+  } finally {
+    pptxSaveButton.disabled = false;
+  }
+}
+
 async function openProject(projectId) {
   resetTextTabs();
   cancelProjectFileCreation();
@@ -7666,6 +9439,10 @@ async function openProject(projectId) {
   setSshConnectionState("disconnected");
   const project = projects.find((item) => item.id === projectId);
   activeProject = project || { id: projectId, name: "Project", texName: "main.tex" };
+  if (activeProject.kind === "presentation" || /\.pptx$/i.test(activeProject.texName || activeProject.texPath || "")) {
+    await openPresentationProject(activeProject);
+    return;
+  }
   showEditorShell();
   setFileSidebarVisible(false, { persist: false });
   setTerminalCollapsed(true, { persist: false });
@@ -7677,12 +9454,18 @@ async function openProject(projectId) {
 }
 
 function showEditorShell() {
+  restoreEditorTerminalPanel();
   projectScreen.hidden = true;
   editorScreen.hidden = false;
+  presentationScreen.hidden = true;
   requestAnimationFrame(() => editor.refresh());
 }
 
 async function showProjects({ discardChanges = false } = {}) {
+  if (!discardChanges && presentationScreen && !presentationScreen.hidden && presentationDirty) {
+    const confirmed = window.confirm("Return to Projects without saving the PowerPoint changes?");
+    if (!confirmed) return false;
+  }
   syncActiveTextTabFromEditor();
   recordHistoryEvent("Edited");
   togglePdfReaderMode(false);
@@ -7696,6 +9479,11 @@ async function showProjects({ discardChanges = false } = {}) {
   updateProjectHeroGreeting({ rotate: true });
   projectScreen.hidden = false;
   editorScreen.hidden = true;
+  presentationScreen.classList.remove("pptx-presenting");
+  if (pptxPresentControls) pptxPresentControls.hidden = true;
+  presentationScreen.hidden = true;
+  restoreEditorTerminalPanel();
+  presentationDirty = false;
   await loadProjects();
   return true;
 }
@@ -7843,8 +9631,18 @@ function isPdfFileNode(node) {
   return Boolean(node && node.kind === "file" && /\.pdf$/i.test(node.name || node.relativePath || ""));
 }
 
+function isPresentationFileNode(node) {
+  return Boolean(node && node.kind === "file" && /\.pptx?$/i.test(node.name || node.relativePath || ""));
+}
+
+function isPreviewDocumentNode(node) {
+  return isPdfFileNode(node) || isPresentationFileNode(node);
+}
+
 function projectPdfFiles() {
-  return flattenProjectFileNodes(projectFiles).filter(isPdfFileNode);
+  return flattenProjectFileNodes(projectFiles).filter((node) => (
+    isPdfFileNode(node) || (!isRemoteProject() && isPresentationFileNode(node))
+  ));
 }
 
 function findDefaultTexFileNode(nodes = []) {
@@ -7885,8 +9683,13 @@ function activePdfName() {
 function updatePdfTitleFromSelection() {
   if (!pdfTitle || !activeProject) return;
   pdfTitle.textContent = activePdfName();
-  pdfTitle.title = "Choose PDF";
+  pdfTitle.title = "Choose PDF or PowerPoint";
   pdfTitle.classList.toggle("clickable", true);
+  const showingPresentation = /\.pptx?$/i.test(selectedPdfRelativePath || "");
+  openPdfButton.title = showingPresentation ? "Open PowerPoint in system viewer" : "Open PDF in system viewer";
+  openPdfButton.setAttribute("aria-label", openPdfButton.title);
+  downloadPdfButton.title = showingPresentation ? "Download converted PDF" : "Download PDF";
+  downloadPdfButton.setAttribute("aria-label", downloadPdfButton.title);
 }
 
 function togglePdfFileMenu(event) {
@@ -8021,7 +9824,15 @@ function folderIconName(node) {
 }
 
 async function selectProjectFile(node, { preview = true } = {}) {
-  if (isPdfFileNode(node)) {
+  if (isPreviewDocumentNode(node)) {
+    if (isPresentationFileNode(node) && isRemoteProject()) {
+      filePreview.hidden = false;
+      filePreview.innerHTML = `
+        <strong>${escapeHtml(node.name)}</strong>
+        <p>PowerPoint preview is currently available for local projects.</p>
+      `;
+      return;
+    }
     filePreview.hidden = true;
     await selectPdfFile(node.relativePath);
     return;
@@ -8816,7 +10627,11 @@ async function compileManuscript({ manual = false } = {}) {
   isCompiling = true;
   setSaveState("Saving...");
   setCompileState(manual ? "Compiling..." : "Auto compiling...");
-  compileLog.textContent = `Running tectonic ${(activeFile && activeFile.name) || activeProject.texName || "main.tex"}...`;
+  const activeSourceName = (activeFile && activeFile.name) || activeProject.texName || "main.tex";
+  const entryName = activeProject.texName || "main.tex";
+  compileLog.textContent = activeSourceName === entryName
+    ? `Running tectonic ${entryName}...`
+    : `Saving ${activeSourceName} and running tectonic ${entryName}...`;
 
   try {
     const tex = getSourceText();
@@ -10023,9 +11838,12 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
     return true;
   } catch (error) {
     if (token !== pdfRenderToken) return false;
+    const showingPresentation = /\.pptx?$/i.test(pdfRelativePath || "");
     pdfViewer.innerHTML = isRemoteProject()
       ? `<div class="pdf-loading pdf-error">Could not render ${escapeHtml(activePdfName())}. Click Compile PDF to generate it locally or choose another PDF from the title.</div>`
-      : '<div class="pdf-loading pdf-error">Could not render PDF. Openleaf tried compiling the TeX entry; see Log for details.</div>';
+      : showingPresentation
+        ? `<div class="pdf-loading pdf-error">Could not render ${escapeHtml(activePdfName())}. PowerPoint preview requires LibreOffice; see Log for details.</div>`
+        : '<div class="pdf-loading pdf-error">Could not render PDF. Openleaf tried compiling the TeX entry; see Log for details.</div>';
     pdfMeta.textContent = isRemoteProject() ? (pdfRelativePath || "Remote PDF unavailable") : pdfMeta.textContent;
     if (!preserveLogOnError) compileLog.textContent = formatError(error);
     return false;
@@ -10776,7 +12594,9 @@ function setupTerminalResize() {
   let dragStartHeight = 0;
 
   const maxTerminalHeight = () => {
-    const sourceHeight = (workspace.classList.contains("python-terminal-wide") ? workspace : sourcePane).getBoundingClientRect().height;
+    const sourceHeight = presentationTerminalIsActive()
+      ? presentationScreen.getBoundingClientRect().height
+      : (workspace.classList.contains("python-terminal-wide") ? workspace : sourcePane).getBoundingClientRect().height;
     return Math.min(MAX_TERMINAL_HEIGHT, Math.max(MIN_TERMINAL_HEIGHT, sourceHeight - 220));
   };
 
@@ -10796,16 +12616,18 @@ function setupTerminalResize() {
       return;
     }
 
-    if (sourcePane.classList.contains("terminal-collapsed")) setTerminalCollapsed(false);
+    if (terminalIsCollapsed()) setTerminalCollapsed(false);
     const maxHeight = maxTerminalHeight();
-    sourcePane.classList.toggle("terminal-maximized", nextHeight >= maxHeight - 10);
+    const host = terminalLayoutHost();
+    const maximizeClass = presentationTerminalIsActive() ? "pptx-terminal-maximized" : "terminal-maximized";
+    host.classList.toggle(maximizeClass, nextHeight >= maxHeight - 10);
     setTerminalHeight(clampNumber(nextHeight, MIN_TERMINAL_HEIGHT, maxHeight, DEFAULT_TERMINAL_HEIGHT), { persist: false });
   };
 
   terminalResizeHandle.addEventListener("pointerdown", (event) => {
     if (!terminalSessions.length) createTerminalSession("shell");
     dragStartY = event.clientY;
-    dragStartHeight = sourcePane.classList.contains("terminal-collapsed") ? MIN_TERMINAL_HEIGHT : getTerminalHeight();
+    dragStartHeight = terminalIsCollapsed() ? MIN_TERMINAL_HEIGHT : getTerminalHeight();
     terminalResizeHandle.setPointerCapture(event.pointerId);
     document.body.classList.add("is-resizing-terminal");
     window.addEventListener("pointermove", resize);
@@ -10815,13 +12637,15 @@ function setupTerminalResize() {
   terminalResizeHandle.addEventListener("keydown", (event) => {
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     event.preventDefault();
-    if (sourcePane.classList.contains("terminal-collapsed")) setTerminalCollapsed(false);
+    if (terminalIsCollapsed()) setTerminalCollapsed(false);
     const delta = event.key === "ArrowUp" ? 24 : -24;
     const nextHeight = getTerminalHeight() + delta;
     if (nextHeight <= TERMINAL_COLLAPSE_THRESHOLD) setTerminalCollapsed(true);
     else {
       const maxHeight = maxTerminalHeight();
-      sourcePane.classList.toggle("terminal-maximized", nextHeight >= maxHeight - 10);
+      const host = terminalLayoutHost();
+      const maximizeClass = presentationTerminalIsActive() ? "pptx-terminal-maximized" : "terminal-maximized";
+      host.classList.toggle(maximizeClass, nextHeight >= maxHeight - 10);
       setTerminalHeight(clampNumber(nextHeight, MIN_TERMINAL_HEIGHT, maxHeight, DEFAULT_TERMINAL_HEIGHT));
     }
   });

@@ -1,134 +1,139 @@
-# Openleaf
+<div align="center">
+  <img src="assets/icon.png" width="132" alt="Openleaf icon">
 
-Agent-native desktop workspace for LaTeX papers, PDFs, terminals, compile logs, and review workflows.
+  # Openleaf
 
-![Openleaf interface](docs/interface-example.png)
+  **An agent-native desktop studio for papers, slides, code, and review.**
 
-## Download and Run
+  LaTeX + live PDF · Editable PowerPoint · Python notebooks · Local + SSH agents
 
-Openleaf is currently distributed from this GitHub repository. Packaged
-Windows and Linux installers are not published yet, so download the source
-archive or clone the repository and run the Electron app locally.
+  [![Version](https://img.shields.io/badge/version-0.2.0-67d09a?style=for-the-badge)](https://github.com/axel-slid/openleaf/releases/tag/v0.2.0)
+  [![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-111827?style=for-the-badge&logo=apple)](https://github.com/axel-slid/openleaf/releases/latest)
+  [![Electron](https://img.shields.io/badge/Electron-42-47848f?style=for-the-badge&logo=electron)](https://www.electronjs.org/)
+  [![Build](https://img.shields.io/github/actions/workflow/status/axel-slid/openleaf/build-release.yml?style=for-the-badge&label=build)](https://github.com/axel-slid/openleaf/actions/workflows/build-release.yml)
 
-### macOS App
+  [Download](https://github.com/axel-slid/openleaf/releases/latest) ·
+  [Feature reference](docs/features.md) ·
+  [Release notes](docs/release-v0.2.0.md)
+</div>
 
-To install Openleaf as a normal macOS application with its Dock icon:
+---
+
+![Openleaf animated product tour](docs/openleaf-demo.gif)
+
+Openleaf keeps a research project in one coherent desktop workspace. Edit raw
+LaTeX or page-like text, compile into a live PDF, work directly in native
+PowerPoint files, run Python cells, and open shell, Codex, Claude, or SSH
+terminals without losing the document you are reviewing.
+
+## What makes Openleaf different
+
+| Surface | What it does |
+| --- | --- |
+| **Paper workspace** | Project files, multi-tab LaTeX source, Code and Visual modes, minimap, Vim shortcuts, live PDF, compile log, and resizable panes |
+| **PowerPoint editor** | Opens `.pptx` as an editable project with native text formatting, shapes, movement, resizing, presentation mode, direct save, and automatic backups |
+| **Python workspace** | Opens `.py` and `.ipynb`, discovers interpreters, runs or traces cells in a persistent kernel, and keeps output beside the source |
+| **Agent terminals** | Shell, Codex, Claude, and SSH sessions share the same project and its `AGENTS.md` instructions |
+| **Remote projects** | Mirrors an SSH workspace locally for editing and preview while retaining remote terminal and Git workflows |
+| **Review + history** | Compile diagnostics, file previews, selection-to-agent edits, project history, GitHub push/pull, and portable project exports |
+
+## Highlights
+
+- Fast local compilation through `tectonic`, `latexmk`, or `pdflatex`.
+- Auto compile with a refreshed PDF preview after source changes.
+- Code and structured Visual editing that both write to the same LaTeX source.
+- `.ppt` and `.pptx` slide preview through LibreOffice.
+- Native `.pptx` project editing with an untouched backup before every save.
+- Persistent Python kernels with Run Cell, Run Above, Debug Cell, and Stop.
+- Local and SSH workspaces with GitHub push/pull actions.
+- Multiple shell tabs plus dedicated Codex and Claude launchers.
+- Searchable theme gallery spanning light, dark, glass, and high-contrast looks.
+- Project templates, command palette, Vim mode, minimap, and `AGENTS.md` editor.
+- Archive import for `.zip`, `.tar`, `.tar.gz`, and `.tgz` projects.
+
+## Install
+
+### macOS Apple Silicon
+
+Download `Openleaf-macOS-arm64.zip` from the
+[latest release](https://github.com/axel-slid/openleaf/releases/latest), unzip
+it, and drag `Openleaf.app` to Applications.
+
+You can also use the installer:
 
 ```bash
 curl -fsSL https://alex-dils.com/openleaf/install.sh | bash
 ```
 
-Prefer npm directly?
+The installer looks for `tectonic`, `latexmk`, or `pdflatex`. If none is
+available and Homebrew is installed, it installs `tectonic`.
 
-```bash
-npm install -g github:axel-slid/openleaf
-openleaf install
-openleaf open
-```
+### Run from source
 
-The installer checks for `tectonic`, `latexmk`, or `pdflatex`. If none are
-found and Homebrew is installed, it installs `tectonic`.
-
-You can also clone the source and install the app bundle manually:
+Requirements: Node.js 22+, npm 10+, and a LaTeX compiler for paper builds.
+LibreOffice is optional and enables PowerPoint-to-PDF preview.
 
 ```bash
 git clone https://github.com/axel-slid/openleaf.git
 cd openleaf
 npm install
-npm run install:mac
-open /Applications/Openleaf.app
+npm start
 ```
 
-`npm install` does not silently copy anything into `/Applications`. Use
-`openleaf install` or `npm run install:mac` when you want the app bundle
-created and installed. Once Openleaf is open, right-click its Dock icon and
-choose **Options** > **Keep in Dock**.
-
-Useful package commands:
+Validate the source and regression checks:
 
 ```bash
-npm run make:icons
+npm run check
+npm test
+```
+
+Build a local macOS application:
+
+```bash
 npm run package:mac
-npm run install:mac
-openleaf package
-openleaf install
-openleaf open
 ```
 
-### Windows
+## Keyboard map
 
-Requirements:
+| Shortcut | Action |
+| --- | --- |
+| `⌘/Ctrl+P` | Open the command palette |
+| `⌘/Ctrl+F` | Search the active source |
+| `Shift+Enter` | Run the current Python cell |
+| `:w` | Save in Vim mode |
+| `:q` | Return to Projects in Vim mode |
+| `:wq` or `:x` | Save and return to Projects |
 
-- Windows 10 or later.
-- [Node.js LTS](https://nodejs.org/) with npm.
-- [Git for Windows](https://git-scm.com/download/win), if you want to clone
-  instead of downloading the ZIP.
-- A LaTeX compiler on your `PATH` for PDF compilation. Openleaf tries
-  `tectonic`, then `latexmk`, then `pdflatex`.
+## Architecture
 
-Download with the GitHub ZIP:
-
-1. Open https://github.com/axel-slid/openleaf.
-2. Click **Code** > **Download ZIP**.
-3. Extract the ZIP.
-4. Open PowerShell in the extracted folder.
-5. Run:
-
-```powershell
-npm install
-npm start
+```text
+Renderer workspace
+   │  narrow context-isolated API
+   ▼
+Electron preload
+   │  validated IPC
+   ▼
+Main process
+   ├── local + mirrored SSH files
+   ├── LaTeX compilation + PDF preview
+   ├── PowerPoint preview/editor + backups
+   ├── Python kernels
+   ├── PTY and agent terminals
+   └── GitHub, history, and export services
 ```
 
-Or clone with Git:
+## Security note
 
-```powershell
-git clone https://github.com/axel-slid/openleaf.git
-cd openleaf
-npm install
-npm start
-```
+Shell and coding-agent terminals can modify the selected local or remote
+workspace with the permissions of the launched CLI. Open trusted projects,
+review `AGENTS.md`, and inspect agent changes before pushing them.
 
-### Linux
+## Documentation
 
-Requirements:
+- [Complete feature breakdown](docs/features.md)
+- [v0.2.0 release notes](docs/release-v0.2.0.md)
+- [Remotion source for the README animation](marketing/remotion)
 
-- Node.js LTS with npm.
-- Git, if you want to clone instead of downloading the ZIP.
-- A LaTeX compiler on your `PATH` for PDF compilation. Openleaf tries
-  `tectonic`, then `latexmk`, then `pdflatex`.
-- If `npm install` fails while building native dependencies, install your
-  distro's Python 3, `make`, and C++ compiler packages.
-
-Download with the GitHub ZIP:
-
-1. Open https://github.com/axel-slid/openleaf.
-2. Click **Code** > **Download ZIP**.
-3. Extract the ZIP.
-4. Open a terminal in the extracted folder.
-5. Run:
-
-```bash
-npm install
-npm start
-```
-
-Or clone with Git:
-
-```bash
-git clone https://github.com/axel-slid/openleaf.git
-cd openleaf
-npm install
-npm start
-```
-
-## Local Development
-
-```bash
-cd openleaf
-npm install
-npm start
-```
-
-The app opens to a project library. **Add Project** lets you start a blank project or import a `.tex`, folder, `.zip`, `.tar`, `.tar.gz`, or `.tgz` project. Opening a project shows the source editor on the left and a rendered PDF preview on the right. The source editor has line numbers, LaTeX syntax coloring, wrapped lines, optional Vim shortcuts, and multiple text tabs. With **Auto compile** enabled, edits are saved, compiled with `tectonic`, and pushed into the PDF preview after a short pause.
-
-Use **Code** for raw LaTeX editing and **Visual** for page-like paragraph editing that writes back into the LaTeX source. Drag the dividers to resize the files, editor, PDF, terminal, and compile-log panes, and use the settings modal for themes, PDF rendering, keyboard shortcuts, profile details, and AGENTS.md.
+<div align="center">
+  Built for research that moves between prose, code, figures, slides, and agents.
+</div>

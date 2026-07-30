@@ -56,6 +56,11 @@ function commandExists(command) {
 }
 
 function ensureLatexCompiler() {
+  if (process.env.OPENLEAF_SKIP_LATEX_CHECK === "1") {
+    console.log("Skipping the local LaTeX compiler check for packaging.");
+    return;
+  }
+
   const existingCompiler = ["tectonic", "latexmk", "pdflatex"].find(commandExists);
   if (existingCompiler) {
     console.log(`Found LaTeX compiler: ${existingCompiler}`);
@@ -120,6 +125,7 @@ async function copyAppSources() {
     "app.js",
     "index.html",
     "main.js",
+    "presentation-editor.js",
     "preload.js",
     "styles.css",
     "package.json",

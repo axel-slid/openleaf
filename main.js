@@ -7,17 +7,24 @@ const os = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const pty = require("node-pty");
+const {
+  loadPresentationEditor: loadPresentationEditorFile,
+  savePresentationEditor: savePresentationEditorFile
+} = require("./presentation-editor");
 
 const repoRoot = resolveRepoRoot();
 const defaultTexPath = path.join(repoRoot, "papers", "sashimi2026_synthetic_cnf", "main.tex");
 const homeDir = process.env.HOME || "";
 const latexDocumentsRemoteUrl = "https://github.com/axel-slid/openleaf-latex-documents.git";
 const latexSourceExtensions = new Set([".tex", ".ltx", ".bib", ".bst", ".cls", ".sty"]);
+const presentationExtensions = new Set([".ppt", ".pptx"]);
+const editablePresentationExtensions = new Set([".pptx"]);
 const appIconPngPath = path.join(repoRoot, "assets", "icon.png");
 
 let mainWindow;
 const terminalSessions = new Map();
 const pythonSessions = new Map();
+const presentationPreviewJobs = new Map();
 const terminalPath = [
   "/opt/homebrew/bin",
   "/opt/homebrew/sbin",
@@ -333,6 +340,14 @@ function projectPreviewRootPath() {
   return path.join(app.getPath("userData"), "project-previews");
 }
 
+function presentationEditorCacheRootPath() {
+  return path.join(app.getPath("userData"), "presentation-editor", "cache");
+}
+
+function presentationEditorBackupRootPath() {
+  return path.join(app.getPath("userData"), "presentation-editor", "backups");
+}
+
 function makeProjectId(texPath) {
   return crypto.createHash("sha1").update(path.resolve(texPath)).digest("hex").slice(0, 14);
 }
@@ -340,9 +355,13 @@ function makeProjectId(texPath) {
 function makeProject(texPath, name) {
   const resolvedTexPath = path.resolve(texPath);
   const now = new Date().toISOString();
+  const kind = isEditablePresentationFile(resolvedTexPath) ? "presentation" : "latex";
   return {
     id: makeProjectId(resolvedTexPath),
-    name: name || inferProjectName(resolvedTexPath),
+    name: name || (kind === "presentation"
+      ? path.basename(resolvedTexPath, path.extname(resolvedTexPath))
+      : inferProjectName(resolvedTexPath)),
+    kind,
     texPath: resolvedTexPath,
     createdAt: now,
     updatedAt: now,
@@ -727,17 +746,26 @@ function projectRootFor(project) {
   return path.dirname(project.texPath);
 }
 
+function projectKind(project) {
+  if (project && project.kind === "presentation") return "presentation";
+  return project && isEditablePresentationFile(project.texPath || "") ? "presentation" : "latex";
+}
+
 function agentsPathFor(project) {
   return path.join(projectRootFor(project), "AGENTS.md");
 }
 
 function decorateProject(project) {
   const texExists = fs.existsSync(project.texPath);
+  const kind = projectKind(project);
+  const presentation = kind === "presentation";
   const pdfPath = pdfPathFor(project);
   const rootPath = projectRootFor(project);
-  const pdfExists = fs.existsSync(pdfPath);
-  const previewImageUrl = pdfExists ? freshPreviewUrl(projectPreviewPngPath(project.id), pdfPath) : "";
-  const detectedTitle = texExists ? detectTexTitle(project.texPath) : "";
+  const pdfExists = presentation ? texExists : fs.existsSync(pdfPath);
+  const previewImageUrl = pdfExists
+    ? freshPreviewUrl(projectPreviewPngPath(project.id), presentation ? project.texPath : pdfPath)
+    : "";
+  const detectedTitle = texExists && !presentation ? detectTexTitle(project.texPath) : "";
   let modifiedAt = project.updatedAt;
 
   if (texExists) {
@@ -750,11 +778,12 @@ function decorateProject(project) {
 
   return {
     ...project,
+    kind,
     texName: path.basename(project.texPath),
     folderName: path.basename(rootPath),
     rootPath,
     rootUrl: `${pathToFileURL(rootPath).href}/`,
-    displayName: detectedTitle || project.name,
+    displayName: detectedTitle || project.name || path.basename(project.texPath, path.extname(project.texPath)),
     pdfPath,
     pdfName: path.basename(pdfPath),
     texExists,
@@ -822,6 +851,7 @@ async function addProject(_event, payload = {}) {
 
   if (kind === "blank") return createBlankProject();
   if (kind === "tex") return addTexProject();
+  if (kind === "presentation") return addPresentationProject();
   if (kind === "folder") return addFolderProject();
   if (kind === "archive") return addArchiveProject();
 
@@ -829,16 +859,17 @@ async function addProject(_event, payload = {}) {
     type: "question",
     title: "New Project",
     message: "How do you want to start?",
-    buttons: ["Blank Project", "Existing .tex", "Folder", "Archive", "Cancel"],
-    cancelId: 4,
+    buttons: ["Blank Project", "Existing .tex", "PowerPoint", "Folder", "Archive", "Cancel"],
+    cancelId: 5,
     defaultId: 0
   });
 
-  if (choice.response === 4) return { project: null, ...(await listProjects()) };
+  if (choice.response === 5) return { project: null, ...(await listProjects()) };
   if (choice.response === 0) return createBlankProject();
   if (choice.response === 1) return addTexProject();
-  if (choice.response === 2) return addFolderProject();
-  if (choice.response === 3) return addArchiveProject();
+  if (choice.response === 2) return addPresentationProject();
+  if (choice.response === 3) return addFolderProject();
+  if (choice.response === 4) return addArchiveProject();
   return { project: null, ...(await listProjects()) };
 }
 
@@ -891,6 +922,32 @@ async function addTexProject() {
   return registerProject(result.filePaths[0]);
 }
 
+async function addPresentationProject() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Open PowerPoint Project",
+    buttonLabel: "Open Presentation",
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      { name: "PowerPoint presentations", extensions: ["pptx"] },
+      { name: "All files", extensions: ["*"] }
+    ]
+  });
+
+  if (result.canceled || !result.filePaths.length) {
+    return { project: null, ...(await listProjects()) };
+  }
+
+  const imported = [];
+  for (const filePath of result.filePaths) {
+    if (!isEditablePresentationFile(filePath)) throw new Error(`Editable PowerPoint projects must use .pptx: ${path.basename(filePath)}`);
+    imported.push(await registerProjectRecord(filePath));
+  }
+  return {
+    project: imported[0] ? decorateProject(imported[0]) : null,
+    ...(await listProjects())
+  };
+}
+
 async function addFolderProject() {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Open LaTeX Project Folder",
@@ -938,6 +995,10 @@ async function registerProjectFromPath(filePath) {
   }
 
   if ([".tex", ".txt"].includes(path.extname(resolvedPath).toLowerCase())) {
+    return registerProjectRecord(resolvedPath);
+  }
+
+  if (isEditablePresentationFile(resolvedPath)) {
     return registerProjectRecord(resolvedPath);
   }
 
@@ -2088,7 +2149,7 @@ async function getProject(projectId) {
   const projects = await readProjects();
   const project = projects.find((item) => item.id === projectId);
   if (!project) throw new Error("Project not found. Return to Projects and reopen it.");
-  if (!fs.existsSync(project.texPath)) throw new Error(`LaTeX file not found: ${project.texPath}`);
+  if (!fs.existsSync(project.texPath)) throw new Error(`Project file not found: ${project.texPath}`);
   return project;
 }
 
@@ -2121,6 +2182,14 @@ function isTextFile(filePath) {
 
 function isImageFile(filePath) {
   return [".png", ".jpg", ".jpeg", ".gif", ".webp", ".tif", ".tiff", ".bmp", ".svg"].includes(path.extname(filePath).toLowerCase());
+}
+
+function isPresentationFile(filePath) {
+  return presentationExtensions.has(path.extname(filePath).toLowerCase());
+}
+
+function isEditablePresentationFile(filePath) {
+  return editablePresentationExtensions.has(path.extname(filePath).toLowerCase());
 }
 
 async function readEditorText(filePath) {
@@ -2266,6 +2335,7 @@ async function walkProjectFiles(project, dir = projectRootFor(project), depth = 
       kind: entry.isDirectory() ? "folder" : "file",
       editable: entry.isFile() && isTextFile(absolutePath),
       image: entry.isFile() && isImageFile(absolutePath),
+      presentation: entry.isFile() && isPresentationFile(absolutePath),
       fileUrl: entry.isFile() ? pathToFileURL(absolutePath).href : ""
     };
 
@@ -2901,6 +2971,38 @@ async function loadManuscript(_event, payload) {
   };
 }
 
+async function loadPresentationProject(_event, projectId) {
+  const project = await getProject(projectId);
+  if (projectKind(project) !== "presentation") throw new Error("This is not a PowerPoint project.");
+  const result = await loadPresentationEditorFile(project.texPath, presentationEditorCacheRootPath());
+  await touchProject(project.id);
+  return {
+    project: decorateProject(project),
+    presentation: result.presentation,
+    pdf: result.pdf,
+    thumbnailPdf: result.thumbnailPdf
+  };
+}
+
+async function savePresentationProject(_event, payload = {}) {
+  const project = await getProject(payload.projectId);
+  if (projectKind(project) !== "presentation") throw new Error("This is not a PowerPoint project.");
+  const result = await savePresentationEditorFile(
+    project.texPath,
+    presentationEditorCacheRootPath(),
+    presentationEditorBackupRootPath(),
+    payload
+  );
+  await touchProject(project.id);
+  return {
+    project: decorateProject(project),
+    presentation: result.presentation,
+    pdf: result.pdf,
+    thumbnailPdf: result.thumbnailPdf,
+    backupPath: result.backupPath
+  };
+}
+
 async function readProjectFile(_event, payload = {}) {
   const project = await getProject(payload.projectId);
   const relativePath = payload.relativePath || relativeProjectPath(project, project.texPath);
@@ -3121,7 +3223,7 @@ async function chooseProjectFiles(_event, projectId) {
     buttonLabel: "Add",
     properties: ["openFile", "openDirectory", "multiSelections"],
     filters: [
-      { name: "Project assets", extensions: ["tex", "ltx", "bib", "bst", "cls", "sty", "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf", "csv", "tsv", "txt", "md", "json", "yaml", "yml", "py", "ipynb", "js", "ts", "tsx", "jsx", "css", "html", "xml", "sh"] },
+      { name: "Project assets", extensions: ["tex", "ltx", "bib", "bst", "cls", "sty", "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf", "ppt", "pptx", "csv", "tsv", "txt", "md", "json", "yaml", "yml", "py", "ipynb", "js", "ts", "tsx", "jsx", "css", "html", "xml", "sh"] },
       { name: "All files", extensions: ["*"] }
     ]
   });
@@ -3350,9 +3452,13 @@ async function compileManuscript(_event, payload) {
   const project = await getProject(payload.projectId);
   const filePath = safeProjectPath(project, payload.relativePath || relativeProjectPath(project, project.texPath));
   if (!isTextFile(filePath)) throw new Error("Only text project files can be saved from the editor.");
-  await fsp.writeFile(filePath, payload.tex, "utf8");
+  await writeEditorText(filePath, payload.tex);
 
-  const compileProject = { ...project, texPath: filePath };
+  // Save whichever project file is active, but always build the project's
+  // registered TeX entry point. Included files such as appendix.tex are not
+  // standalone documents and cannot be passed directly to Tectonic.
+  const entryPath = await compileEntryPath(project);
+  const compileProject = { ...project, texPath: entryPath };
   const output = await runTectonic(compileProject);
   const pdfPath = pdfPathFor(compileProject);
   if (!fs.existsSync(pdfPath)) {
@@ -3385,6 +3491,7 @@ function fileDescriptor(project, filePath) {
     relativePath: relativeProjectPath(project, filePath),
     editable: isTextFile(filePath),
     image: isImageFile(filePath),
+    presentation: isPresentationFile(filePath),
     fileUrl: pathToFileURL(filePath).href,
     isMain: path.resolve(filePath) === path.resolve(project.texPath),
     modifiedAt: stat ? stat.mtime.toISOString() : "",
@@ -3529,13 +3636,101 @@ async function compileEntryPath(project) {
 async function selectedPdfPath(project, relativePath = "") {
   const requestedPath = String(relativePath || "").trim();
   if (!requestedPath) {
+    if (projectKind(project) === "presentation") return ensurePresentationPdf(project, project.texPath);
     return ensureProjectPdf(project);
   }
 
-  const pdfPath = safeProjectPath(project, requestedPath);
-  if (path.extname(pdfPath).toLowerCase() !== ".pdf") throw new Error("Only project PDF files can be opened in the PDF viewer.");
-  if (!fs.existsSync(pdfPath)) throw new Error(`PDF not found: ${requestedPath}`);
-  return pdfPath;
+  const sourcePath = safeProjectPath(project, requestedPath);
+  if (!fs.existsSync(sourcePath)) throw new Error(`Preview file not found: ${requestedPath}`);
+  if (path.extname(sourcePath).toLowerCase() === ".pdf") return sourcePath;
+  if (isPresentationFile(sourcePath)) return ensurePresentationPdf(project, sourcePath);
+  throw new Error("Only PDF and PowerPoint files can be opened in the document viewer.");
+}
+
+function presentationPreviewRootPath(project) {
+  const projectKey = crypto.createHash("sha1").update(String(project.id || projectRootFor(project))).digest("hex").slice(0, 16);
+  return path.join(app.getPath("userData"), "presentation-previews", projectKey);
+}
+
+function presentationConverterPath() {
+  const candidates = [
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    "/usr/bin/libreoffice",
+    "/usr/bin/soffice",
+    "/opt/homebrew/bin/libreoffice",
+    "/opt/homebrew/bin/soffice",
+    "/usr/local/bin/libreoffice",
+    "/usr/local/bin/soffice"
+  ];
+  return candidates.find((candidate) => {
+    try {
+      return fs.statSync(candidate).isFile();
+    } catch (error) {
+      return false;
+    }
+  }) || "";
+}
+
+async function ensurePresentationPdf(project, sourcePath) {
+  const resolvedSourcePath = path.resolve(sourcePath);
+  const existingJob = presentationPreviewJobs.get(resolvedSourcePath);
+  if (existingJob) return existingJob;
+
+  const job = convertPresentationToPdf(project, resolvedSourcePath);
+  presentationPreviewJobs.set(resolvedSourcePath, job);
+  try {
+    return await job;
+  } finally {
+    presentationPreviewJobs.delete(resolvedSourcePath);
+  }
+}
+
+async function convertPresentationToPdf(project, sourcePath) {
+  const converter = presentationConverterPath();
+  if (!converter) {
+    throw new Error("PowerPoint preview requires LibreOffice. Install LibreOffice, then reopen the .pptx file.");
+  }
+
+  const sourceStat = await fsp.stat(sourcePath);
+  const sourceKey = crypto.createHash("sha1").update(sourcePath).digest("hex").slice(0, 16);
+  const previewDir = path.join(presentationPreviewRootPath(project), sourceKey);
+  const previewPath = path.join(previewDir, `${path.parse(sourcePath).name}.pdf`);
+
+  try {
+    const previewStat = await fsp.stat(previewPath);
+    if (previewStat.size > 0 && previewStat.mtimeMs >= sourceStat.mtimeMs) return previewPath;
+  } catch (error) {
+  }
+
+  await fsp.mkdir(previewDir, { recursive: true });
+  await fsp.rm(previewPath, { force: true });
+  const profileDir = path.join(previewDir, `.libreoffice-profile-${process.pid}-${Date.now()}`);
+  await fsp.mkdir(profileDir, { recursive: true });
+
+  try {
+    await execFileAsync(converter, [
+      `-env:UserInstallation=${pathToFileURL(profileDir).href}`,
+      "--headless",
+      "--convert-to",
+      "pdf:impress_pdf_Export",
+      "--outdir",
+      previewDir,
+      sourcePath
+    ], {
+      timeout: 180000,
+      maxBuffer: 1024 * 1024 * 8
+    });
+  } catch (error) {
+    throw new Error(`Could not create a PowerPoint preview for ${path.basename(sourcePath)}.\n${error.message}`);
+  } finally {
+    await fsp.rm(profileDir, { recursive: true, force: true }).catch(() => {});
+  }
+
+  const previewStat = await fsp.stat(previewPath).catch(() => null);
+  if (!previewStat || previewStat.size <= 0) {
+    throw new Error(`LibreOffice did not create a preview for ${path.basename(sourcePath)}.`);
+  }
+  return previewPath;
 }
 
 async function readPdf(_event, payload) {
@@ -3549,6 +3744,11 @@ async function readPdf(_event, payload) {
 async function openPdf(_event, payload) {
   const options = payload && typeof payload === "object" ? payload : { projectId: payload };
   const project = await getProject(options.projectId);
+  const requestedPath = String(options.relativePath || "").trim();
+  if (requestedPath) {
+    const sourcePath = safeProjectPath(project, requestedPath);
+    if (isPresentationFile(sourcePath)) return shell.openPath(sourcePath);
+  }
   const pdfPath = await selectedPdfPath(project, options.relativePath);
   return shell.openPath(pdfPath);
 }
@@ -4005,6 +4205,8 @@ ipcMain.handle("project-file-action", projectFileAction);
 ipcMain.handle("choose-project-files", chooseProjectFiles);
 ipcMain.handle("import-project-files", importProjectFiles);
 ipcMain.handle("load-manuscript", loadManuscript);
+ipcMain.handle("load-presentation-project", loadPresentationProject);
+ipcMain.handle("save-presentation-project", savePresentationProject);
 ipcMain.handle("read-project-file", readProjectFile);
 ipcMain.handle("save-manuscript", saveManuscript);
 ipcMain.handle("list-python-interpreters", listPythonInterpreters);

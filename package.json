@@ -1,6 +1,6 @@
 {
   "name": "openleaf",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "productName": "Openleaf",
   "description": "Agent-native desktop workspace for LaTeX papers, PDFs, terminals, and review workflows.",
   "repository": {
@@ -14,17 +14,25 @@
   "scripts": {
     "start": "node scripts/start.mjs",
     "dev": "electron \"$PWD\"",
+    "check": "node --check main.js && node --check preload.js && node --check app.js && node --check presentation-editor.js && node --check scripts/package-mac.mjs",
+    "test": "npm run test:include-compile",
+    "test:pptx": "npm run test:pptx-preview && npm run test:pptx-editor",
     "make:icons": "node scripts/make-icons.mjs",
     "package:mac": "node scripts/package-mac.mjs",
-    "install:mac": "node scripts/package-mac.mjs --install"
+    "install:mac": "node scripts/package-mac.mjs --install",
+    "test:include-compile": "node scripts/verify-include-compile.mjs",
+    "test:pptx-preview": "node scripts/verify-pptx-preview.mjs",
+    "test:pptx-editor": "node scripts/verify-presentation-editor-ui.mjs"
   },
   "devDependencies": {
     "electron": "^42.5.0"
   },
   "dependencies": {
+    "@xmldom/xmldom": "^0.9.10",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "codemirror": "^5.65.21",
+    "jszip": "^3.10.1",
     "katex": "^0.17.0",
     "material-icon-theme": "^5.36.1",
     "pdfjs-dist": "^4.10.38",

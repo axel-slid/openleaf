@@ -598,7 +598,7 @@ p {
 .project-import-options {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .project-import-options button {
@@ -12657,4 +12657,1023 @@ body[data-theme="dark"] .github-field .settings-text-input {
 
 .history-document-preview header {
   background: color-mix(in srgb, var(--panel) 92%, var(--bg));
+}
+
+/* Editable PowerPoint projects */
+.presentation-screen {
+  background: var(--bg);
+  color: var(--text);
+  display: grid;
+  grid-template-rows: 48px 30px 40px minmax(0, 1fr) 0 28px;
+  height: 100vh;
+  min-width: 980px;
+  --terminal-height: 254px;
+  --terminal-tabs-width: 184px;
+}
+
+.presentation-screen.pptx-terminal-open {
+  grid-template-rows: 48px 30px 40px minmax(0, 1fr) var(--terminal-height) 28px;
+}
+
+.presentation-screen.pptx-terminal-maximized {
+  grid-template-rows: 48px 30px 40px 0 minmax(0, 1fr) 28px;
+}
+
+.presentation-screen[hidden] {
+  display: none !important;
+}
+
+.pptx-topbar {
+  align-items: center;
+  -webkit-app-region: drag;
+  background: color-mix(in srgb, var(--panel) 94%, var(--bg));
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(190px, 1fr) minmax(280px, 2fr) minmax(350px, 1fr);
+  padding: 5px 12px 5px 78px;
+}
+
+.pptx-topbar button,
+.pptx-topbar input,
+.pptx-topbar select {
+  -webkit-app-region: no-drag;
+}
+
+.pptx-topbar-left,
+.pptx-topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.pptx-topbar-actions {
+  justify-content: flex-end;
+}
+
+.pptx-topbar-actions button {
+  align-items: center;
+  background: transparent !important;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.pptx-topbar-actions .icon,
+.pptx-commandbar .icon {
+  fill: none;
+  height: 17px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+  width: 17px;
+}
+
+.pptx-topbar-actions button:hover:not(:disabled) {
+  background: transparent !important;
+  color: var(--accent);
+}
+
+.pptx-topbar-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.pptx-topbar-actions .pptx-primary-action {
+  background: transparent !important;
+  color: var(--text);
+}
+
+.pptx-topbar .project-back-button {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.pptx-topbar-actions button:focus-visible,
+.pptx-topbar .project-back-button:focus-visible {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--accent);
+  outline: 0 !important;
+}
+
+.pptx-file-badge {
+  background: #e95b2a;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 4px 6px;
+}
+
+.pptx-title-block {
+  min-width: 0;
+  text-align: center;
+}
+
+.pptx-title-block strong,
+.pptx-title-block span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pptx-title-block strong {
+  font-size: 13px;
+}
+
+.pptx-title-block span {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 1px;
+}
+
+.pptx-menubar {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 96%, var(--bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  display: flex;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 10px;
+}
+
+.pptx-menubar.collapsed {
+  display: none;
+}
+
+.presentation-screen:has(.pptx-menubar.collapsed) {
+  grid-template-rows: 48px 0 40px minmax(0, 1fr) 0 28px;
+}
+
+.presentation-screen.pptx-terminal-open:has(.pptx-menubar.collapsed) {
+  grid-template-rows: 48px 0 40px minmax(0, 1fr) var(--terminal-height) 28px;
+}
+
+.presentation-screen.pptx-terminal-maximized:has(.pptx-menubar.collapsed) {
+  grid-template-rows: 48px 0 40px 0 minmax(0, 1fr) 28px;
+}
+
+.pptx-menubar button {
+  background: transparent !important;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  height: 24px;
+  padding: 0 8px;
+}
+
+.pptx-menubar button:hover {
+  background: transparent !important;
+  color: var(--accent);
+}
+
+.pptx-menubar button:focus-visible,
+.pptx-menubar button:active {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--accent);
+  outline: 0 !important;
+}
+
+.pptx-commandbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 96%, var(--bg));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  padding: 4px 10px;
+}
+
+.pptx-tool-group {
+  align-items: center;
+  border-right: 1px solid var(--border);
+  display: flex;
+  gap: 3px;
+  padding-right: 9px;
+}
+
+.pptx-tool-group:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.pptx-commandbar button {
+  align-items: center;
+  background: transparent !important;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  outline: 0;
+  width: 32px;
+}
+
+.pptx-commandbar .pptx-menus-toggle {
+  border-radius: 18px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 11px;
+  width: auto;
+}
+
+.pptx-commandbar .pptx-fit-button,
+.pptx-commandbar .pptx-labeled-tool {
+  color: var(--muted);
+  font-size: 11px;
+  gap: 5px;
+  padding: 0 8px;
+  width: auto;
+}
+
+.pptx-commandbar .pptx-fit-button {
+  min-width: 54px;
+}
+
+.pptx-static-icon {
+  color: var(--muted);
+  flex: none;
+  margin-left: 3px;
+}
+
+.pptx-zoom-tools {
+  gap: 1px;
+}
+
+.pptx-slide-style-tools {
+  gap: 1px;
+}
+
+.pptx-commandbar button:hover:not(:disabled),
+.pptx-commandbar button.active {
+  background: transparent !important;
+  color: var(--accent);
+}
+
+.pptx-commandbar button:focus-visible {
+  background: transparent !important;
+  box-shadow: none;
+  color: var(--accent);
+}
+
+.pptx-commandbar button:disabled {
+  cursor: default;
+  opacity: 0.28;
+}
+
+.pptx-tool-spacer {
+  flex: 1;
+  min-width: 4px;
+}
+
+.pptx-selection-help {
+  color: var(--muted);
+  font-size: 10px;
+  max-width: 560px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pptx-workspace {
+  display: grid;
+  grid-template-columns: 218px minmax(560px, 1fr) 246px;
+  min-height: 0;
+}
+
+.pptx-slide-pane,
+.pptx-inspector {
+  background: var(--panel);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pptx-slide-pane {
+  border-right: 1px solid var(--border);
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+}
+
+.pptx-slide-pane > header,
+.pptx-inspector > header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.pptx-slide-pane > header strong,
+.pptx-inspector > header strong {
+  font-size: 12px;
+}
+
+.pptx-slide-pane > header span,
+.pptx-inspector > header span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.pptx-slide-list {
+  overflow: auto;
+  padding: 10px 9px 24px 7px;
+}
+
+.pptx-slide-thumb {
+  align-items: start;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: none !important;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 7px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  height: auto;
+  margin-bottom: 6px;
+  min-height: 0;
+  overflow: hidden;
+  outline: 0 !important;
+  padding: 6px;
+  text-align: left;
+  white-space: normal;
+  width: 100%;
+}
+
+.pptx-slide-thumb:active {
+  transform: none;
+}
+
+.pptx-slide-thumb:hover {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.pptx-slide-thumb.active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.pptx-slide-thumb:focus-visible {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.pptx-slide-thumb-number {
+  font-size: 11px;
+  padding-top: 3px;
+  text-align: center;
+}
+
+.pptx-slide-thumb-preview {
+  aspect-ratio: var(--pptx-aspect, 16 / 9);
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, #9ca3af);
+  border-radius: 3px;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.12);
+  display: block;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.pptx-slide-thumb-preview canvas {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.pptx-slide-thumb.active .pptx-slide-thumb-preview,
+.pptx-slide-thumb:focus-visible .pptx-slide-thumb-preview,
+.pptx-slide-thumb:hover .pptx-slide-thumb-preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 3px 9px rgba(15, 23, 42, 0.16);
+}
+
+.pptx-slide-thumb-title {
+  color: var(--muted);
+  font-size: 9px;
+  grid-column: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pptx-stage-pane {
+  background:
+    radial-gradient(circle at center, color-mix(in srgb, var(--panel) 74%, transparent), transparent 64%),
+    color-mix(in srgb, var(--bg) 88%, #94a3b8);
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+.pptx-stage-toolbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 91%, transparent);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.pptx-stage-toolbar > span:first-child {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pptx-stage-toolbar-actions,
+.pptx-stage-zoom-controls {
+  align-items: center;
+  display: flex;
+}
+
+.pptx-stage-toolbar-actions {
+  gap: 12px;
+}
+
+.pptx-stage-zoom-controls {
+  color: var(--muted);
+  font-size: 10px;
+  gap: 6px;
+}
+
+.pptx-stage-zoom-controls > span {
+  margin-right: 2px;
+}
+
+.pptx-stage-present-button {
+  align-items: center;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: none !important;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 11px;
+  gap: 6px;
+  height: 30px;
+  outline: 0 !important;
+  padding: 0 4px;
+}
+
+.pptx-stage-present-button .icon {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 16px;
+}
+
+.pptx-stage-present-button:hover,
+.pptx-stage-present-button:focus-visible {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--accent);
+  outline: 0 !important;
+}
+
+.pptx-stage-hint {
+  color: var(--muted);
+  flex: 1;
+  font-size: 10px;
+  text-align: center;
+}
+
+.pptx-stage-toolbar label {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 10px;
+  gap: 6px;
+}
+
+.pptx-stage-toolbar input {
+  width: 92px;
+}
+
+.pptx-stage-viewport {
+  align-items: flex-start;
+  align-items: safe center;
+  display: flex;
+  justify-content: flex-start;
+  justify-content: safe center;
+  min-height: 0;
+  overflow: auto;
+  padding: 32px;
+}
+
+.pptx-slide-canvas {
+  background: #fff;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.22);
+  flex: none;
+  position: relative;
+  transform-origin: center center;
+}
+
+#pptxBackgroundCanvas,
+.pptx-element-layer {
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+}
+
+#pptxBackgroundCanvas {
+  display: block;
+}
+
+.pptx-element {
+  background: transparent;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  color: #1f2937;
+  cursor: move;
+  line-height: 1.05;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  text-align: left;
+  transform-origin: center center;
+  user-select: none;
+  white-space: pre-wrap;
+}
+
+.pptx-element.pptx-text-element {
+  align-items: flex-start;
+  display: flex;
+}
+
+.pptx-inserted-image {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  width: 100%;
+}
+
+.pptx-element-text {
+  box-sizing: border-box;
+  display: block;
+  min-height: 100%;
+  width: 100%;
+}
+
+.pptx-element:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+}
+
+.pptx-element.selected {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #fff, 0 0 0 3px rgba(37, 99, 235, 0.35);
+  overflow: visible;
+  z-index: 999 !important;
+}
+
+.pptx-element.editing {
+  background: rgba(255, 255, 255, 0.97);
+  cursor: text;
+  outline: none;
+  overflow: auto;
+  user-select: text;
+  z-index: 1000 !important;
+}
+
+.pptx-element-handle {
+  background: #fff;
+  border: 2px solid #2563eb;
+  border-radius: 2px;
+  bottom: -6px;
+  cursor: nwse-resize;
+  height: 10px;
+  position: absolute;
+  right: -6px;
+  width: 10px;
+}
+
+.pptx-nontext-label {
+  align-items: center;
+  background: rgba(37, 99, 235, 0.82);
+  border-radius: 3px;
+  color: #fff;
+  display: none;
+  font-size: 9px;
+  left: 0;
+  padding: 2px 4px;
+  position: absolute;
+  top: -18px;
+}
+
+.pptx-element.selected .pptx-nontext-label {
+  display: flex;
+}
+
+.pptx-inspector {
+  border-left: 1px solid var(--border);
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+}
+
+.pptx-inspector-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 20px;
+}
+
+.pptx-inspector-fields {
+  overflow: auto;
+  padding: 14px 12px 30px;
+}
+
+.pptx-field {
+  display: grid;
+  gap: 5px;
+}
+
+.pptx-field span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.pptx-field input,
+.pptx-field textarea,
+.pptx-format-row select {
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 8px;
+  width: 100%;
+}
+
+.pptx-field input[type="color"] {
+  min-height: 33px;
+  padding: 3px;
+}
+
+.pptx-field textarea {
+  resize: vertical;
+}
+
+.pptx-field-wide {
+  margin-bottom: 12px;
+}
+
+.pptx-field-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.pptx-format-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 34px 34px 34px minmax(0, 1fr);
+  margin-top: 2px;
+}
+
+.pptx-format-row button {
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pptx-format-row button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 18%, var(--input));
+  border-color: var(--accent);
+}
+
+.pptx-inspector-note {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+  margin: 14px 0 0;
+}
+
+.pptx-statusbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 96%, var(--bg));
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  display: grid;
+  font-size: 10px;
+  grid-template-columns: minmax(170px, 1fr) auto minmax(170px, 1fr);
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.pptx-terminal-slot {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pptx-terminal-slot:not(.open) .terminal-panel {
+  display: none !important;
+}
+
+.pptx-terminal-slot .terminal-panel {
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+}
+
+.pptx-terminal-slot .terminal-collapsed-rail {
+  display: none !important;
+}
+
+.pptx-terminal-toggle {
+  align-items: center;
+  align-self: stretch;
+  background: transparent !important;
+  border: 0;
+  color: color-mix(in srgb, var(--muted) 86%, transparent);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  height: 100%;
+  justify-content: center;
+  min-height: 0;
+  min-width: 110px;
+  padding: 0 18px;
+  text-align: center;
+}
+
+.pptx-terminal-toggle:hover,
+.pptx-terminal-toggle.active,
+.pptx-terminal-toggle:focus-visible {
+  background: transparent !important;
+  box-shadow: none;
+  color: var(--accent);
+  outline: 0;
+}
+
+.presentation-screen.pptx-presenting,
+.presentation-screen.pptx-presenting.pptx-terminal-open,
+.presentation-screen.pptx-presenting.pptx-terminal-maximized {
+  background: #000 !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  min-width: 0;
+}
+
+.presentation-screen.pptx-presenting > .pptx-topbar,
+.presentation-screen.pptx-presenting > .pptx-menubar,
+.presentation-screen.pptx-presenting > .pptx-commandbar,
+.presentation-screen.pptx-presenting > .pptx-terminal-slot,
+.presentation-screen.pptx-presenting > .pptx-statusbar {
+  display: none !important;
+}
+
+.presentation-screen.pptx-presenting .pptx-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.presentation-screen.pptx-presenting .pptx-slide-pane,
+.presentation-screen.pptx-presenting .pptx-inspector,
+.presentation-screen.pptx-presenting .pptx-stage-toolbar {
+  display: none !important;
+}
+
+.presentation-screen.pptx-presenting .pptx-stage-pane {
+  background: #000 !important;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.presentation-screen.pptx-presenting .pptx-stage-viewport {
+  background: #000;
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+}
+
+.presentation-screen.pptx-presenting .pptx-slide-canvas {
+  box-shadow: none;
+}
+
+.presentation-screen.pptx-presenting .pptx-element-layer {
+  pointer-events: none;
+}
+
+.presentation-screen.pptx-presenting .pptx-element,
+.presentation-screen.pptx-presenting .pptx-element:hover,
+.presentation-screen.pptx-presenting .pptx-element.selected {
+  border-color: transparent;
+  box-shadow: none;
+  cursor: default;
+  overflow: hidden;
+}
+
+.presentation-screen.pptx-presenting .pptx-element-handle {
+  display: none;
+}
+
+.pptx-present-controls {
+  align-items: center;
+  background: rgba(8, 12, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  bottom: 20px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
+  color: #fff;
+  display: flex;
+  gap: 6px;
+  left: 50%;
+  padding: 5px 7px;
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 10000;
+}
+
+.pptx-present-controls[hidden] {
+  display: none !important;
+}
+
+.pptx-present-controls button {
+  background: transparent !important;
+  border: 0;
+  border-radius: 5px;
+  color: #fff;
+  height: 30px;
+  min-width: 34px;
+  padding: 0 9px;
+}
+
+.pptx-present-controls button:hover:not(:disabled),
+.pptx-present-controls button:focus-visible {
+  background: transparent !important;
+  color: #7dd3fc;
+  outline: 0;
+}
+
+.pptx-present-controls button:disabled {
+  opacity: 0.32;
+}
+
+.pptx-present-controls output {
+  font-size: 12px;
+  min-width: 56px;
+  text-align: center;
+}
+
+.pptx-stage-zoom-controls .pptx-zoom-step-button {
+  background: transparent !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 16px;
+  height: 24px;
+  line-height: 1;
+  min-width: 22px;
+  padding: 0;
+}
+
+.pptx-stage-zoom-controls .pptx-zoom-step-button:hover,
+.pptx-stage-zoom-controls .pptx-zoom-step-button:focus-visible {
+  background: transparent !important;
+  box-shadow: none;
+  color: var(--accent);
+  outline: 0;
+}
+
+.pptx-stage-zoom-controls input[type="range"] {
+  accent-color: var(--accent);
+  height: 16px;
+  width: 110px;
+}
+
+.pptx-stage-zoom-controls output {
+  min-width: 34px;
+  text-align: right;
+}
+
+@media (max-width: 1180px) {
+  .pptx-workspace {
+    grid-template-columns: 184px minmax(520px, 1fr) 220px;
+  }
+
+  .pptx-stage-hint {
+    display: none;
+  }
+
+  .pptx-selection-help {
+    display: none;
+  }
+}
+
+body.transparent-theme .presentation-screen {
+  background: transparent !important;
+}
+
+body.transparent-theme .pptx-topbar,
+body.transparent-theme .pptx-menubar,
+body.transparent-theme .pptx-commandbar,
+body.transparent-theme .pptx-slide-pane,
+body.transparent-theme .pptx-inspector,
+body.transparent-theme .pptx-stage-toolbar,
+body.transparent-theme .pptx-statusbar {
+  backdrop-filter: blur(26px) saturate(150%);
+  background: color-mix(in srgb, var(--panel) 54%, transparent) !important;
+}
+
+body.transparent-theme .pptx-stage-pane {
+  background:
+    radial-gradient(circle at center, color-mix(in srgb, var(--panel) 48%, transparent), transparent 66%),
+    color-mix(in srgb, var(--bg) 22%, transparent) !important;
+}
+
+body[data-theme="dark"] .pptx-stage-pane {
+  background:
+    radial-gradient(circle at center, color-mix(in srgb, var(--panel) 72%, transparent), transparent 65%),
+    color-mix(in srgb, var(--bg) 86%, #020617);
+}
+
+body[data-theme="dark"] .pptx-topbar,
+body[data-theme="dark"] .pptx-menubar,
+body[data-theme="dark"] .pptx-commandbar,
+body[data-theme="dark"] .pptx-statusbar {
+  background: color-mix(in srgb, var(--panel) 88%, #050505);
+}
+
+body[data-theme="dark"] .pptx-slide-pane,
+body[data-theme="dark"] .pptx-inspector {
+  background: color-mix(in srgb, var(--panel) 93%, #050505);
+}
+
+body[data-contrast="high"] .pptx-topbar,
+body[data-contrast="high"] .pptx-menubar,
+body[data-contrast="high"] .pptx-commandbar,
+body[data-contrast="high"] .pptx-slide-pane,
+body[data-contrast="high"] .pptx-inspector,
+body[data-contrast="high"] .pptx-stage-toolbar,
+body[data-contrast="high"] .pptx-statusbar {
+  border-color: var(--border-strong) !important;
+  box-shadow: none !important;
+}
+
+body[data-contrast="high"] .pptx-topbar,
+body[data-contrast="high"] .pptx-menubar,
+body[data-contrast="high"] .pptx-commandbar,
+body[data-contrast="high"] .pptx-slide-pane > header,
+body[data-contrast="high"] .pptx-inspector > header,
+body[data-contrast="high"] .pptx-stage-toolbar {
+  border-bottom-width: 2px;
+}
+
+body[data-contrast="high"] .pptx-statusbar {
+  border-top-width: 2px;
+}
+
+body[data-contrast="high"] .pptx-slide-pane {
+  border-right-width: 2px;
+}
+
+body[data-contrast="high"] .pptx-inspector {
+  border-left-width: 2px;
+}
+
+body[data-contrast="high"] .pptx-element.selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text);
 }
