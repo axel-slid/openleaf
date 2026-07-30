@@ -5,7 +5,7 @@ const RemotionRoot = () => (
   <Composition
     id="OpenleafDemo"
     component={OpenleafDemo}
-    durationInFrames={360}
+    durationInFrames={480}
     fps={60}
     width={960}
     height={540}
