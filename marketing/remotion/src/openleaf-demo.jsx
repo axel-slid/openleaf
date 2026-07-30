@@ -3,7 +3,6 @@ import {
   AbsoluteFill,
   Img,
   interpolate,
-  random,
   spring,
   useCurrentFrame,
   useVideoConfig,
@@ -21,116 +20,6 @@ const clamp = {
 
 const leafPath =
   "M17.6 3.1C9.5 3.7 4.4 8 3 16.3c-.2 1.3.9 2.4 2.2 2.2 8.3-1.3 12.7-6.5 13.2-14.6.1-.5-.3-.9-.8-.8Z";
-
-const features = [
-  {label: "Live PDF compile", x: 54, y: 112, color: cyan, start: 45},
-  {label: "Code + Visual editing", x: 40, y: 386, color: green, start: 69},
-  {label: "Editable PowerPoint", x: 710, y: 98, color: violet, start: 93},
-  {label: "Codex + Claude", x: 745, y: 388, color: "#f6c35b", start: 117},
-];
-
-const FeaturePill = ({feature, frame}) => {
-  const show = spring({
-    frame: frame - feature.start,
-    fps: 30,
-    config: {damping: 13, stiffness: 130, mass: 0.7},
-  });
-  const pulse = 0.5 + Math.sin((frame - feature.start) / 7) * 0.5;
-  const hide = interpolate(frame, [140, 158], [1, 0], clamp);
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: feature.x,
-        top: feature.y,
-        opacity: show * hide,
-        transform: `translateY(${(1 - show) * 22}px) scale(${0.82 + show * 0.18})`,
-        padding: "11px 15px 11px 12px",
-        borderRadius: 13,
-        color: "#f7fff9",
-        fontFamily: "Inter, ui-sans-serif, system-ui",
-        fontSize: 15,
-        fontWeight: 760,
-        letterSpacing: -0.3,
-        background: "rgba(14, 22, 18, .88)",
-        border: `1px solid ${feature.color}88`,
-        boxShadow: `0 12px 34px #0009, 0 0 ${14 + pulse * 14}px ${feature.color}33`,
-        backdropFilter: "blur(14px)",
-        display: "flex",
-        alignItems: "center",
-        gap: 9,
-      }}
-    >
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: 99,
-          background: feature.color,
-          boxShadow: `0 0 ${8 + pulse * 9}px ${feature.color}`,
-        }}
-      />
-      {feature.label}
-    </div>
-  );
-};
-
-const Orbit = ({size, x, y, speed, frame, color}) => (
-  <div
-    style={{
-      position: "absolute",
-      width: size,
-      height: size,
-      left: x,
-      top: y,
-      border: `1px solid ${color}2e`,
-      borderRadius: "50%",
-      transform: `rotate(${frame * speed}deg) scaleX(.67)`,
-      boxShadow: `inset 0 0 38px ${color}12`,
-    }}
-  >
-    <span
-      style={{
-        position: "absolute",
-        left: "49%",
-        top: -5,
-        width: 9,
-        height: 9,
-        borderRadius: "50%",
-        background: color,
-        boxShadow: `0 0 16px ${color}`,
-      }}
-    />
-  </div>
-);
-
-const Leaf = ({index, frame}) => {
-  const seed = random(`leaf-${index}`);
-  const duration = 115 + seed * 70;
-  const local = (frame * (0.65 + seed * 0.55) + index * 41) % duration;
-  const x = 20 + ((index * 127 + seed * 250) % 920);
-  const y = interpolate(local, [0, duration], [575, -45]);
-  const drift = Math.sin(local / 14 + index) * (20 + seed * 28);
-  const opacity = interpolate(local, [0, 16, duration - 18, duration], [0, 0.5, 0.5, 0]);
-
-  return (
-    <svg
-      viewBox="0 0 22 22"
-      style={{
-        position: "absolute",
-        left: x + drift,
-        top: y,
-        width: 11 + seed * 13,
-        opacity,
-        transform: `rotate(${local * (1.2 + seed * 2)}deg)`,
-        filter: `drop-shadow(0 0 5px ${seed > 0.5 ? cyan : green})`,
-      }}
-    >
-      <path d={leafPath} fill={seed > 0.5 ? cyan : green} />
-    </svg>
-  );
-};
 
 const Pane = ({title, subtitle, color, left, top, start, frame, symbol}) => {
   const show = spring({
@@ -187,29 +76,9 @@ export const OpenleafDemo = () => {
     <AbsoluteFill
       style={{
         overflow: "hidden",
-        background:
-          "radial-gradient(circle at 18% 22%, #174f3b 0, transparent 34%), radial-gradient(circle at 82% 72%, #173b4a 0, transparent 38%), #070c0a",
+        background: "#0d110f",
       }}
     >
-      <Orbit size={760} x={105} y={-110} speed={0.12} frame={frame} color={green} />
-      <Orbit size={510} x={235} y={12} speed={-0.19} frame={frame} color={cyan} />
-      {Array.from({length: 15}, (_, i) => (
-        <Leaf key={i} index={i} frame={frame} />
-      ))}
-
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          opacity: 0.1,
-          backgroundImage:
-            "linear-gradient(#89e8b31d 1px, transparent 1px), linear-gradient(90deg, #89e8b31d 1px, transparent 1px)",
-          backgroundSize: "42px 42px",
-          transform: `perspective(600px) rotateX(58deg) translateY(${frame * 0.18}px) scale(1.7)`,
-          transformOrigin: "center 75%",
-        }}
-      />
-
       <div
         style={{
           position: "absolute",
@@ -273,10 +142,6 @@ export const OpenleafDemo = () => {
           />
         </div>
       </div>
-
-      {features.map((feature) => (
-        <FeaturePill key={feature.label} feature={feature} frame={frame} />
-      ))}
 
       <div style={{opacity: sceneTwo * (1 - close)}}>
         <div
