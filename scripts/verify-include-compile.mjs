@@ -41,7 +41,8 @@ async function waitForRenderer(timeoutMs = 30000) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/json/list`);
       const tabs = await response.json();
-      if (tabs.length) return tabs[0];
+      const renderer = tabs.find((item) => /index\.html(?:$|[?#])/i.test(item.url || ""));
+      if (renderer) return renderer;
     } catch (error) {
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -79,6 +80,14 @@ try {
     socket.addEventListener("open", resolve, { once: true });
     socket.addEventListener("error", reject, { once: true });
   });
+
+  const readyStarted = Date.now();
+  while (!(await evaluate(socket, "Boolean(window.localOverleaf?.addProjectFromPath && window.localOverleaf?.compile)"))) {
+    if (Date.now() - readyStarted > 10000) {
+      throw new Error(`Openleaf preload API did not become ready.\n${childOutput}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 
   const updatedAppendix = "Updated appendix compiled through main.tex.\n";
   const result = await evaluate(socket, `(async () => {
