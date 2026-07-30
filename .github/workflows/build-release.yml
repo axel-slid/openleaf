@@ -117,3 +117,4 @@ jobs:
               --generate-notes \
               --title "Openleaf $RELEASE_TAG" \
               --repo "$REPOSITORY"
+          fi
