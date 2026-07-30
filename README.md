@@ -59,14 +59,16 @@ Download `Openleaf-macOS-arm64.zip` from the
 [latest release](https://github.com/axel-slid/openleaf/releases/latest), unzip
 it, and drag `Openleaf.app` to Applications.
 
-You can also use the installer:
+You can also install the CLI directly from GitHub:
 
 ```bash
-curl -fsSL https://alex-dils.com/openleaf/install.sh | bash
+npm install -g github:axel-slid/openleaf
+openleaf install
+openleaf open
 ```
 
-The installer looks for `tectonic`, `latexmk`, or `pdflatex`. If none is
-available and Homebrew is installed, it installs `tectonic`.
+The CLI looks for `tectonic`, `latexmk`, or `pdflatex`. If none is available
+and Homebrew is installed, it installs `tectonic`.
 
 ### Run from source
 
