@@ -1,14 +1,14 @@
 import {Composition, registerRoot} from "remotion";
-import {OpenleafDemo} from "./openleaf-demo";
+import {OpenleafProfessional} from "./openleaf-professional";
 
 const RemotionRoot = () => (
   <Composition
     id="OpenleafDemo"
-    component={OpenleafDemo}
-    durationInFrames={480}
-    fps={60}
-    width={960}
-    height={540}
+    component={OpenleafProfessional}
+    durationInFrames={780}
+    fps={30}
+    width={1920}
+    height={1080}
   />
 );
 
