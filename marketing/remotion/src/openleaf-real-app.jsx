@@ -11,10 +11,12 @@ const FADE = 12;
 
 const clips = [
   {
+    id: "editor",
     src: "real-app/editor.mp4",
-    duration: 330,
+    duration: 300,
     startFrom: 45,
-    playbackRate: 1.1,
+    playbackRate: 1.15,
+    aspectRatio: "3024 / 1964",
     motion: {
       x: [-76, 38, -18],
       y: [34, -26, 10],
@@ -25,31 +27,51 @@ const clips = [
     },
   },
   {
-    src: "real-app/whiteboard.mp4",
-    duration: 330,
-    startFrom: 570,
-    playbackRate: 3.2,
+    id: "agent-prompt",
+    src: "real-app/codex-agent-real.mp4",
+    duration: 300,
+    startFrom: 60,
+    playbackRate: 2.2,
+    aspectRatio: "1524 / 896",
     motion: {
-      x: [92, -42, 54],
-      y: [-20, 26, -12],
-      rotateX: [-1.1, 1.3, -0.5],
-      rotateY: [4.4, -2.6, 1.5],
-      rotateZ: [0.9, -0.55, 0.3],
-      scale: [0.925, 1.035, 0.975],
+      x: [96, -48, 18],
+      y: [-24, 30, -8],
+      rotateX: [-1.2, 1.1, -0.4],
+      rotateY: [4.6, -2.4, 1],
+      rotateZ: [0.9, -0.45, 0.2],
+      scale: [0.91, 1.045, 0.99],
     },
   },
   {
-    src: "real-app/terminal.mp4",
-    duration: 360,
-    startFrom: 240,
-    playbackRate: 3.6,
+    id: "agent-result",
+    src: "real-app/codex-agent-real.mp4",
+    duration: 300,
+    startFrom: 720,
+    playbackRate: 2.45,
+    aspectRatio: "1524 / 896",
     motion: {
-      x: [-88, 46, 0],
-      y: [28, -32, 0],
-      rotateX: [1.4, -1, 0],
-      rotateY: [-4.2, 2.4, 0],
-      rotateZ: [-0.75, 0.45, 0],
-      scale: [0.93, 1.04, 1],
+      x: [-92, 54, -12],
+      y: [26, -34, 6],
+      rotateX: [1.5, -1, 0.25],
+      rotateY: [-4.4, 2.6, -0.8],
+      rotateZ: [-0.8, 0.5, -0.15],
+      scale: [0.92, 1.05, 1],
+    },
+  },
+  {
+    id: "agent-settings",
+    src: "real-app/agents-settings-real.mp4",
+    duration: 180,
+    startFrom: 300,
+    playbackRate: 1.7,
+    aspectRatio: "1524 / 896",
+    motion: {
+      x: [58, -34, 0],
+      y: [-18, 24, 0],
+      rotateX: [-0.8, 0.7, 0],
+      rotateY: [3.1, -1.8, 0],
+      rotateZ: [0.5, -0.3, 0],
+      scale: [0.95, 1.035, 1],
     },
   },
 ];
@@ -119,7 +141,7 @@ const RealCapture = ({clip, index}) => {
           style={{
             position: "relative",
             height: "92vh",
-            aspectRatio: "3024 / 1964",
+            aspectRatio: clip.aspectRatio,
             overflow: "hidden",
             border: "1px solid rgba(255, 255, 255, 0.28)",
             borderRadius: 32,
@@ -154,7 +176,7 @@ export const OpenleafRealApp = () => (
   <AbsoluteFill style={{backgroundColor: "#111722"}}>
     {clips.map((clip, index) => (
       <Sequence
-        key={clip.src}
+        key={clip.id}
         from={starts[index]}
         durationInFrames={clip.duration}
       >
