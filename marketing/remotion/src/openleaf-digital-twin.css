@@ -142,7 +142,8 @@
 /* Professional product film: all surfaces below use the app's real screen classes. */
 .twin-professional {background:#11151d; overflow:hidden;}
 .twin-scene {overflow:hidden; background:#11151d; transform-origin:center;}
-.twin-cut-flash {position:absolute; inset:0; z-index:200; pointer-events:none; background:linear-gradient(90deg,transparent 0 42%,rgba(143,208,166,.42) 49.8%,#d9ffe5 50%,rgba(143,208,166,.28) 50.2%,transparent 58%); mix-blend-mode:screen;}
+.twin-transition-bloom {position:absolute;inset:-8%;z-index:90;pointer-events:none;background:radial-gradient(circle at 50% 48%,rgba(143,208,166,.38),rgba(83,119,96,.12) 30%,transparent 68%);mix-blend-mode:screen;transform-origin:center;}
+.twin-loop-bridge {z-index:95;overflow:hidden;background:#11151d;}
 
 .twin-project-screen {position:absolute; inset:0; background:radial-gradient(circle at 14% 2%,rgba(var(--accent-rgb),.14),transparent 34%),#11151d; overflow:hidden;}
 .twin-project-screen .project-shell {max-width:1540px;}

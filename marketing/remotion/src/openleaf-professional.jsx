@@ -3,8 +3,9 @@ import {AbsoluteFill, Easing, interpolate, useCurrentFrame} from "remotion";
 import {CodeEditor, FileTree, Icon, PdfPage, VisualEditor} from "./openleaf-digital-twin";
 
 const clamp = {extrapolateLeft: "clamp", extrapolateRight: "clamp"};
-const CUT = 8;
-const scenes = {
+const PLAYBACK_SCALE = 1.4;
+const TRANSITION = 18;
+const baseScenes = {
   projects: [0, 50],
   latex: [50, 205],
   powerpoint: [205, 350],
@@ -13,23 +14,34 @@ const scenes = {
   remote: [625, 705],
   settings: [705, 780],
 };
+const scenes = Object.fromEntries(Object.entries(baseScenes).map(([name, range]) => [
+  name,
+  range.map((frame) => Math.round(frame * PLAYBACK_SCALE)),
+]));
+export const OPENLEAF_DURATION = Math.round(780 * PLAYBACK_SCALE);
 
 const ease = (value) => Easing.out(Easing.cubic)(value);
+const transitionEase = (value) => Easing.inOut(Easing.cubic)(value);
 
 const Scene = ({range, children, first = false, last = false}) => {
   const frame = useCurrentFrame();
   const [start, end] = range;
-  if (frame < start - CUT || frame >= end + CUT) return null;
-  const enter = first ? 1 : interpolate(frame, [start, start + CUT], [0, 1], clamp);
-  const leave = last ? 1 : interpolate(frame, [end - CUT, end], [1, 0], clamp);
+  if (frame < start - TRANSITION || frame >= end + TRANSITION) return null;
+  const enter = first ? 1 : transitionEase(interpolate(frame, [start - TRANSITION, start + TRANSITION], [0, 1], clamp));
+  const leave = last ? 1 : transitionEase(interpolate(frame, [end - TRANSITION, end + TRANSITION], [1, 0], clamp));
   const opacity = Math.min(enter, leave);
-  const direction = frame < start + CUT ? 1 - enter : 0;
+  const translate = (1 - enter) * 18 - (1 - leave) * 10;
+  const scale = 0.994 + enter * 0.006 + (1 - leave) * 0.006;
   return (
     <AbsoluteFill
       className="twin-scene"
-      style={{opacity, transform: `translateX(${direction * 22}px) scale(${1 + direction * 0.008})`}}
+      style={{
+        opacity,
+        filter: `blur(${(1 - opacity) * 2.5}px) saturate(${0.92 + opacity * 0.08})`,
+        transform: `translateX(${translate}px) scale(${scale})`,
+      }}
     >
-      {children(frame - start)}
+      {children((frame - start) / PLAYBACK_SCALE)}
     </AbsoluteFill>
   );
 };
@@ -263,11 +275,18 @@ const SettingsScene = (frame) => {
   );
 };
 
-const CutFlash = () => {
+const TransitionBloom = () => {
   const frame = useCurrentFrame();
   const boundaries = Object.values(scenes).slice(0, -1).map(([,end])=>end);
-  const strength = boundaries.reduce((value, boundary)=>Math.max(value,interpolate(Math.abs(frame-boundary),[0,5],[1,0],clamp)),0);
-  return <div className="twin-cut-flash" style={{opacity:strength,transform:`translateX(${interpolate(strength,[0,1],[-100,0])}%)`}}/>;
+  const strength = boundaries.reduce((value, boundary)=>Math.max(value,interpolate(Math.abs(frame-boundary),[0,TRANSITION],[0.16,0],clamp)),0);
+  return <div className="twin-transition-bloom" style={{opacity:strength,transform:`scale(${1 + strength * 0.12})`}}/>;
+};
+
+const LoopBridge = () => {
+  const frame = useCurrentFrame();
+  const opacity = transitionEase(interpolate(frame, [OPENLEAF_DURATION - TRANSITION, OPENLEAF_DURATION - 1], [0, 1], clamp));
+  if (opacity <= 0) return null;
+  return <AbsoluteFill className="twin-loop-bridge" style={{opacity}}>{ProjectsScene(0)}</AbsoluteFill>;
 };
 
 export const OpenleafProfessional = () => {
@@ -281,7 +300,8 @@ export const OpenleafProfessional = () => {
       <Scene range={scenes.agents}>{(frame)=>AgentsScene(frame)}</Scene>
       <Scene range={scenes.remote}>{(frame)=>RemoteScene(frame)}</Scene>
       <Scene range={scenes.settings} last>{(frame)=>SettingsScene(frame)}</Scene>
-      <CutFlash/>
+      <TransitionBloom/>
+      <LoopBridge/>
     </AbsoluteFill>
   );
 };
