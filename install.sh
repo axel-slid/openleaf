@@ -15,6 +15,89 @@ trap cleanup EXIT
 
 say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
+configure_homebrew() {
+  if ! command -v brew >/dev/null 2>&1; then
+    if [ -x /opt/homebrew/bin/brew ]; then
+      export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+    elif [ -x /usr/local/bin/brew ]; then
+      export PATH="/usr/local/bin:$PATH"
+    fi
+  fi
+
+  if command -v brew >/dev/null 2>&1; then
+    eval "$(brew shellenv)"
+    hash -r
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_homebrew() {
+  if configure_homebrew; then
+    return
+  fi
+
+  say "Installing Homebrew for the LaTeX toolchain..."
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+  if ! configure_homebrew; then
+    echo "Homebrew installed, but its brew command could not be found."
+    exit 1
+  fi
+}
+
+ensure_latex_tools() {
+  ensure_homebrew
+
+  if ! command -v tectonic >/dev/null 2>&1; then
+    say "Installing Tectonic..."
+    brew install tectonic
+  fi
+
+  export PATH="/Library/TeX/texbin:$PATH"
+  hash -r
+
+  if ! command -v pdflatex >/dev/null 2>&1; then
+    say "Installing BasicTeX for pdflatex..."
+    brew install --cask basictex
+    export PATH="/Library/TeX/texbin:$PATH"
+    hash -r
+  fi
+
+  if ! command -v latexmk >/dev/null 2>&1; then
+    local tlmgr_path
+    tlmgr_path="$(command -v tlmgr || true)"
+    if [ -z "$tlmgr_path" ] && [ -x /Library/TeX/texbin/tlmgr ]; then
+      tlmgr_path="/Library/TeX/texbin/tlmgr"
+    fi
+    if [ -z "$tlmgr_path" ]; then
+      echo "BasicTeX installed, but tlmgr could not be found."
+      exit 1
+    fi
+
+    say "Installing latexmk..."
+    case "$tlmgr_path" in
+      /Library/TeX/*|/usr/local/texlive/*) sudo "$tlmgr_path" install latexmk ;;
+      *) "$tlmgr_path" install latexmk ;;
+    esac
+    hash -r
+  fi
+
+  local missing_tools=""
+  for tool in tectonic latexmk pdflatex; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      missing_tools="$missing_tools $tool"
+    fi
+  done
+  if [ -n "$missing_tools" ]; then
+    echo "LaTeX tool installation finished, but these commands are still unavailable:$missing_tools"
+    exit 1
+  fi
+
+  say "LaTeX toolchain ready: tectonic, latexmk, and pdflatex."
+}
+
 main() {
   if [ "$(uname -s)" != "Darwin" ] || [ "$(uname -m)" != "arm64" ]; then
     echo "This installer currently supports Apple Silicon Macs."
@@ -22,6 +105,10 @@ main() {
   fi
 
   say "Installing Openleaf..."
+
+  if [ "${OPENLEAF_SKIP_TOOLCHAIN:-0}" != "1" ]; then
+    ensure_latex_tools
+  fi
 
   local archive checksum_file unpack_dir install_dir target backup
   OPENLEAF_INSTALL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/openleaf-install.XXXXXX")"
@@ -65,4 +152,6 @@ main() {
 }
 
 # Running through main ensures a truncated download executes nothing.
-main "$@"
+if [ "${OPENLEAF_SOURCE_ONLY:-0}" != "1" ]; then
+  main "$@"
+fi

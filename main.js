@@ -29,6 +29,7 @@ const terminalPath = [
   "/opt/homebrew/bin",
   "/opt/homebrew/sbin",
   "/usr/local/bin",
+  "/Library/TeX/texbin",
   "/usr/bin",
   "/bin",
   "/usr/sbin",
