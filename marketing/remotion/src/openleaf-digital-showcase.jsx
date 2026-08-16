@@ -68,17 +68,6 @@ const scenes = [
     transition: "flip",
   },
   {
-    id: "history",
-    src: "real-app/features-history.mp4",
-    startFrom: 540,
-    duration: 135,
-    playbackRate: 4.8,
-    aspect: 1524 / 896,
-    accent: "#6f9ded",
-    camera: "center",
-    transition: "iris",
-  },
-  {
     id: "whiteboard",
     src: "real-app/whiteboard.mp4",
     startFrom: 570,
@@ -193,10 +182,10 @@ const cameraFor = (preset, progress) => {
 };
 
 const themeStates = [
-  {src: "real-app/theme-nord.jpg", from: 0, to: 64, accent: "#718ca8", reveal: "none"},
-  {src: "real-app/theme-tokyo-night.jpg", from: 50, to: 114, accent: "#7069db", reveal: "split"},
-  {src: "real-app/theme-molten-amber.jpg", from: 100, to: 164, accent: "#d57936", reveal: "iris"},
-  {src: "real-app/theme-marigold-paper.jpg", from: 150, to: 210, accent: "#e7ca6c", reveal: "lift"},
+  {src: "real-app/theme-latex-nord.jpg", from: 0, to: 64, accent: "#718ca8", reveal: "none"},
+  {src: "real-app/theme-latex-tokyo-night.jpg", from: 50, to: 114, accent: "#7069db", reveal: "split"},
+  {src: "real-app/theme-latex-molten-amber.jpg", from: 100, to: 164, accent: "#d57936", reveal: "iris"},
+  {src: "real-app/theme-latex-marigold-paper.jpg", from: 150, to: 210, accent: "#e7ca6c", reveal: "lift"},
 ];
 
 const ThemeCycle = () => {
