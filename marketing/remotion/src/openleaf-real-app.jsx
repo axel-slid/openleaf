@@ -115,18 +115,24 @@ const RealCapture = ({clip, index}) => {
   });
 
   return (
-    <AbsoluteFill style={{backgroundColor: "#111722", opacity}}>
-      <OffthreadVideo
-        muted
-        src={source}
-        startFrom={clip.startFrom}
-        playbackRate={clip.playbackRate}
+    <AbsoluteFill
+      style={{
+        opacity,
+        background:
+          "radial-gradient(circle at 50% 42%, #202938 0%, #111722 52%, #090d14 100%)",
+      }}
+    >
+      <div
         style={{
-          height: "100%",
-          width: "100%",
-          objectFit: "cover",
-          filter: "blur(44px) brightness(0.42) saturate(0.8)",
-          transform: `scale(1.12) translate(${-x * 0.08}px, ${-y * 0.08}px)`,
+          position: "absolute",
+          width: "74vw",
+          height: "74vw",
+          left: "13vw",
+          top: "-28vw",
+          borderRadius: "50%",
+          background: "rgba(95, 131, 183, 0.11)",
+          filter: "blur(100px)",
+          transform: `translate(${-x * 0.08}px, ${-y * 0.08}px)`,
         }}
       />
       <AbsoluteFill
