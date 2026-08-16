@@ -22,6 +22,7 @@ const scenes = [
     accent: "#7ba7c8",
     camera: "wide",
     transition: "none",
+    caption: "Write in LaTeX and watch the PDF update live",
   },
   {
     id: "visual",
@@ -33,6 +34,7 @@ const scenes = [
     accent: "#9a87ef",
     camera: "right",
     transition: "split",
+    caption: "Switch between code and visual editing",
   },
   {
     id: "agents",
@@ -44,6 +46,7 @@ const scenes = [
     accent: "#68d8b1",
     camera: "left",
     transition: "diagonal",
+    caption: "Ask Codex to revise the project in place",
   },
   {
     id: "python",
@@ -55,6 +58,7 @@ const scenes = [
     accent: "#e5c95c",
     camera: "left",
     transition: "lift",
+    caption: "Run Python beside the paper you are writing",
   },
   {
     id: "powerpoint",
@@ -66,6 +70,7 @@ const scenes = [
     accent: "#ef785a",
     camera: "center",
     transition: "flip",
+    caption: "Build and edit slides without changing tools",
   },
   {
     id: "whiteboard",
@@ -77,6 +82,7 @@ const scenes = [
     accent: "#ef73ad",
     camera: "right",
     transition: "diagonal-reverse",
+    caption: "Sketch ideas on an infinite whiteboard",
   },
   {
     id: "ssh",
@@ -88,6 +94,7 @@ const scenes = [
     accent: "#54cfcc",
     camera: "center",
     transition: "zoom",
+    caption: "Keep the same workspace over SSH",
   },
   {
     id: "themes",
@@ -95,8 +102,9 @@ const scenes = [
     aspect: 1192 / 768,
     accent: "#b1a0e9",
     camera: "wide",
-    transition: "split",
+    transition: "iris",
     themes: true,
+    caption: "Match the workspace to the way you think",
   },
 ];
 
@@ -223,13 +231,24 @@ const ThemeCycle = () => {
   );
 };
 
-const Scene = ({scene, index}) => {
+const Scene = ({scene, index, matteBackground}) => {
   const frame = useCurrentFrame();
   const progress = frame / Math.max(1, scene.duration - 1);
   const entry = index === 0
     ? 1
     : interpolate(frame, [0, TRANSITION], [0, 1], clamp);
   const camera = cameraFor(scene.camera, progress);
+  const launch = index === 0
+    ? interpolate(frame, [0, 28], [0, 1], clamp)
+    : 1;
+  const outro = index === scenes.length - 1
+    ? interpolate(frame, [scene.duration - 30, scene.duration - 1], [1, 0], clamp)
+    : 1;
+  const captionInStart = index === 0 ? 12 : TRANSITION + 4;
+  const captionOpacity = Math.min(
+    interpolate(frame, [captionInStart, captionInStart + 16], [0, 1], clamp),
+    interpolate(frame, [scene.duration - 26, scene.duration - 10], [1, 0], clamp),
+  );
   const flip = scene.transition === "flip";
   const entryScale = flip
     ? interpolate(entry, [0, 1], [0.72, 1], clamp)
@@ -239,18 +258,17 @@ const Scene = ({scene, index}) => {
   const entryRotateY = flip
     ? interpolate(entry, [0, 1], [-78, 0], clamp)
     : 0;
-  const backgroundOpacity = index === 0 ? 1 : interpolate(entry, [0, 1], [0, 1], clamp);
   const glowX = interpolate(progress, [0, 1], [-70, 90]);
   const windowHeight = 900;
   const windowWidth = 1460;
 
   return (
-    <AbsoluteFill style={{perspective: 1800, overflow: "hidden"}}>
+    <AbsoluteFill style={{perspective: 1800, overflow: "hidden", opacity: outro}}>
       <AbsoluteFill
         style={{
-          opacity: backgroundOpacity,
-          background:
-            "radial-gradient(circle at 50% 42%, #202938 0%, #111722 54%, #080c13 100%)",
+          background: matteBackground
+            ? "radial-gradient(circle at 50% 42%, rgba(98,76,128,.1), transparent 56%)"
+            : "transparent",
         }}
       />
       <div
@@ -262,7 +280,7 @@ const Scene = ({scene, index}) => {
           top: -240,
           borderRadius: "50%",
           background: scene.accent,
-          opacity: 0.13 * backgroundOpacity,
+          opacity: 0.12,
           filter: "blur(125px)",
         }}
       />
@@ -278,9 +296,9 @@ const Scene = ({scene, index}) => {
           border: "1px solid rgba(255,255,255,0.2)",
           background: "#222936",
           boxShadow: `0 58px 150px rgba(0,0,0,0.66), 0 12px 42px rgba(0,0,0,0.48), 0 0 90px ${scene.accent}18, inset 0 1px 0 rgba(255,255,255,0.13)`,
-          opacity: flip ? entry : 1,
+          opacity: (flip ? entry : 1) * launch,
           clipPath: revealClip(scene.transition, entry),
-          transform: `translate(-50%, -50%) translate3d(${camera.x}px, ${camera.y}px, 0) rotateX(${camera.rotateX}deg) rotateY(${camera.rotateY + entryRotateY}deg) rotateZ(${camera.rotateZ}deg) scale(${camera.scale * entryScale})`,
+          transform: `translate(-50%, -50%) translate3d(${camera.x}px, ${camera.y + (1 - launch) * 54}px, 0) rotateX(${camera.rotateX + (1 - launch) * 2.4}deg) rotateY(${camera.rotateY + entryRotateY}deg) rotateZ(${camera.rotateZ}deg) scale(${camera.scale * entryScale * (0.88 + launch * 0.12)})`,
           transformStyle: "preserve-3d",
           willChange: "transform, clip-path",
         }}
@@ -305,12 +323,30 @@ const Scene = ({scene, index}) => {
           }}
         />
       </div>
+      <div
+        style={{
+          position: "absolute",
+          zIndex: 20,
+          right: 0,
+          bottom: 38,
+          left: 0,
+          color: "rgba(255,255,255,.94)",
+          font: "650 24px/1.2 Inter, ui-sans-serif, system-ui",
+          letterSpacing: -0.35,
+          textAlign: "center",
+          textShadow: "0 4px 22px rgba(0,0,0,.92)",
+          opacity: captionOpacity,
+          transform: `translateY(${(1 - captionOpacity) * 12}px)`,
+        }}
+      >
+        {scene.caption}
+      </div>
     </AbsoluteFill>
   );
 };
 
-export const OpenleafDigitalShowcase = () => (
-  <AbsoluteFill style={{background: "#080c13"}}>
+export const OpenleafDigitalShowcase = ({matteBackground = false}) => (
+  <AbsoluteFill style={{background: matteBackground ? "#120e19" : "transparent"}}>
     {scenes.map((scene, index) => (
       <Sequence
         key={scene.id}
@@ -318,7 +354,7 @@ export const OpenleafDigitalShowcase = () => (
         durationInFrames={scene.duration}
         premountFor={30}
       >
-        <Scene scene={scene} index={index} />
+        <Scene scene={scene} index={index} matteBackground={matteBackground} />
       </Sequence>
     ))}
   </AbsoluteFill>

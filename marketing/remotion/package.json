@@ -3,7 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "render": "remotion render src/index.jsx OpenleafDemo ../../docs/openleaf-digital-clone.mp4 --codec=h264 --crf=18 --overwrite --timeout=120000"
+    "check": "remotion compositions src/index.jsx",
+    "render": "node scripts/render-web.mjs"
   },
   "dependencies": {
     "@remotion/cli": "4.0.501",
