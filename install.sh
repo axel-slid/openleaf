@@ -15,74 +15,85 @@ trap cleanup EXIT
 
 say() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-configure_homebrew() {
-  if ! command -v brew >/dev/null 2>&1; then
-    if [ -x /opt/homebrew/bin/brew ]; then
-      export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
-    elif [ -x /usr/local/bin/brew ]; then
-      export PATH="/usr/local/bin:$PATH"
-    fi
-  fi
-
-  if command -v brew >/dev/null 2>&1; then
-    eval "$(brew shellenv)"
-    hash -r
-    return 0
-  fi
-
-  return 1
-}
-
-ensure_homebrew() {
-  if configure_homebrew; then
+install_user_tectonic() {
+  if command -v tectonic >/dev/null 2>&1; then
     return
   fi
 
-  say "Installing Homebrew for the LaTeX toolchain..."
-  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  say "Installing Tectonic in your user account..."
 
-  if ! configure_homebrew; then
-    echo "Homebrew installed, but its brew command could not be found."
+  local archive expected_hash actual_hash
+  archive="$OPENLEAF_INSTALL_TMP/tectonic-0.17.0-aarch64-apple-darwin.tar.gz"
+  expected_hash="a3f1cac7c5678f01661a92212f58480ae3b0634115d880dbc59e2953ded45667"
+  curl -fL "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-aarch64-apple-darwin.tar.gz" -o "$archive"
+  actual_hash="$(shasum -a 256 "$archive" | awk '{ print $1 }')"
+  if [ "$actual_hash" != "$expected_hash" ]; then
+    echo "Tectonic download verification failed."
     exit 1
   fi
+
+  tar -xzf "$archive" -C "$OPENLEAF_INSTALL_TMP"
+  mkdir -p "$HOME/.local/bin"
+  /usr/bin/install -m 755 "$OPENLEAF_INSTALL_TMP/tectonic" "$HOME/.local/bin/tectonic"
+  export PATH="$HOME/.local/bin:$PATH"
+  hash -r
 }
 
-ensure_latex_tools() {
-  ensure_homebrew
-
-  if ! command -v tectonic >/dev/null 2>&1; then
-    say "Installing Tectonic..."
-    brew install tectonic
-  fi
-
-  export PATH="/Library/TeX/texbin:$PATH"
-  hash -r
-
-  if ! command -v pdflatex >/dev/null 2>&1; then
-    say "Installing BasicTeX for pdflatex..."
-    brew install --cask basictex
-    export PATH="/Library/TeX/texbin:$PATH"
-    hash -r
-  fi
-
-  if ! command -v latexmk >/dev/null 2>&1; then
-    local tlmgr_path
-    tlmgr_path="$(command -v tlmgr || true)"
-    if [ -z "$tlmgr_path" ] && [ -x /Library/TeX/texbin/tlmgr ]; then
-      tlmgr_path="/Library/TeX/texbin/tlmgr"
+tinytex_bin_dir() {
+  local candidate
+  for candidate in "$HOME/Library/Openleaf/TinyTeX"/bin/*; do
+    if [ -d "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
     fi
-    if [ -z "$tlmgr_path" ]; then
-      echo "BasicTeX installed, but tlmgr could not be found."
+  done
+  return 1
+}
+
+install_user_tinytex() {
+  local tinytex_parent tinytex_root tinytex_bin archive expected_hash actual_hash backup
+  tinytex_parent="$HOME/Library/Openleaf"
+  tinytex_root="$tinytex_parent/TinyTeX"
+  tinytex_bin="$(tinytex_bin_dir || true)"
+
+  if [ -z "$tinytex_bin" ] || [ ! -x "$tinytex_bin/pdflatex" ] || [ ! -x "$tinytex_bin/latexmk" ]; then
+    say "Installing TinyTeX for pdflatex and latexmk in your user account..."
+
+    archive="$OPENLEAF_INSTALL_TMP/TinyTeX-1-darwin-v2026.08.tar.xz"
+    expected_hash="dd22ffdf1063eff79cadcff45de1f24e8546edf508ab402dc9f87ec2f3367344"
+    curl -fL "https://github.com/rstudio/tinytex-releases/releases/download/v2026.08/TinyTeX-1-darwin-v2026.08.tar.xz" -o "$archive"
+    actual_hash="$(shasum -a 256 "$archive" | awk '{ print $1 }')"
+    if [ "$actual_hash" != "$expected_hash" ]; then
+      echo "TinyTeX download verification failed."
       exit 1
     fi
 
-    say "Installing latexmk..."
-    case "$tlmgr_path" in
-      /Library/TeX/*|/usr/local/texlive/*) sudo "$tlmgr_path" install latexmk ;;
-      *) "$tlmgr_path" install latexmk ;;
-    esac
-    hash -r
+    if [ -e "$tinytex_root" ]; then
+      mkdir -p "$HOME/.Trash"
+      backup="$HOME/.Trash/Openleaf-TinyTeX-previous-$(date +%Y%m%d-%H%M%S)"
+      mv "$tinytex_root" "$backup"
+    fi
+    mkdir -p "$tinytex_parent"
+    tar -xJf "$archive" -C "$tinytex_parent"
+    tinytex_bin="$(tinytex_bin_dir || true)"
   fi
+
+  if [ -z "$tinytex_bin" ] || [ ! -x "$tinytex_bin/pdflatex" ] || [ ! -x "$tinytex_bin/latexmk" ]; then
+    echo "TinyTeX installed, but pdflatex or latexmk could not be found."
+    exit 1
+  fi
+
+  mkdir -p "$HOME/.local/bin"
+  ln -sfn "$tinytex_bin/pdflatex" "$HOME/.local/bin/pdflatex"
+  ln -sfn "$tinytex_bin/latexmk" "$HOME/.local/bin/latexmk"
+  ln -sfn "$tinytex_bin/tlmgr" "$HOME/.local/bin/tlmgr"
+  export PATH="$HOME/.local/bin:$PATH"
+  hash -r
+}
+
+ensure_latex_tools() {
+  install_user_tectonic
+  install_user_tinytex
 
   local missing_tools=""
   for tool in tectonic latexmk pdflatex; do
@@ -106,12 +117,13 @@ main() {
 
   say "Installing Openleaf..."
 
+  local archive checksum_file unpack_dir install_dir target backup
+  OPENLEAF_INSTALL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/openleaf-install.XXXXXX")"
+
   if [ "${OPENLEAF_SKIP_TOOLCHAIN:-0}" != "1" ]; then
     ensure_latex_tools
   fi
 
-  local archive checksum_file unpack_dir install_dir target backup
-  OPENLEAF_INSTALL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/openleaf-install.XXXXXX")"
   archive="$OPENLEAF_INSTALL_TMP/Openleaf-macOS-arm64.zip"
   checksum_file="$OPENLEAF_INSTALL_TMP/SHA256SUMS.txt"
   unpack_dir="$OPENLEAF_INSTALL_TMP/unpacked"
