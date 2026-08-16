@@ -45,7 +45,7 @@ const scenes = [
     aspect: 1524 / 896,
     accent: "#68d8b1",
     camera: "left",
-    transition: "diagonal",
+    transition: "split",
     caption: "Ask Codex to revise the project in place",
   },
   {
@@ -69,7 +69,7 @@ const scenes = [
     aspect: 1524 / 896,
     accent: "#ef785a",
     camera: "center",
-    transition: "flip",
+    transition: "zoom",
     caption: "Build and edit slides without changing tools",
   },
   {
@@ -81,7 +81,7 @@ const scenes = [
     aspect: 3024 / 1964,
     accent: "#ef73ad",
     camera: "right",
-    transition: "diagonal-reverse",
+    transition: "split",
     caption: "Sketch ideas on an infinite whiteboard",
   },
   {
@@ -98,11 +98,11 @@ const scenes = [
   },
   {
     id: "themes",
-    duration: 210,
+    duration: 330,
     aspect: 1192 / 768,
     accent: "#b1a0e9",
     camera: "wide",
-    transition: "iris",
+    transition: "fade",
     themes: true,
     caption: "Match the workspace to the way you think",
   },
@@ -122,7 +122,9 @@ const eased = (value) => Easing.inOut(Easing.cubic)(Math.max(0, Math.min(1, valu
 
 const revealClip = (type, rawProgress) => {
   const progress = eased(rawProgress);
-  if (type === "none" || type === "flip") return "inset(0 0 0 0 round 30px)";
+  if (type === "none" || type === "flip" || type === "fade" || type === "zoom") {
+    return "inset(0 0 0 0 round 30px)";
+  }
   if (type === "split") {
     return `inset(0 ${50 - progress * 50}% 0 ${50 - progress * 50}% round 30px)`;
   }
@@ -135,7 +137,7 @@ const revealClip = (type, rawProgress) => {
   if (type === "lift") {
     return `inset(${100 - progress * 100}% 0 0 0 round 30px)`;
   }
-  if (type === "iris" || type === "zoom") {
+  if (type === "iris") {
     return `circle(${progress * 76}% at 50% 48%)`;
   }
   return "inset(0 0 0 0 round 30px)";
@@ -145,36 +147,36 @@ const cameraFor = (preset, progress) => {
   const p = eased(progress);
   const cameras = {
     wide: {
-      x: [0, -52, 0],
-      y: [0, 20, 0],
-      scale: [1, 1.04, 1],
-      rotateX: [0, 1.05, 0],
-      rotateY: [0, -2.8, 0],
-      rotateZ: [0, -0.42, 0],
+      x: [0, -20, 0],
+      y: [0, 8, 0],
+      scale: [1, 1.016, 1],
+      rotateX: [0, 0.28, 0],
+      rotateY: [0, -0.7, 0],
+      rotateZ: [0, -0.08, 0],
     },
     left: {
-      x: [0, 74, 0],
-      y: [0, -15, 0],
-      scale: [1, 1.05, 1],
-      rotateX: [0, -0.72, 0],
-      rotateY: [0, 3.9, 0],
-      rotateZ: [0, 0.35, 0],
+      x: [0, 26, 0],
+      y: [0, -7, 0],
+      scale: [1, 1.018, 1],
+      rotateX: [0, -0.24, 0],
+      rotateY: [0, 0.9, 0],
+      rotateZ: [0, 0.08, 0],
     },
     right: {
-      x: [0, -72, 0],
-      y: [0, 14, 0],
-      scale: [1, 1.05, 1],
-      rotateX: [0, 0.68, 0],
-      rotateY: [0, -3.9, 0],
-      rotateZ: [0, -0.34, 0],
+      x: [0, -26, 0],
+      y: [0, 7, 0],
+      scale: [1, 1.018, 1],
+      rotateX: [0, 0.24, 0],
+      rotateY: [0, -0.9, 0],
+      rotateZ: [0, -0.08, 0],
     },
     center: {
       x: [0, 0, 0],
-      y: [0, 18, 0],
-      scale: [1, 1.045, 1],
-      rotateX: [0, 0.82, 0],
-      rotateY: [0, -1.35, 0],
-      rotateZ: [0, -0.2, 0],
+      y: [0, 7, 0],
+      scale: [1, 1.016, 1],
+      rotateX: [0, 0.24, 0],
+      rotateY: [0, -0.42, 0],
+      rotateZ: [0, -0.06, 0],
     },
   };
   const camera = cameras[preset];
@@ -190,10 +192,14 @@ const cameraFor = (preset, progress) => {
 };
 
 const themeStates = [
-  {src: "real-app/theme-latex-nord.jpg", from: 0, to: 64, accent: "#718ca8", reveal: "none"},
-  {src: "real-app/theme-latex-tokyo-night.jpg", from: 50, to: 114, accent: "#7069db", reveal: "split"},
-  {src: "real-app/theme-latex-molten-amber.jpg", from: 100, to: 164, accent: "#d57936", reveal: "iris"},
-  {src: "real-app/theme-latex-marigold-paper.jpg", from: 150, to: 210, accent: "#e7ca6c", reveal: "lift"},
+  {src: "real-app/theme-nord.jpg", from: 0, to: 56, accent: "#718ca8"},
+  {src: "real-app/theme-latex-nord.jpg", from: 42, to: 98, accent: "#718ca8"},
+  {src: "real-app/theme-tokyo-night.jpg", from: 84, to: 140, accent: "#7069db"},
+  {src: "real-app/theme-latex-tokyo-night.jpg", from: 126, to: 182, accent: "#7069db"},
+  {src: "real-app/theme-molten-amber.jpg", from: 168, to: 224, accent: "#d57936"},
+  {src: "real-app/theme-latex-molten-amber.jpg", from: 210, to: 266, accent: "#d57936"},
+  {src: "real-app/theme-marigold-paper.jpg", from: 252, to: 308, accent: "#e7ca6c"},
+  {src: "real-app/theme-latex-marigold-paper.jpg", from: 294, to: 330, accent: "#e7ca6c"},
 ];
 
 const ThemeCycle = () => {
@@ -204,13 +210,13 @@ const ThemeCycle = () => {
         const local = frame - theme.from;
         const entry = index === 0
           ? 1
-          : interpolate(local, [0, 14], [0, 1], clamp);
-        const scale = interpolate(local, [0, theme.to - theme.from], [1.015, 1.045], clamp);
+          : interpolate(local, [0, 18], [0, 1], clamp);
+        const scale = interpolate(local, [0, theme.to - theme.from], [1.005, 1.016], clamp);
         return (
           <Sequence key={theme.src} from={theme.from} durationInFrames={theme.to - theme.from}>
             <AbsoluteFill
               style={{
-                clipPath: revealClip(theme.reveal, entry),
+                opacity: entry,
                 background: "#171d27",
               }}
             >
@@ -251,12 +257,12 @@ const Scene = ({scene, index, matteBackground}) => {
   );
   const flip = scene.transition === "flip";
   const entryScale = flip
-    ? interpolate(entry, [0, 1], [0.72, 1], clamp)
+    ? interpolate(entry, [0, 1], [0.94, 1], clamp)
     : scene.transition === "zoom"
-      ? interpolate(entry, [0, 1], [0.84, 1], clamp)
+      ? interpolate(entry, [0, 1], [0.94, 1], clamp)
       : 1;
   const entryRotateY = flip
-    ? interpolate(entry, [0, 1], [-78, 0], clamp)
+    ? interpolate(entry, [0, 1], [-10, 0], clamp)
     : 0;
   const glowX = interpolate(progress, [0, 1], [-70, 90]);
   const windowHeight = 900;
@@ -296,9 +302,9 @@ const Scene = ({scene, index, matteBackground}) => {
           border: "1px solid rgba(255,255,255,0.2)",
           background: "#222936",
           boxShadow: `0 58px 150px rgba(0,0,0,0.66), 0 12px 42px rgba(0,0,0,0.48), 0 0 90px ${scene.accent}18, inset 0 1px 0 rgba(255,255,255,0.13)`,
-          opacity: (flip ? entry : 1) * launch,
+          opacity: (flip || scene.transition === "zoom" || scene.transition === "fade" ? entry : 1) * launch,
           clipPath: revealClip(scene.transition, entry),
-          transform: `translate(-50%, -50%) translate3d(${camera.x}px, ${camera.y + (1 - launch) * 54}px, 0) rotateX(${camera.rotateX + (1 - launch) * 2.4}deg) rotateY(${camera.rotateY + entryRotateY}deg) rotateZ(${camera.rotateZ}deg) scale(${camera.scale * entryScale * (0.88 + launch * 0.12)})`,
+          transform: `translate(-50%, -50%) translate3d(${camera.x}px, ${camera.y + (1 - launch) * 24}px, 0) rotateX(${camera.rotateX + (1 - launch) * 0.7}deg) rotateY(${camera.rotateY + entryRotateY}deg) rotateZ(${camera.rotateZ}deg) scale(${camera.scale * entryScale * (0.95 + launch * 0.05)})`,
           transformStyle: "preserve-3d",
           willChange: "transform, clip-path",
         }}
