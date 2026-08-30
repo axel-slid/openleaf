@@ -12460,20 +12460,51 @@ body[data-theme="dark"] .pdf-text-layer .pdf-speech-word.is-speaking {
 }
 
 .pdf-speech-highlight {
-  background: color-mix(in srgb, #fde047 30%, transparent);
-  border: 2px solid #f59e0b;
-  border-radius: 4px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #fde047 22%, transparent), 0 2px 8px rgba(113, 63, 18, 0.2);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border: 2px solid color-mix(in srgb, var(--accent) 82%, var(--text));
+  border-radius: 7px;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 2px 9px color-mix(in srgb, var(--accent) 24%, transparent);
   box-sizing: border-box;
+  isolation: isolate;
   mix-blend-mode: multiply;
   position: absolute;
-  transition: left 70ms linear, top 70ms linear, width 70ms linear;
+  transition:
+    left 185ms cubic-bezier(0.22, 1, 0.36, 1),
+    top 185ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 205ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 205ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 180ms ease;
+  will-change: left, top, width, height, transform;
+}
+
+.pdf-speech-highlight::after {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: inherit;
+  content: "";
+  filter: blur(5px);
+  inset: -3px;
+  opacity: 0.32;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
 }
 
 body[data-theme="dark"] .pdf-speech-highlight {
-  background: color-mix(in srgb, #fde047 54%, transparent);
-  border-color: color-mix(in srgb, #facc15 84%, transparent);
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 76%, white);
   mix-blend-mode: screen;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdf-speech-highlight {
+    transition: none;
+  }
+
+  .pdf-speech-highlight::after {
+    filter: none;
+  }
 }
 
 @media (max-width: 820px) {

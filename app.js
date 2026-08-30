@@ -14402,7 +14402,7 @@ function restartPdfSpeechPreprocessing() {
 }
 
 function pdfSpeechVoiceId() {
-  return pdfSpeechVoice ? String(pdfSpeechVoice.value || "af_bella") : "af_bella";
+  return pdfSpeechVoice ? String(pdfSpeechVoice.value || "am_adam") : "am_adam";
 }
 
 function pdfSpeechVoiceLabel() {
@@ -14789,29 +14789,62 @@ function updatePdfSpeechButton() {
 
 function highlightPdfSpeechWord(word) {
   if (!word) return;
-  clearPdfSpeechHighlight();
   const pageShell = pdfViewer.querySelector(`.pdf-page[data-page="${word.pageNumber}"]`);
   if (!pageShell) return;
-  const layer = document.createElement("div");
-  layer.className = "pdf-speech-highlight-layer";
+  let layer = pdfViewer.querySelector(".pdf-speech-highlight-layer");
+  let highlight = layer && layer.parentElement === pageShell
+    ? layer.querySelector(".pdf-speech-highlight")
+    : null;
+  const canMorph = Boolean(layer && highlight && layer.parentElement === pageShell);
+  if (!canMorph) {
+    clearPdfSpeechHighlight();
+    layer = document.createElement("div");
+    layer.className = "pdf-speech-highlight-layer";
+    highlight = document.createElement("span");
+    highlight.className = "pdf-speech-highlight";
+    layer.appendChild(highlight);
+    pageShell.appendChild(layer);
+  }
   layer.style.width = `${Number(pageShell.dataset.renderedWidth) || pageShell.clientWidth}px`;
   layer.style.height = `${Number(pageShell.dataset.renderedHeight) || pageShell.clientHeight}px`;
   const ratio = renderedPdfZoom ? pdfZoom / renderedPdfZoom : 1;
-  if (ratio !== 1) layer.style.transform = `scale(${ratio})`;
-  const highlight = document.createElement("span");
-  highlight.className = "pdf-speech-highlight";
-  highlight.style.left = `${Math.max(0, word.x - 2)}px`;
-  highlight.style.top = `${Math.max(0, word.top - 1)}px`;
-  highlight.style.width = `${Math.max(8, word.width + 4)}px`;
-  highlight.style.height = `${Math.max(9, word.height + 2)}px`;
-  layer.appendChild(highlight);
-  pageShell.appendChild(layer);
-  scrollPdfSpeechWordIntoView(highlight, pageShell);
+  layer.style.transform = ratio !== 1 ? `scale(${ratio})` : "";
+
+  const nextLeft = Math.max(0, word.x - 5);
+  const nextTop = Math.max(0, word.top - 3);
+  const nextWidth = Math.max(12, word.width + 10);
+  const nextHeight = Math.max(13, word.height + 6);
+  const previousLeft = Number.parseFloat(highlight.style.left);
+  const previousTop = Number.parseFloat(highlight.style.top);
+  const travel = canMorph && Number.isFinite(previousLeft) && Number.isFinite(previousTop)
+    ? Math.hypot(nextLeft - previousLeft, nextTop - previousTop)
+    : 0;
+
+  highlight.style.left = `${nextLeft}px`;
+  highlight.style.top = `${nextTop}px`;
+  highlight.style.width = `${nextWidth}px`;
+  highlight.style.height = `${nextHeight}px`;
+  if (travel > 1 && typeof highlight.animate === "function" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const horizontalTravel = Math.abs(nextLeft - previousLeft) >= Math.abs(nextTop - previousTop);
+    if (highlight.pdfSpeechMorphAnimation) highlight.pdfSpeechMorphAnimation.cancel();
+    highlight.style.transformOrigin = horizontalTravel
+      ? (nextLeft >= previousLeft ? "0 50%" : "100% 50%")
+      : (nextTop >= previousTop ? "50% 0" : "50% 100%");
+    highlight.pdfSpeechMorphAnimation = highlight.animate([
+      { transform: "scale(1)", borderRadius: "7px" },
+      { transform: horizontalTravel ? "scaleX(1.12) scaleY(0.9)" : "scaleX(0.94) scaleY(1.1)", borderRadius: "999px", offset: 0.46 },
+      { transform: "scale(1)", borderRadius: "7px" }
+    ], {
+      duration: Math.round(clampNumber(150 + travel * 0.18, 160, 260, 190)),
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)"
+    });
+  }
+  scrollPdfSpeechWordIntoView(word, pageShell);
 }
 
-function scrollPdfSpeechWordIntoView(element, pageShell) {
+function scrollPdfSpeechWordIntoView(word, pageShell) {
   const viewerBounds = pdfViewer.getBoundingClientRect();
-  const wordBounds = element.getBoundingClientRect();
+  const wordBounds = pdfSpeechWordClientBounds(pageShell, word);
   const safeTop = viewerBounds.top + 48;
   const safeBottom = viewerBounds.bottom - 86;
   let delta = 0;

@@ -3156,7 +3156,7 @@ async function synthesizePdfSpeech(_event, payload = {}) {
   if (!text) throw new Error("Speech text is empty.");
   if (text.length > 1200) throw new Error("Speech chunk is too long.");
   const speed = Math.min(2, Math.max(0.5, Number(payload.speed) || 1));
-  const voice = pdfSpeechVoices.has(String(payload.voice || "")) ? String(payload.voice) : "af_bella";
+  const voice = pdfSpeechVoices.has(String(payload.voice || "")) ? String(payload.voice) : "am_adam";
   await fsp.mkdir(pdfSpeechCacheRoot(), { recursive: true });
   await prunePdfSpeechCache();
   const cacheKey = crypto.createHash("sha256").update(`kokoro-82m-v2\0${voice}\0${speed.toFixed(2)}\0${text}`).digest("hex");
