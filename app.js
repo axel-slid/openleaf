@@ -168,6 +168,7 @@ const pdfSpeechProgressDetail = document.getElementById("pdfSpeechProgressDetail
 const pdfSpeechRate = document.getElementById("pdfSpeechRate");
 const pdfSpeechRateOutput = document.getElementById("pdfSpeechRateOutput");
 const pdfSpeechVoice = document.getElementById("pdfSpeechVoice");
+const pdfPronunciationDictionary = document.getElementById("pdfPronunciationDictionary");
 const pythonNotebookPanel = document.getElementById("pythonNotebookPanel");
 const pythonNotebookMeta = document.getElementById("pythonNotebookMeta");
 const pythonNotebookFeed = document.getElementById("pythonNotebookFeed");
@@ -191,6 +192,15 @@ const historyButton = document.getElementById("historyButton");
 const pushGithubButton = document.getElementById("pushGithubButton");
 const pullGithubButton = document.getElementById("pullGithubButton");
 const pdfReaderButton = document.getElementById("pdfReaderButton");
+const pdfCinematicButton = document.getElementById("pdfCinematicButton");
+const pdfCinematicStage = document.getElementById("pdfCinematicStage");
+const pdfCinematicArtwork = document.getElementById("pdfCinematicArtwork");
+const pdfCinematicCloseButton = document.getElementById("pdfCinematicCloseButton");
+const pdfCinematicKicker = document.getElementById("pdfCinematicKicker");
+const pdfCinematicTitle = document.getElementById("pdfCinematicTitle");
+const pdfCinematicNarration = document.getElementById("pdfCinematicNarration");
+const pdfCinematicStatus = document.getElementById("pdfCinematicStatus");
+const pdfCinematicProgressBar = document.getElementById("pdfCinematicProgressBar");
 const historyPanel = document.getElementById("historyPanel");
 const closeHistoryButton = document.getElementById("closeHistoryButton");
 const historyPanelBody = document.getElementById("historyPanelBody");
@@ -247,6 +257,7 @@ const settingsRelativeLineNumbersToggle = document.getElementById("settingsRelat
 const settingsMinimapToggle = document.getElementById("settingsMinimapToggle");
 const settingsTextWrappingToggle = document.getElementById("settingsTextWrappingToggle");
 const settingsSpellCheckToggle = document.getElementById("settingsSpellCheckToggle");
+const settingsExtraFeaturesToggle = document.getElementById("settingsExtraFeaturesToggle");
 const settingsAgentChoice = document.getElementById("settingsAgentChoice");
 const remoteHostInput = document.getElementById("remoteHostInput");
 const remotePathInput = document.getElementById("remotePathInput");
@@ -2542,6 +2553,14 @@ let pdfSpeechPreprocessActive = false;
 let pdfSpeechChunkDurations = [];
 let pdfSpeechWordMetadata = new Map();
 let pdfWordMeasureContext = null;
+let pdfSpeechAutoFollow = true;
+let pdfWordDefinitionCard = null;
+let pdfWordDefinitionCache = null;
+let pdfWordDefinitionRequest = 0;
+let extraFeaturesEnabled = false;
+let pdfCinematicAudio = null;
+let pdfCinematicGeneration = 0;
+let pdfPronunciationDictionaryTimer = null;
 let pdfDarkMode = false;
 let pdfRenderMode = "adaptive";
 let selectedPdfRelativePath = "";
@@ -2559,6 +2578,10 @@ let defaultGithubRemote = DEFAULT_GITHUB_REMOTE;
 let hiddenBuiltInTemplates = [];
 let projectViewMode = "grid";
 let projectSortMode = "favorites";
+let projectCollections = [];
+let openProjectCollectionId = "";
+let openleafTourStepIndex = -1;
+let openleafTourOverlay = null;
 let vimModeEnabled = false;
 let vimModeState = "off";
 let relativeLineNumbersEnabled = false;
@@ -2646,6 +2669,7 @@ async function init() {
   setupPdfSpeech();
   wireEvents();
   await loadProjects();
+  maybeStartOpenleafTour();
 }
 
 function defineBibtexMode() {
@@ -2859,6 +2883,7 @@ function setupSettings() {
   minimapVisible = localStorage.getItem("latexStudioMinimapVisible") !== "false";
   textWrappingEnabled = localStorage.getItem("latexStudioTextWrapping") !== "false";
   spellCheckEnabled = localStorage.getItem("latexStudioSpellCheck") === "true";
+  extraFeaturesEnabled = localStorage.getItem("openleafExtraFeaturesEnabled") === "true";
   selectionAgentChoice = normalizeAgentChoice(localStorage.getItem("latexStudioSelectionAgent"));
   remoteWorkspace = readRemoteWorkspace();
   defaultGithubRemote = readDefaultGithubRemote();
@@ -2881,7 +2906,9 @@ function setupSettings() {
   settingsMinimapToggle.checked = minimapVisible;
   settingsTextWrappingToggle.checked = textWrappingEnabled;
   settingsSpellCheckToggle.checked = spellCheckEnabled;
+  if (settingsExtraFeaturesToggle) settingsExtraFeaturesToggle.checked = extraFeaturesEnabled;
   settingsAgentChoice.value = selectionAgentChoice;
+  applyExtraFeaturesSetting(extraFeaturesEnabled, { persist: false });
   updatePdfRenderModeButtons();
   populateProfileForm();
   populateRemoteForm();
@@ -2958,6 +2985,12 @@ function setupSettings() {
     localStorage.setItem("latexStudioSpellCheck", String(spellCheckEnabled));
     applySpellCheckSetting();
   });
+
+  if (settingsExtraFeaturesToggle) {
+    settingsExtraFeaturesToggle.addEventListener("change", () => {
+      applyExtraFeaturesSetting(settingsExtraFeaturesToggle.checked);
+    });
+  }
 
   settingsAgentChoice.addEventListener("change", () => {
     selectionAgentChoice = normalizeAgentChoice(settingsAgentChoice.value);
@@ -3181,12 +3214,12 @@ function applyThemeVariables(preset) {
         "--cm-comment": presetColors["--muted"],
         "--cm-string": presetColors["--green"],
         "--cm-number": presetColors["--red"],
-        "--pdf-bg": presetDark ? presetColors["--bg"] : presetColors["--border"],
-        "--pdf-paper": presetColors["--page"] || "#ffffff",
-        "--pdf-page-filter": presetDark ? "invert(0.86) hue-rotate(180deg) contrast(0.9) brightness(1.12)" : "none",
-        "--pdf-dark-bg": presetColors["--bg"] || "#1f2937",
-        "--pdf-dark-paper": presetColors["--cm-bg"] || presetColors["--panel"] || presetColors["--bg"] || "#111827",
-        "--pdf-dark-filter": "invert(0.86) hue-rotate(180deg) contrast(0.88) brightness(1.16)",
+        "--pdf-bg": presetColors["--pdf-bg"] || (presetDark ? presetColors["--bg"] : presetColors["--page"] || "#f3f4f6"),
+        "--pdf-paper": presetColors["--pdf-paper"] || presetColors["--page"] || "#ffffff",
+        "--pdf-page-filter": presetColors["--pdf-page-filter"] || (presetDark ? "invert(0.86) hue-rotate(180deg) contrast(0.9) brightness(1.12)" : "none"),
+        "--pdf-dark-bg": presetColors["--pdf-dark-bg"] || presetColors["--pdf-bg"] || presetColors["--bg"] || "#1f2937",
+        "--pdf-dark-paper": presetColors["--pdf-dark-paper"] || presetColors["--cm-bg"] || presetColors["--panel"] || presetColors["--bg"] || "#111827",
+        "--pdf-dark-filter": presetColors["--pdf-dark-filter"] || "invert(0.86) hue-rotate(180deg) contrast(0.88) brightness(1.16)",
         "--terminal-bg": presetDark
           ? (presetColors["--cm-bg"] || presetColors["--bg"] || "#111827")
           : (presetColors["--cm-bg"] || presetColors["--page"] || "#ffffff"),
@@ -5457,8 +5490,166 @@ function openDocumentationSettings() {
   setSettingsPanel("documentation");
 }
 
+const OPENLEAF_TOUR_STEPS = [
+  {
+    title: "Welcome to Openleaf",
+    copy: "A private, local workspace for papers, readings, PDFs, presentations, and AI-assisted research. Here are the 10 features worth knowing first."
+  },
+  {
+    selector: "#addProjectButton",
+    title: "Create or import anything",
+    copy: "Start a blank paper or bring in an existing TeX file, project folder, archive, or PowerPoint deck. Your original files stay on your Mac."
+  },
+  {
+    selector: "#templatesButton",
+    title: "Begin with a real template",
+    copy: "Use academic paper, thesis, poster, résumé, and presentation starters, then keep your own templates beside them."
+  },
+  {
+    selector: "#projectSearch",
+    title: "Find work instantly",
+    copy: "Search every project from Home. Favorite, sort, and switch between grid and compact list views without opening files one by one."
+  },
+  {
+    selector: ".project-collection-card, #projectGrid",
+    title: "Organize subjects and divisions",
+    copy: "Drag one project onto another to create an Apple-style subject folder. Open it to add divisions such as Readings, Notes, and Assignments."
+  },
+  {
+    selector: ".file-pane, #fileRailButton",
+    title: "A complete project file tree",
+    copy: "Create, rename, duplicate, move, and import project files. PDFs inside a reading folder are available directly from the PDF title menu."
+  },
+  {
+    selector: ".toolbar-segment, #visualModeButton",
+    title: "Code and Visual editing",
+    copy: "Switch between precise source editing and a structured visual manuscript view. Your content remains the same in both modes."
+  },
+  {
+    selector: "#compileButton",
+    title: "Compile locally",
+    copy: "Build the current document with one click. Openleaf keeps the PDF, log, and source side by side and only refreshes what changed."
+  },
+  {
+    selector: "#pdfSpeechControls",
+    title: "Read with synchronized speech",
+    copy: "The local Adam voice pre-analyzes the PDF, tracks real progress, highlights each word, and pauses or resumes with Space when you are not typing."
+  },
+  {
+    selector: ".settingsButton, #helpButton",
+    title: "Make Openleaf yours",
+    copy: "Choose contrast themes, voice speed, custom pronunciation rules, Vim shortcuts, GitHub, and experimental Cinematic Mode. Replay this tour from Documentation anytime."
+  }
+];
+
+function maybeStartOpenleafTour() {
+  if (window.localOverleaf && window.localOverleaf.isTestRuntime) return;
+  if (localStorage.getItem("openleafWelcomeTourVersion") === "1") return;
+  setTimeout(() => startOpenleafTour(), 650);
+}
+
+function startOpenleafTour() {
+  closeOpenleafTour({ remember: false });
+  openleafTourOverlay = document.createElement("section");
+  openleafTourOverlay.className = "openleaf-tour-overlay";
+  openleafTourOverlay.setAttribute("role", "dialog");
+  openleafTourOverlay.setAttribute("aria-modal", "true");
+  openleafTourOverlay.setAttribute("aria-label", "Openleaf feature tutorial");
+  openleafTourOverlay.innerHTML = `
+    <div class="openleaf-tour-spotlight" aria-hidden="true"></div>
+    <article class="openleaf-tour-card">
+      <div class="openleaf-tour-step-label"></div>
+      <h2></h2>
+      <p></p>
+      <div class="openleaf-tour-dots" aria-hidden="true"></div>
+      <footer>
+        <button class="openleaf-tour-skip" type="button">Skip tour</button>
+        <span>
+          <button class="openleaf-tour-back" type="button">Back</button>
+          <button class="openleaf-tour-next" type="button">Next</button>
+        </span>
+      </footer>
+    </article>
+  `;
+  document.body.appendChild(openleafTourOverlay);
+  openleafTourOverlay.querySelector(".openleaf-tour-skip").addEventListener("click", () => closeOpenleafTour());
+  openleafTourOverlay.querySelector(".openleaf-tour-back").addEventListener("click", () => showOpenleafTourStep(openleafTourStepIndex - 1));
+  openleafTourOverlay.querySelector(".openleaf-tour-next").addEventListener("click", () => {
+    if (openleafTourStepIndex >= OPENLEAF_TOUR_STEPS.length - 1) closeOpenleafTour();
+    else showOpenleafTourStep(openleafTourStepIndex + 1);
+  });
+  openleafTourStepIndex = 0;
+  showOpenleafTourStep(0);
+}
+
+function closeOpenleafTour({ remember = true } = {}) {
+  if (openleafTourOverlay) openleafTourOverlay.remove();
+  openleafTourOverlay = null;
+  openleafTourStepIndex = -1;
+  if (remember) localStorage.setItem("openleafWelcomeTourVersion", "1");
+}
+
+function visibleTourTarget(selector) {
+  if (!selector) return null;
+  return Array.from(document.querySelectorAll(selector)).find((element) => {
+    const bounds = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return !element.hidden && style.display !== "none" && style.visibility !== "hidden" && bounds.width > 2 && bounds.height > 2;
+  }) || null;
+}
+
+function showOpenleafTourStep(index) {
+  if (!openleafTourOverlay) return;
+  openleafTourStepIndex = clampNumber(index, 0, OPENLEAF_TOUR_STEPS.length - 1, 0);
+  const step = OPENLEAF_TOUR_STEPS[openleafTourStepIndex];
+  const card = openleafTourOverlay.querySelector(".openleaf-tour-card");
+  card.querySelector(".openleaf-tour-step-label").textContent = `Feature ${openleafTourStepIndex + 1} of ${OPENLEAF_TOUR_STEPS.length}`;
+  card.querySelector("h2").textContent = step.title;
+  card.querySelector("p").textContent = step.copy;
+  card.querySelector(".openleaf-tour-dots").innerHTML = OPENLEAF_TOUR_STEPS.map((_item, dotIndex) => (
+    `<i class="${dotIndex === openleafTourStepIndex ? "active" : ""}"></i>`
+  )).join("");
+  card.querySelector(".openleaf-tour-back").disabled = openleafTourStepIndex === 0;
+  card.querySelector(".openleaf-tour-next").textContent = openleafTourStepIndex === OPENLEAF_TOUR_STEPS.length - 1 ? "Start using Openleaf" : "Next";
+  positionOpenleafTour();
+  card.querySelector(".openleaf-tour-next").focus({ preventScroll: true });
+}
+
+function positionOpenleafTour() {
+  if (!openleafTourOverlay || openleafTourStepIndex < 0) return;
+  const step = OPENLEAF_TOUR_STEPS[openleafTourStepIndex];
+  const target = visibleTourTarget(step.selector);
+  const spotlight = openleafTourOverlay.querySelector(".openleaf-tour-spotlight");
+  const card = openleafTourOverlay.querySelector(".openleaf-tour-card");
+  const margin = 18;
+  const gap = 16;
+  if (!target) {
+    spotlight.hidden = true;
+    card.style.left = "50%";
+    card.style.top = "50%";
+    card.style.transform = "translate(-50%, -50%)";
+    return;
+  }
+  spotlight.hidden = false;
+  const targetBounds = target.getBoundingClientRect();
+  spotlight.style.left = `${Math.max(8, targetBounds.left - 7)}px`;
+  spotlight.style.top = `${Math.max(8, targetBounds.top - 7)}px`;
+  spotlight.style.width = `${Math.min(window.innerWidth - 16, targetBounds.width + 14)}px`;
+  spotlight.style.height = `${Math.min(window.innerHeight - 16, targetBounds.height + 14)}px`;
+  card.style.transform = "none";
+  const cardBounds = card.getBoundingClientRect();
+  const belowTop = targetBounds.bottom + gap;
+  const top = belowTop + cardBounds.height <= window.innerHeight - margin
+    ? belowTop
+    : Math.max(margin, targetBounds.top - cardBounds.height - gap);
+  const left = clampNumber(targetBounds.left + targetBounds.width / 2 - cardBounds.width / 2, margin, window.innerWidth - cardBounds.width - margin, margin);
+  card.style.left = `${Math.round(left)}px`;
+  card.style.top = `${Math.round(top)}px`;
+}
+
 function wireEvents() {
   window.addEventListener("beforeunload", () => recordHistoryEvent("Edited"));
+  window.addEventListener("resize", positionOpenleafTour);
   settingsButtons.forEach((button) => button.addEventListener("click", openSettings));
   closeSettingsButton.addEventListener("click", closeSettings);
   settingsBackdrop.addEventListener("click", closeOverlayModals);
@@ -5485,6 +5676,10 @@ function wireEvents() {
   remoteWorkspaceButton.addEventListener("click", () => openSshProjectFlow());
   helpButton.addEventListener("click", openDocumentationSettings);
   if (railHelpButton) railHelpButton.addEventListener("click", openDocumentationSettings);
+  document.getElementById("replayWelcomeTourButton")?.addEventListener("click", () => {
+    closeSettings();
+    startOpenleafTour();
+  });
   fileOutlineToggle.addEventListener("click", () => {
     setFileOutlineCollapsed(!fileOutline.classList.contains("collapsed"));
   });
@@ -5716,17 +5911,23 @@ function wireEvents() {
   if (pushGithubButton) pushGithubButton.addEventListener("click", pushActiveProjectToGithub);
   if (pullGithubButton) pullGithubButton.addEventListener("click", pullActiveProjectFromGithub);
   if (pdfReaderButton) pdfReaderButton.addEventListener("click", togglePdfReaderMode);
+  if (pdfCinematicButton) pdfCinematicButton.addEventListener("click", openPdfCinematicMode);
+  if (pdfCinematicCloseButton) pdfCinematicCloseButton.addEventListener("click", closePdfCinematicMode);
   if (pdfSpeechButton) pdfSpeechButton.addEventListener("click", togglePdfSpeech);
   if (pdfSpeechRate) pdfSpeechRate.addEventListener("input", handlePdfSpeechRateChange);
   if (pdfSpeechVoice) pdfSpeechVoice.addEventListener("change", handlePdfSpeechVoiceChange);
+  if (pdfPronunciationDictionary) pdfPronunciationDictionary.addEventListener("input", handlePdfPronunciationDictionaryChange);
   closeHistoryButton.addEventListener("click", () => setHistoryPanelOpen(false));
   pdfZoomOutButton.addEventListener("click", () => changePdfZoom(-0.1));
   pdfZoomInButton.addEventListener("click", () => changePdfZoom(0.1));
   const pdfFitButton = document.getElementById("pdfFitButton");
   if (pdfFitButton) pdfFitButton.addEventListener("click", fitPdfToBoundaries);
   pdfViewer.addEventListener("wheel", handlePdfWheelZoom, { passive: false });
+  pdfViewer.addEventListener("pointerdown", handlePdfSpeechManualNavigation, { passive: true });
   pdfViewer.addEventListener("scroll", updatePdfPageIndicator, { passive: true });
+  pdfViewer.addEventListener("scroll", closePdfWordDefinition, { passive: true });
   pdfViewer.addEventListener("click", handlePdfSpeechWordClick, true);
+  pdfViewer.addEventListener("contextmenu", handlePdfSpeechWordDefinition, true);
   pdfViewer.addEventListener("gesturestart", handlePdfGestureStart);
   pdfViewer.addEventListener("gesturechange", handlePdfGestureChange);
   pdfViewer.addEventListener("gestureend", handlePdfGestureEnd);
@@ -5752,10 +5953,46 @@ function wireEvents() {
     void openPythonKernelMenu();
   });
   document.addEventListener("click", (event) => {
+    if (pdfWordDefinitionCard && !pdfWordDefinitionCard.contains(event.target)) closePdfWordDefinition();
     if (!pythonKernelMenu || pythonKernelMenu.hidden) return;
     if (!pythonKernelMenu.contains(event.target) && !pythonKernelButton.contains(event.target)) closePythonKernelMenu();
   });
   document.addEventListener("keydown", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const isTextEntry = Boolean(target && target.closest("input, textarea, select, [contenteditable='true'], .CodeMirror"));
+    if (event.code === "Space" && !event.metaKey && !event.ctrlKey && !event.altKey && !isTextEntry) {
+      if (pdfCinematicAudio && pdfCinematicStage && !pdfCinematicStage.hidden) {
+        event.preventDefault();
+        togglePdfCinematicPlayback();
+        return;
+      }
+      if (pdfSpeechPlaying || pdfSpeechPaused) {
+        event.preventDefault();
+        togglePdfSpeech();
+        return;
+      }
+    }
+    if (event.key === "Escape" && openleafTourOverlay) {
+      event.preventDefault();
+      closeOpenleafTour();
+      return;
+    }
+    if (event.key === "Escape" && pdfWordDefinitionCard) {
+      event.preventDefault();
+      closePdfWordDefinition();
+      return;
+    }
+    if (event.key === "Escape" && openProjectCollectionId) {
+      event.preventDefault();
+      closeProjectCollection();
+      renderProjectGrid();
+      return;
+    }
+    if (event.key === "Escape" && pdfCinematicStage && !pdfCinematicStage.hidden) {
+      event.preventDefault();
+      closePdfCinematicMode();
+      return;
+    }
     if (!pythonKernelMenu || pythonKernelMenu.hidden) return;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -6872,6 +7109,7 @@ function schedulePdfZoomRender(delay = 220) {
 }
 
 function handlePdfWheelZoom(event) {
+  if (!event.ctrlKey && !event.metaKey) handlePdfSpeechManualNavigation();
   if (event.shiftKey && !event.metaKey && !event.ctrlKey) {
     event.preventDefault();
     pdfViewer.scrollLeft += event.deltaY || event.deltaX;
@@ -7735,6 +7973,8 @@ async function loadProjects() {
   try {
     const data = await window.localOverleaf.listProjects();
     projects = data.projects || [];
+    projectCollections = readProjectCollections();
+    ensureDemogReadingCollection();
     renderProjectGrid();
   } catch (error) {
     projectGrid.innerHTML = `<div class="project-loading project-error">${escapeHtml(formatError(error))}</div>`;
@@ -7747,44 +7987,57 @@ function renderProjectGrid() {
   updateProjectViewButtons();
   updateProjectSortControl();
   const query = projectSearch.value.trim().toLowerCase();
+  const groupedProjectIds = new Set(projectCollections.flatMap((collection) => (
+    collection.divisions.flatMap((division) => division.projectIds)
+  )));
   const visibleProjects = sortProjectsForDisplay(projects.filter((project) => {
     const haystack = `${project.displayName || ""} ${project.name} ${project.texName} ${project.folderName} ${project.texPath}`.toLowerCase();
-    return haystack.includes(query);
+    return !groupedProjectIds.has(project.id) && haystack.includes(query);
   }));
+  const visibleCollections = projectCollections.filter((collection) => {
+    const memberProjects = collection.divisions.flatMap((division) => division.projectIds)
+      .map((id) => projects.find((project) => project.id === id))
+      .filter(Boolean);
+    const haystack = `${collection.name} ${collection.divisions.map((division) => division.name).join(" ")} ${memberProjects.map(projectDisplaySortName).join(" ")}`.toLowerCase();
+    return haystack.includes(query);
+  });
 
   projectGrid.innerHTML = "";
-  projectEmpty.hidden = visibleProjects.length > 0;
+  projectEmpty.hidden = visibleProjects.length + visibleCollections.length > 0;
+
+  visibleCollections.forEach((collection) => projectGrid.appendChild(renderProjectCollectionCard(collection)));
 
   visibleProjects.forEach((project) => {
     const card = document.createElement("article");
     card.className = "project-card";
-    card.role = "button";
-    card.tabIndex = 0;
     card.dataset.projectId = project.id;
+    card.draggable = false;
     const displayName = project.displayName || project.name;
     const sourceLabel = project.texName || "main.tex";
     card.innerHTML = `
+      <button class="project-card-open" type="button" aria-label="Open ${escapeHtml(displayName)}">
+        <span class="project-preview" aria-hidden="true">
+          <span class="project-preview-message">${project.pdfExists ? "Open to refresh preview" : "PDF preview unavailable"}</span>
+        </span>
+        <span class="project-card-copy">
+          <span class="project-card-title-row">
+            <span class="project-name">${escapeHtml(displayName)}</span>
+          </span>
+          <span class="project-file">${escapeHtml(sourceLabel)} · ${escapeHtml(project.folderName)}</span>
+          <span class="project-card-meta-row">
+            <span class="project-meta">Edited ${escapeHtml(relativeTime(project.modifiedAt))}</span>
+          </span>
+        </span>
+      </button>
       <button class="project-favorite-button ${project.favorite ? "active" : ""}" type="button" aria-label="${project.favorite ? "Unfavorite" : "Favorite"} ${escapeHtml(project.name)}" title="${project.favorite ? "Unfavorite project" : "Favorite project"}">
         ${STAR_ICON_SVG}
       </button>
       <button class="project-remove-button" type="button" aria-label="Remove ${escapeHtml(project.name)} from editor" title="Remove project">
         ${TRASH_ICON_SVG}
       </button>
-      <span class="project-preview" aria-hidden="true">
-        <span class="project-preview-message">${project.pdfExists ? "Rendering preview" : "Preparing preview"}</span>
-      </span>
-      <span class="project-card-copy">
-        <span class="project-card-title-row">
-          <span class="project-name">${escapeHtml(displayName)}</span>
-        </span>
-        <span class="project-file">${escapeHtml(sourceLabel)} · ${escapeHtml(project.folderName)}</span>
-        <span class="project-card-meta-row">
-          <span class="project-meta">Edited ${escapeHtml(relativeTime(project.modifiedAt))}</span>
-        </span>
-      </span>
     `;
-    card.addEventListener("click", (event) => {
-      if (card.classList.contains("renaming") || event.target.closest("button, input")) return;
+    card.querySelector(".project-card-open").addEventListener("click", () => {
+      if (card.classList.contains("renaming")) return;
       openProject(project.id);
     });
     card.addEventListener("contextmenu", (event) => {
@@ -7793,12 +8046,7 @@ function renderProjectGrid() {
       if (card.classList.contains("renaming")) return;
       showProjectContextMenu(event, project);
     });
-    card.addEventListener("keydown", (event) => {
-      if (card.classList.contains("renaming")) return;
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      openProject(project.id);
-    });
+    wireProjectCardDrag(card, project.id);
     card.querySelector(".project-remove-button").addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -7821,6 +8069,297 @@ function scheduleProjectPreview(card, project, generation) {
       if (generation !== projectPreviewGeneration || !card.isConnected) return;
       await renderProjectPreview(card, project);
     });
+}
+
+function readProjectCollections() {
+  let stored = [];
+  try {
+    stored = JSON.parse(localStorage.getItem("openleafProjectCollections") || "[]");
+  } catch (_error) {
+    stored = [];
+  }
+  const knownIds = new Set(projects.map((project) => project.id));
+  return (Array.isArray(stored) ? stored : []).map((collection) => ({
+    id: String(collection.id || ""),
+    name: String(collection.name || "Untitled Subject"),
+    divisions: (Array.isArray(collection.divisions) ? collection.divisions : []).map((division) => ({
+      id: String(division.id || ""),
+      name: String(division.name || "Projects"),
+      projectIds: (Array.isArray(division.projectIds) ? division.projectIds : []).filter((id) => knownIds.has(id))
+    })).filter((division) => division.id)
+  })).filter((collection) => collection.id && collection.divisions.length);
+}
+
+function saveProjectCollections() {
+  localStorage.setItem("openleafProjectCollections", JSON.stringify(projectCollections));
+}
+
+function collectionIdentifier(prefix = "folder") {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function ensureDemogReadingCollection() {
+  const demog = projects.find((project) => /demog\s*c?126|c126.*demog/i.test(`${project.name} ${project.displayName} ${project.folderName} ${project.texPath}`));
+  if (!demog) return;
+  const alreadyGrouped = projectCollections.some((collection) => (
+    collection.divisions.some((division) => division.projectIds.includes(demog.id))
+  ));
+  if (alreadyGrouped) return;
+  projectCollections.unshift({
+    id: collectionIdentifier("subject"),
+    name: "DEMOG C126",
+    divisions: [{ id: collectionIdentifier("division"), name: "Readings", projectIds: [demog.id] }]
+  });
+  saveProjectCollections();
+}
+
+function projectCollectionMembership(projectId) {
+  for (const collection of projectCollections) {
+    for (const division of collection.divisions) {
+      if (division.projectIds.includes(projectId)) return { collection, division };
+    }
+  }
+  return null;
+}
+
+function removeProjectFromCollections(projectId) {
+  projectCollections.forEach((collection) => {
+    collection.divisions.forEach((division) => {
+      division.projectIds = division.projectIds.filter((id) => id !== projectId);
+    });
+  });
+}
+
+function addProjectToCollection(projectId, collection, division = collection && collection.divisions[0]) {
+  if (!projectId || !collection || !division) return;
+  removeProjectFromCollections(projectId);
+  let liveCollection = projectCollections.find((item) => item.id === collection.id);
+  if (!liveCollection) {
+    liveCollection = collection;
+    projectCollections.push(liveCollection);
+  }
+  let liveDivision = liveCollection.divisions.find((item) => item.id === division.id);
+  if (!liveDivision) {
+    liveDivision = division;
+    liveDivision.projectIds = [];
+    liveCollection.divisions.push(liveDivision);
+  }
+  if (!liveDivision.projectIds.includes(projectId)) liveDivision.projectIds.push(projectId);
+  saveProjectCollections();
+}
+
+function createProjectCollection(sourceProjectId, targetProjectId) {
+  if (!sourceProjectId || !targetProjectId || sourceProjectId === targetProjectId) return;
+  const targetMembership = projectCollectionMembership(targetProjectId);
+  if (targetMembership) {
+    addProjectToCollection(sourceProjectId, targetMembership.collection, targetMembership.division);
+    renderProjectGrid();
+    openProjectCollection(targetMembership.collection.id);
+    return;
+  }
+  removeProjectFromCollections(sourceProjectId);
+  removeProjectFromCollections(targetProjectId);
+  const collection = {
+    id: collectionIdentifier("subject"),
+    name: "New Subject",
+    divisions: [{
+      id: collectionIdentifier("division"),
+      name: "Projects",
+      projectIds: [targetProjectId, sourceProjectId]
+    }]
+  };
+  projectCollections.unshift(collection);
+  saveProjectCollections();
+  renderProjectGrid();
+  openProjectCollection(collection.id, { editName: true });
+}
+
+function wireProjectCardDrag(card, projectId) {
+  card.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || event.target.closest(".project-favorite-button, .project-remove-button, input")) return;
+    card.draggable = true;
+  });
+  card.addEventListener("dragstart", (event) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-openleaf-project", projectId);
+    card.classList.add("is-dragging");
+  });
+  card.addEventListener("dragend", () => {
+    card.draggable = false;
+    card.classList.remove("is-dragging");
+  });
+  card.addEventListener("pointerup", () => { card.draggable = false; });
+  card.addEventListener("pointercancel", () => { card.draggable = false; });
+  card.addEventListener("dragover", (event) => {
+    if (!Array.from(event.dataTransfer.types || []).includes("application/x-openleaf-project")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    card.classList.add("is-drop-target");
+  });
+  card.addEventListener("dragleave", () => card.classList.remove("is-drop-target"));
+  card.addEventListener("drop", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    card.classList.remove("is-drop-target");
+    createProjectCollection(event.dataTransfer.getData("application/x-openleaf-project"), projectId);
+  });
+}
+
+function renderProjectCollectionCard(collection) {
+  const memberIds = collection.divisions.flatMap((division) => division.projectIds);
+  const members = memberIds.map((id) => projects.find((project) => project.id === id)).filter(Boolean);
+  const card = document.createElement("article");
+  card.className = "project-collection-card";
+  card.role = "button";
+  card.tabIndex = 0;
+  card.dataset.collectionId = collection.id;
+  const tiles = members.slice(0, 4).map((project) => project.previewImageUrl
+    ? `<img src="${escapeHtml(project.previewImageUrl)}" alt="">`
+    : `<span>${escapeHtml((projectDisplaySortName(project)[0] || "P").toUpperCase())}</span>`).join("");
+  card.innerHTML = `
+    <span class="project-collection-preview" aria-hidden="true">${tiles}</span>
+    <span class="project-collection-copy">
+      <strong>${escapeHtml(collection.name)}</strong>
+      <small>${members.length} ${members.length === 1 ? "project" : "projects"} · ${collection.divisions.length} ${collection.divisions.length === 1 ? "division" : "divisions"}</small>
+    </span>
+  `;
+  card.addEventListener("click", () => openProjectCollection(collection.id));
+  card.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openProjectCollection(collection.id);
+  });
+  card.addEventListener("dragover", (event) => {
+    if (!Array.from(event.dataTransfer.types || []).includes("application/x-openleaf-project")) return;
+    event.preventDefault();
+    card.classList.add("is-drop-target");
+  });
+  card.addEventListener("dragleave", () => card.classList.remove("is-drop-target"));
+  card.addEventListener("drop", (event) => {
+    event.preventDefault();
+    card.classList.remove("is-drop-target");
+    addProjectToCollection(event.dataTransfer.getData("application/x-openleaf-project"), collection);
+    renderProjectGrid();
+  });
+  return card;
+}
+
+function closeProjectCollection() {
+  document.querySelector(".project-collection-overlay")?.remove();
+  openProjectCollectionId = "";
+}
+
+function openProjectCollection(collectionId, { editName = false } = {}) {
+  closeProjectCollection();
+  const collection = projectCollections.find((item) => item.id === collectionId);
+  if (!collection) return;
+  openProjectCollectionId = collectionId;
+  const overlay = document.createElement("section");
+  overlay.className = "project-collection-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", collection.name);
+  overlay.innerHTML = `
+    <div class="project-collection-panel">
+      <header class="project-collection-header">
+        <input class="project-collection-name" value="${escapeHtml(collection.name)}" aria-label="Subject name">
+        <div class="project-collection-actions">
+          <button class="project-collection-add-division" type="button">+ Division</button>
+          <button class="project-collection-close" type="button" aria-label="Close folder">×</button>
+        </div>
+      </header>
+      <div class="project-collection-divisions"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const nameInput = overlay.querySelector(".project-collection-name");
+  nameInput.addEventListener("change", () => {
+    collection.name = nameInput.value.trim() || "Untitled Subject";
+    nameInput.value = collection.name;
+    saveProjectCollections();
+  });
+  nameInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") nameInput.blur();
+  });
+  overlay.querySelector(".project-collection-close").addEventListener("click", () => {
+    closeProjectCollection();
+    renderProjectGrid();
+  });
+  overlay.addEventListener("click", (event) => {
+    if (event.target !== overlay) return;
+    closeProjectCollection();
+    renderProjectGrid();
+  });
+  overlay.querySelector(".project-collection-add-division").addEventListener("click", () => {
+    const name = window.prompt("Division name", "New Division");
+    if (!name || !name.trim()) return;
+    collection.divisions.push({ id: collectionIdentifier("division"), name: name.trim(), projectIds: [] });
+    saveProjectCollections();
+    renderOpenProjectCollection(collection, overlay);
+  });
+  renderOpenProjectCollection(collection, overlay);
+  requestAnimationFrame(() => {
+    if (editName) nameInput.select();
+    nameInput.focus();
+  });
+}
+
+function renderOpenProjectCollection(collection, overlay) {
+  const container = overlay.querySelector(".project-collection-divisions");
+  container.replaceChildren();
+  collection.divisions.forEach((division) => {
+    const section = document.createElement("section");
+    section.className = "project-division";
+    section.dataset.divisionId = division.id;
+    section.innerHTML = `<header><strong>${escapeHtml(division.name)}</strong><small>${division.projectIds.length}</small></header><div class="project-division-grid"></div>`;
+    const grid = section.querySelector(".project-division-grid");
+    division.projectIds.map((id) => projects.find((project) => project.id === id)).filter(Boolean).forEach((project) => {
+      const card = document.createElement("article");
+      card.className = "project-division-card";
+      card.draggable = false;
+      card.dataset.projectId = project.id;
+      card.innerHTML = `
+        <span class="project-division-preview">${project.previewImageUrl ? `<img src="${escapeHtml(project.previewImageUrl)}" alt="">` : "PDF"}</span>
+        <strong>${escapeHtml(projectDisplaySortName(project))}</strong>
+        <button type="button" aria-label="Move ${escapeHtml(projectDisplaySortName(project))} to Home">×</button>
+      `;
+      card.addEventListener("click", (event) => {
+        if (event.target.closest("button")) return;
+        closeProjectCollection();
+        openProject(project.id);
+      });
+      card.querySelector("button").addEventListener("click", () => {
+        removeProjectFromCollections(project.id);
+        saveProjectCollections();
+        renderOpenProjectCollection(collection, overlay);
+      });
+      card.addEventListener("dragstart", (event) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("application/x-openleaf-project", project.id);
+      });
+      card.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || event.target.closest("button, input")) return;
+        card.draggable = true;
+      });
+      card.addEventListener("dragend", () => { card.draggable = false; });
+      card.addEventListener("pointerup", () => { card.draggable = false; });
+      card.addEventListener("pointercancel", () => { card.draggable = false; });
+      grid.appendChild(card);
+    });
+    section.addEventListener("dragover", (event) => {
+      if (!Array.from(event.dataTransfer.types || []).includes("application/x-openleaf-project")) return;
+      event.preventDefault();
+      section.classList.add("is-drop-target");
+    });
+    section.addEventListener("dragleave", () => section.classList.remove("is-drop-target"));
+    section.addEventListener("drop", (event) => {
+      event.preventDefault();
+      section.classList.remove("is-drop-target");
+      addProjectToCollection(event.dataTransfer.getData("application/x-openleaf-project"), collection, division);
+      renderOpenProjectCollection(collection, overlay);
+    });
+    container.appendChild(section);
+  });
 }
 
 function sortProjectsForDisplay(items) {
@@ -8004,7 +8543,7 @@ async function toggleProjectFavorite(project) {
 async function renderProjectPreview(card, project) {
   const preview = card.querySelector(".project-preview");
   if (!preview) return;
-  const canUseCachedPreview = project.previewImageUrl && (!pdfDarkMode || pdfRenderMode === "original");
+  const canUseCachedPreview = Boolean(project.previewImageUrl);
   preview.classList.toggle("pdf-dark-render", pdfDarkMode && pdfRenderMode !== "original");
   preview.classList.toggle("pdf-invert-pages", pdfDarkMode && pdfRenderMode === "invert");
   if (canUseCachedPreview) {
@@ -8013,54 +8552,44 @@ async function renderProjectPreview(card, project) {
     preview.replaceChildren(image);
     try {
       await image.decode();
-      if (image.naturalWidth >= 480 || image.naturalHeight >= 640) return;
+      return;
     } catch (error) {
-      // Replace stale cached previews with a fresh render below.
+      // Home never decodes the source PDF. Opening the project refreshes this
+      // lightweight cache from the already-rendered first page instead.
     }
     if (!card.isConnected) return;
   }
+  preview.innerHTML = `<span class="project-preview-message">${project.pdfExists ? "Open to refresh preview" : "PDF preview unavailable"}</span>`;
+}
 
-  try {
-    const [pdfjsLib, pdfBuffer] = await Promise.all([
-      loadPdfJs(),
-      window.localOverleaf.readPdf(project.id)
-    ]);
-    if (!card.isConnected) return;
-
-    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
-    const pdf = await loadingTask.promise;
-    project.pdfExists = true;
-    const page = await pdf.getPage(1);
-    if (!card.isConnected) return;
-
-    const baseViewport = page.getViewport({ scale: 1 });
-    const targetWidth = Math.max(120, preview.clientWidth);
-    const targetHeight = Math.max(120, preview.clientHeight);
-    const scale = Math.min(targetWidth / baseViewport.width, targetHeight / baseViewport.height) * 0.94;
-    const viewport = page.getViewport({ scale });
-    const outputScale = Math.min(Math.max(window.devicePixelRatio || 1, 3), 4);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.floor(viewport.width * outputScale);
-    canvas.height = Math.floor(viewport.height * outputScale);
-    canvas.style.width = `${Math.floor(viewport.width)}px`;
-    canvas.style.height = `${Math.floor(viewport.height)}px`;
-
-    const context = canvas.getContext("2d");
-    context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-    preparePdfCanvasForRender(context, canvas);
-    await page.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
-    if (!card.isConnected) return;
-
-    if (window.localOverleaf.cacheProjectPreview && !pdfDarkMode) {
-      window.localOverleaf.cacheProjectPreview(project.id, canvas.toDataURL("image/png")).catch(() => {});
-    }
-    canvas.classList.add("project-preview-raster");
-    applyPdfPreviewCanvasRenderMode(context, canvas);
-    preview.replaceChildren(canvas);
-  } catch (error) {
-    if (!card.isConnected) return;
-    preview.innerHTML = '<span class="project-preview-message">Open to fix preview</span>';
-  }
+function cacheActiveProjectPreview(sourceCanvas) {
+  if (
+    !sourceCanvas
+    || !activeProject
+    || isRemoteProject()
+    || pdfDarkMode
+    || activeProject.previewImageUrl
+    || !window.localOverleaf.cacheProjectPreview
+  ) return;
+  const sourceWidth = sourceCanvas.width;
+  const sourceHeight = sourceCanvas.height;
+  if (!(sourceWidth > 1) || !(sourceHeight > 1)) return;
+  const width = Math.min(720, sourceWidth);
+  const height = Math.max(1, Math.round(width * sourceHeight / sourceWidth));
+  const previewCanvas = document.createElement("canvas");
+  previewCanvas.width = width;
+  previewCanvas.height = height;
+  const context = previewCanvas.getContext("2d");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(sourceCanvas, 0, 0, width, height);
+  window.localOverleaf.cacheProjectPreview(activeProject.id, previewCanvas.toDataURL("image/png"))
+    .then((result) => {
+      if (result && result.previewImageUrl && activeProject) activeProject.previewImageUrl = result.previewImageUrl;
+    })
+    .catch(() => {});
 }
 
 function toggleNewProjectPanel(force) {
@@ -11140,6 +11669,16 @@ async function loadProjectFiles() {
     updateActiveDocumentTitle();
     populateProjectSettingsForm();
     renderFileTree();
+    if (!isRemoteProject() && !activeProject.pdfExists && !selectedPdfRelativePath) {
+      const firstReading = projectPdfFiles().sort((left, right) => (
+        String(left.relativePath || "").localeCompare(String(right.relativePath || ""), undefined, { numeric: true })
+      ))[0];
+      if (firstReading) {
+        selectedPdfRelativePath = firstReading.relativePath;
+        updatePdfTitleFromSelection();
+        await renderPdf({ showLoading: true, preserveView: false, preserveLogOnError: true });
+      }
+    }
     if (shouldOpenRemoteEntry) {
       const entry = findDefaultTexFileNode(projectFiles);
       if (entry) await loadProjectFile(entry.relativePath, { confirmUnsaved: false, preview: false });
@@ -12407,6 +12946,209 @@ function togglePdfReaderMode(force) {
   });
 }
 
+function applyExtraFeaturesSetting(enabled, { persist = true } = {}) {
+  extraFeaturesEnabled = Boolean(enabled);
+  if (settingsExtraFeaturesToggle) settingsExtraFeaturesToggle.checked = extraFeaturesEnabled;
+  if (pdfCinematicButton) pdfCinematicButton.hidden = !extraFeaturesEnabled;
+  if (persist) localStorage.setItem("openleafExtraFeaturesEnabled", String(extraFeaturesEnabled));
+  if (!extraFeaturesEnabled) closePdfCinematicMode();
+}
+
+function currentPdfPageShell() {
+  const pages = Array.from(pdfViewer.querySelectorAll(".pdf-page"));
+  if (!pages.length) return null;
+  const viewerBounds = pdfViewer.getBoundingClientRect();
+  const focusY = viewerBounds.top + viewerBounds.height * 0.42;
+  return pages.reduce((best, page) => {
+    const bounds = page.getBoundingClientRect();
+    const distance = Math.abs(bounds.top + bounds.height / 2 - focusY);
+    return !best || distance < best.distance ? { page, distance } : best;
+  }, null)?.page || pages[0];
+}
+
+function pdfCinematicArtworkPageShell(fallbackPage) {
+  const pages = Array.from(pdfViewer.querySelectorAll(".pdf-page"))
+    .filter((page) => {
+      const canvas = page.querySelector("canvas");
+      return canvas && canvas.width > 1 && canvas.height > 1;
+    });
+  if (!pages.length) return fallbackPage;
+  const fallbackNumber = Number(fallbackPage && fallbackPage.dataset.page) || 1;
+  const illustrated = pages.filter((page) => {
+    const pageNumber = Number(page.dataset.page) || 1;
+    return (pdfPageTextLines.get(pageNumber) || []).some((line) => (
+      /\b(credit|figure|photo(?:graph)?|illustration|image)\b/i.test(String(line.text || ""))
+    ));
+  });
+  return (illustrated.length ? illustrated : [fallbackPage].filter(Boolean)).sort((left, right) => (
+    Math.abs((Number(left.dataset.page) || 1) - fallbackNumber)
+      - Math.abs((Number(right.dataset.page) || 1) - fallbackNumber)
+  ))[0] || fallbackPage;
+}
+
+function pdfCinematicReadingScene(pageNumber) {
+  let chunkIndex = Number.isInteger(pdfSpeechChunkIndex) ? pdfSpeechChunkIndex : -1;
+  let chunk = pdfSpeechPlan.chunks[chunkIndex];
+  if (!chunk || !chunk.words.some((word) => Number(word.pageNumber) === pageNumber)) {
+    chunkIndex = pdfSpeechPlan.chunks.findIndex((candidate) => (
+      candidate.words.some((word) => Number(word.pageNumber) === pageNumber)
+    ));
+    chunk = pdfSpeechPlan.chunks[chunkIndex];
+  }
+
+  if (chunk) {
+    const startIndex = chunkIndex === pdfSpeechChunkIndex
+      ? clampNumber(pdfSpeechWordIndex, 0, Math.max(0, chunk.words.length - 1), 0)
+      : 0;
+    const words = chunk.words.slice(startIndex);
+    const narration = pdfSpeechChunkText(words.length ? words : chunk.words).trim();
+    if (narration) return { title: `Page ${pageNumber}`, narration };
+  }
+
+  const narration = (pdfPageTextLines.get(pageNumber) || [])
+    .filter((line, index, lines) => !isPdfSpeechNonContentLine(line, index, lines.length))
+    .map((line) => String(line.text || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ");
+  return {
+    title: `Page ${pageNumber}`,
+    narration: narration || "This page does not contain readable text yet."
+  };
+}
+
+function pdfCinematicArtworkUrl(pageShell) {
+  const canvas = pageShell && pageShell.querySelector("canvas");
+  if (!canvas || canvas.width <= 1 || canvas.height <= 1) return "";
+  try {
+    let crop = { left: 0, top: 0, right: canvas.width, bottom: canvas.height };
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    const boxes = detectPdfFigureBoxes(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height)
+      .sort((left, right) => ((right.right - right.left) * (right.bottom - right.top)) - ((left.right - left.left) * (left.bottom - left.top)));
+    if (boxes[0]) crop = boxes[0];
+    crop.left = clampNumber(crop.left, 0, canvas.width - 1, 0);
+    crop.top = clampNumber(crop.top, 0, canvas.height - 1, 0);
+    crop.right = clampNumber(crop.right, crop.left + 1, canvas.width, canvas.width);
+    crop.bottom = clampNumber(crop.bottom, crop.top + 1, canvas.height, canvas.height);
+    let sourceWidth = Math.max(1, crop.right - crop.left);
+    let sourceHeight = Math.max(1, crop.bottom - crop.top);
+    const targetRatio = 16 / 9;
+    if (sourceWidth / sourceHeight > targetRatio) {
+      const width = sourceHeight * targetRatio;
+      crop.left += (sourceWidth - width) / 2;
+      sourceWidth = width;
+    } else {
+      const height = sourceWidth / targetRatio;
+      crop.top += (sourceHeight - height) / 2;
+      sourceHeight = height;
+    }
+    const output = document.createElement("canvas");
+    output.width = 1280;
+    output.height = 720;
+    output.getContext("2d").drawImage(canvas, crop.left, crop.top, sourceWidth, sourceHeight, 0, 0, output.width, output.height);
+    return output.toDataURL("image/jpeg", 0.86);
+  } catch (_error) {
+    try {
+      return canvas.toDataURL("image/jpeg", 0.82);
+    } catch (_fallbackError) {
+      return "";
+    }
+  }
+}
+
+async function openPdfCinematicMode() {
+  if (!extraFeaturesEnabled || !pdfCinematicStage) return;
+  const readingPageShell = currentPdfPageShell();
+  if (!readingPageShell) return;
+  const pageNumber = Number(readingPageShell.dataset.page) || 1;
+  const scene = pdfCinematicReadingScene(pageNumber);
+  const generation = ++pdfCinematicGeneration;
+
+  if (pdfSpeechPlaying) {
+    if (pdfSpeechAudio) pdfSpeechAudio.pause();
+    cancelAnimationFrame(pdfSpeechAnimationFrame);
+    pdfSpeechPlaying = false;
+    pdfSpeechPaused = true;
+    updatePdfSpeechButton();
+    setPdfSpeechStatus("Paused", "paused");
+  }
+  closePdfCinematicAudio();
+  pdfCinematicKicker.textContent = `Page ${pageNumber} · reading`;
+  pdfCinematicTitle.textContent = scene.title;
+  pdfCinematicNarration.textContent = scene.narration;
+  pdfCinematicStatus.textContent = "Preparing the passage…";
+  pdfCinematicProgressBar.style.transform = "scaleX(0)";
+  pdfCinematicStage.hidden = false;
+  document.body.classList.add("pdf-cinematic-open");
+  pdfCinematicStage.classList.add("is-visible", "is-preparing");
+  const cinematicArtwork = [
+    "assets/cinematic/monet-bridge-water-lilies.webp",
+    "assets/cinematic/van-gogh-starry-night.webp",
+    "assets/cinematic/heart-of-andes.webp"
+  ];
+  pdfCinematicArtwork.src = cinematicArtwork[(Math.max(1, pageNumber) - 1) % cinematicArtwork.length];
+  pdfCinematicCloseButton.focus();
+
+  try {
+    const result = await window.localOverleaf.synthesizePdfSpeech(applyPdfPronunciationRules(scene.narration), 0.92, pdfSpeechVoiceId());
+    if (generation !== pdfCinematicGeneration || pdfCinematicStage.hidden) return;
+    pdfCinematicAudio = new Audio(result.audioUrl);
+    pdfCinematicAudio.preload = "auto";
+    pdfCinematicAudio.preservesPitch = true;
+    pdfCinematicAudio.addEventListener("timeupdate", () => {
+      if (!pdfCinematicAudio || !pdfCinematicAudio.duration) return;
+      pdfCinematicProgressBar.style.transform = `scaleX(${clampNumber(pdfCinematicAudio.currentTime / pdfCinematicAudio.duration, 0, 1, 0)})`;
+    });
+    pdfCinematicAudio.addEventListener("ended", () => {
+      pdfCinematicStage.classList.remove("is-narrating");
+      pdfCinematicStatus.textContent = "Scene complete";
+      pdfCinematicProgressBar.style.transform = "scaleX(1)";
+    }, { once: true });
+    await pdfCinematicAudio.play();
+    if (generation !== pdfCinematicGeneration) return;
+    pdfCinematicStage.classList.remove("is-preparing");
+    pdfCinematicStage.classList.add("is-narrating");
+    pdfCinematicStatus.textContent = `${pdfSpeechVoiceLabel()} · reading page ${pageNumber}`;
+  } catch (error) {
+    if (generation !== pdfCinematicGeneration) return;
+    pdfCinematicStage.classList.remove("is-preparing", "is-narrating");
+    pdfCinematicStatus.textContent = `Narration unavailable · ${formatError(error)}`;
+  }
+}
+
+function togglePdfCinematicPlayback() {
+  if (!pdfCinematicAudio) return;
+  if (pdfCinematicAudio.paused) {
+    pdfCinematicAudio.play().then(() => {
+      pdfCinematicStage.classList.add("is-narrating");
+      pdfCinematicStatus.textContent = `${pdfSpeechVoiceLabel()} · reading`;
+    }).catch(() => {});
+  } else {
+    pdfCinematicAudio.pause();
+    pdfCinematicStage.classList.remove("is-narrating");
+    pdfCinematicStatus.textContent = "Paused · press Space to continue";
+  }
+}
+
+function closePdfCinematicAudio() {
+  if (!pdfCinematicAudio) return;
+  pdfCinematicAudio.pause();
+  pdfCinematicAudio.removeAttribute("src");
+  pdfCinematicAudio.load();
+  pdfCinematicAudio = null;
+}
+
+function closePdfCinematicMode() {
+  if (!pdfCinematicStage) return;
+  pdfCinematicGeneration += 1;
+  closePdfCinematicAudio();
+  pdfCinematicStage.classList.remove("is-visible", "is-preparing", "is-narrating");
+  pdfCinematicStage.hidden = true;
+  if (pdfCinematicArtwork) pdfCinematicArtwork.removeAttribute("src");
+  document.body.classList.remove("pdf-cinematic-open");
+  if (pdfCinematicButton && !pdfCinematicButton.hidden) pdfCinematicButton.focus();
+}
+
 async function loadAgentsFile() {
   const token = ++agentsLoadToken;
   if (!activeProject) {
@@ -13478,6 +14220,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
         preparePdfCanvasForRender(context, canvas);
         await pageToRender.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
         if (token !== pdfRenderToken) return;
+        if (pageNumber === 1) cacheActiveProjectPreview(canvas);
         applyPdfCanvasRenderMode(context, canvas);
         pageShell.dataset.canvasRendered = "true";
       };
@@ -14027,6 +14770,7 @@ function beginPdfSpeechAnalysis() {
   pdfSpeechPlan = { chunks: [], wordCount: 0, pageCount: 0, documentKey: "", fingerprint: "" };
   pdfSpeechChunkDurations = [];
   pdfSpeechWordMetadata = new Map();
+  pdfSpeechAutoFollow = true;
   updatePdfSpeechProgress();
   if (pdfSpeechButton) pdfSpeechButton.disabled = true;
   setPdfSpeechStatus("Analyzing PDF…", "analyzing");
@@ -14052,15 +14796,26 @@ function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprin
   Array.from(pageLines.entries())
     .sort((left, right) => left[0] - right[0])
     .forEach(([pageNumber, lines]) => {
-      lines.forEach((line) => {
-        (line.words || []).forEach((word) => {
+      let previousLineWord = null;
+      lines.forEach((line, lineIndex) => {
+        if (isPdfSpeechNonContentLine(line, lineIndex, lines.length)) return;
+        const lineWords = (line.words || []).map((word) => {
           const spokenText = normalizePdfSpeechToken(word.text);
-          if (spokenText) {
-            const pageWordIndex = pageWordIndexes.get(pageNumber) || 0;
-            words.push({ ...word, pageNumber, pageWordIndex, spokenText });
-            pageWordIndexes.set(pageNumber, pageWordIndex + 1);
-          }
-        });
+          if (!spokenText) return null;
+          const pageWordIndex = pageWordIndexes.get(pageNumber) || 0;
+          pageWordIndexes.set(pageNumber, pageWordIndex + 1);
+          return { ...word, pageNumber, pageWordIndex, spokenText, joinsNext: false };
+        }).filter(Boolean);
+        if (
+          previousLineWord
+          && lineWords[0]
+          && /[\p{L}\p{M}][\-‐‑‒–—]$/u.test(previousLineWord.spokenText)
+          && /^[\p{L}\p{M}]/u.test(lineWords[0].spokenText)
+        ) {
+          previousLineWord.joinsNext = true;
+        }
+        words.push(...lineWords);
+        previousLineWord = lineWords[lineWords.length - 1] || previousLineWord;
       });
     });
   const chunks = buildPdfSpeechChunks(words);
@@ -14082,6 +14837,14 @@ function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprin
   clearPdfSpeechHighlight();
   updatePdfSpeechProgress();
   startPdfSpeechPreprocessing();
+}
+
+function isPdfSpeechNonContentLine(line, lineIndex, lineCount) {
+  const text = String(line && line.text || "").trim();
+  if (/^reading\s+\d+$/i.test(text)) return true;
+  if (!/^(?:page\s+)?(?:\d{1,4}|[ivxlcdm]{1,8})$/i.test(text)) return false;
+  const wordCount = Array.isArray(line && line.words) ? line.words.length : 0;
+  return wordCount <= 2 && (lineIndex <= 1 || lineIndex >= lineCount - 2 || /^page\s+/i.test(text));
 }
 
 function rebuildPdfSpeechWordMetadata() {
@@ -14226,11 +14989,31 @@ function pdfSpeechDurationEstimate() {
 
 function updatePdfSpeechProgress() {
   if (!pdfSpeechProgressCurrent || !pdfSpeechProgressTotal) return;
-  let elapsed = 0;
+  const total = pdfSpeechDurationEstimate();
+  const secondsPerWord = total.duration > 0 && pdfSpeechPlan.wordCount > 0
+    ? total.duration / pdfSpeechPlan.wordCount
+    : 60 / 175;
+  let rawElapsed = 0;
   for (let index = 0; index < Math.min(pdfSpeechChunkIndex, pdfSpeechChunkDurations.length); index += 1) {
-    elapsed += Number(pdfSpeechChunkDurations[index]) || 0;
+    const knownDuration = Number(pdfSpeechChunkDurations[index]) || 0;
+    const chunk = pdfSpeechPlan.chunks[index];
+    rawElapsed += knownDuration > 0
+      ? knownDuration
+      : (chunk ? chunk.words.length * secondsPerWord : 0);
   }
-  if (pdfSpeechAudio) elapsed += Number(pdfSpeechAudio.currentTime) || 0;
+  if (pdfSpeechAudio) {
+    rawElapsed += Number(pdfSpeechAudio.currentTime) || 0;
+  } else if (pdfSpeechChunkIndex < pdfSpeechPlan.chunks.length && pdfSpeechWordIndex > 0) {
+    const chunk = pdfSpeechPlan.chunks[pdfSpeechChunkIndex];
+    const word = chunk && chunk.words[pdfSpeechWordIndex];
+    const metadata = word && word.domKey ? pdfSpeechWordMetadata.get(word.domKey) : null;
+    const chunkDuration = Number(pdfSpeechChunkDurations[pdfSpeechChunkIndex]) || 0;
+    rawElapsed += metadata && metadata.start !== null && chunkDuration > 0
+      ? Number(metadata.start) || 0
+      : (chunkDuration > 0
+          ? chunkDuration * (pdfSpeechWordIndex / Math.max(1, chunk ? chunk.words.length : 1))
+          : pdfSpeechWordIndex * secondsPerWord);
+  }
   let completedWords = 0;
   for (let index = 0; index < Math.min(pdfSpeechChunkIndex, pdfSpeechPlan.chunks.length); index += 1) {
     completedWords += pdfSpeechPlan.chunks[index].words.length;
@@ -14238,9 +15021,11 @@ function updatePdfSpeechProgress() {
   if (pdfSpeechChunkIndex < pdfSpeechPlan.chunks.length) completedWords += Math.max(0, pdfSpeechWordIndex);
   if (pdfSpeechChunkIndex >= pdfSpeechPlan.chunks.length && pdfSpeechPlan.wordCount) completedWords = pdfSpeechPlan.wordCount;
   const progress = pdfSpeechPlan.wordCount ? clampNumber(completedWords / pdfSpeechPlan.wordCount, 0, 1, 0) : 0;
-  const total = pdfSpeechDurationEstimate();
+  const rate = pdfSpeechPlaybackRate();
+  const elapsed = rawElapsed / rate;
+  const totalDuration = total.duration / rate;
   pdfSpeechProgressCurrent.textContent = formatPdfSpeechTime(elapsed);
-  pdfSpeechProgressTotal.textContent = `/ ${total.duration ? formatPdfSpeechTime(total.duration) : "--:--"}`;
+  pdfSpeechProgressTotal.textContent = `/ ${totalDuration ? formatPdfSpeechTime(totalDuration) : "--:--"}`;
   if (pdfSpeechProgressDetail) {
     const percentLabel = `${(progress * 100).toFixed(progress < 0.1 ? 1 : 0)}%`;
     pdfSpeechProgressDetail.textContent = `${completedWords.toLocaleString()} of ${pdfSpeechPlan.wordCount.toLocaleString()} words · ${percentLabel}`;
@@ -14254,6 +15039,9 @@ async function setupPdfSpeech() {
   pdfSpeechRate.value = String(clampNumber(savedRate, 0.5, 2, 1));
   if (savedVoice && Array.from(pdfSpeechVoice.options).some((option) => option.value === savedVoice)) {
     pdfSpeechVoice.value = savedVoice;
+  }
+  if (pdfPronunciationDictionary) {
+    pdfPronunciationDictionary.value = localStorage.getItem("openleafPdfPronunciationDictionary") || "";
   }
   updatePdfSpeechRateOutput();
   pdfSpeechButton.disabled = true;
@@ -14278,7 +15066,7 @@ function buildPdfSpeechChunks(words) {
   const flush = () => {
     if (!current.length) return;
     chunks.push({
-      text: current.map((word) => word.spokenText).join(" "),
+      text: pdfSpeechChunkText(current),
       words: current
     });
     current = [];
@@ -14286,15 +15074,27 @@ function buildPdfSpeechChunks(words) {
   };
   words.forEach((word) => {
     const nextLength = characterCount + word.spokenText.length + (current.length ? 1 : 0);
-    if (current.length && nextLength > 180) flush();
+    const previous = current[current.length - 1];
+    if (current.length && nextLength > 180 && !(previous && previous.joinsNext)) flush();
     current.push(word);
     characterCount += word.spokenText.length + (current.length > 1 ? 1 : 0);
     const sentenceEnd = /[.!?][\])}\"'’”]*$/.test(word.spokenText);
     const softBreak = /[,;:][\])}\"'’”]*$/.test(word.spokenText) && current.length >= 24;
-    if (sentenceEnd || softBreak || current.length >= 34) flush();
+    if (!word.joinsNext && (sentenceEnd || softBreak || current.length >= 34)) flush();
   });
   flush();
   return chunks;
+}
+
+function pdfSpeechChunkText(words) {
+  return words.reduce((text, word, index) => {
+    if (!index) return word.spokenText;
+    const previous = words[index - 1];
+    if (previous && previous.joinsNext) {
+      return `${text.replace(/[\-‐‑‒–—]$/u, "")}${word.spokenText}`;
+    }
+    return `${text} ${word.spokenText}`;
+  }, "");
 }
 
 function updatePdfSpeechReadyState() {
@@ -14389,6 +15189,31 @@ function handlePdfSpeechVoiceChange() {
   }
 }
 
+function handlePdfPronunciationDictionaryChange() {
+  if (!pdfPronunciationDictionary) return;
+  localStorage.setItem("openleafPdfPronunciationDictionary", pdfPronunciationDictionary.value);
+  clearTimeout(pdfPronunciationDictionaryTimer);
+  pdfPronunciationDictionaryTimer = setTimeout(() => restartPdfSpeechPreprocessing(), 360);
+}
+
+function pdfPronunciationRules() {
+  const source = pdfPronunciationDictionary
+    ? pdfPronunciationDictionary.value
+    : localStorage.getItem("openleafPdfPronunciationDictionary") || "";
+  return String(source).split(/\r?\n/).map((line) => {
+    const match = line.match(/^\s*(.+?)\s*(?:=>|=|→|\t)\s*(.+?)\s*$/);
+    return match ? { source: match[1], replacement: match[2] } : null;
+  }).filter((rule) => rule && rule.source && rule.replacement);
+}
+
+function applyPdfPronunciationRules(text) {
+  return pdfPronunciationRules().reduce((result, rule) => {
+    const escaped = rule.source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`, "giu");
+    return result.replace(pattern, (_match, prefix) => `${prefix}${rule.replacement}`);
+  }, String(text || ""));
+}
+
 function restartPdfSpeechPreprocessing() {
   pdfSpeechPlanRevision += 1;
   pdfSpeechAudioCache.clear();
@@ -14407,7 +15232,7 @@ function pdfSpeechVoiceId() {
 
 function pdfSpeechVoiceLabel() {
   const selected = pdfSpeechVoice && pdfSpeechVoice.selectedOptions ? pdfSpeechVoice.selectedOptions[0] : null;
-  return selected ? selected.textContent.split("·")[0].trim() : "Bella";
+  return selected ? selected.textContent.split("·")[0].trim() : "Adam";
 }
 
 function togglePdfSpeech() {
@@ -14435,6 +15260,7 @@ function togglePdfSpeech() {
     pdfSpeechChunkIndex = 0;
     pdfSpeechWordIndex = 0;
   }
+  pdfSpeechAutoFollow = true;
   pdfSpeechPlaying = true;
   pdfSpeechPaused = false;
   updatePdfSpeechButton();
@@ -14523,6 +15349,7 @@ async function seekPdfSpeechAudio(audio, targetTime, generation) {
 
 function seekPdfSpeechToWord({ domKey = "", pageNumber = 0, pageWordIndex = -1, chunkIndex = -1, wordIndex = -1, text = "" } = {}) {
   if (!pdfSpeechPlan.chunks.length || !pdfSpeechBackend.available) return;
+  const continuePlaying = pdfSpeechPlaying;
   const stored = pdfSpeechWordMetadata.get(domKey);
   let targetChunkIndex = stored ? stored.chunkIndex : Number(chunkIndex);
   let targetWordIndex = stored ? stored.wordIndex : Number(wordIndex);
@@ -14563,22 +15390,26 @@ function seekPdfSpeechToWord({ domKey = "", pageNumber = 0, pageWordIndex = -1, 
   cancelPdfSpeechAudio();
   pdfSpeechChunkIndex = targetChunkIndex;
   pdfSpeechWordIndex = targetWordIndex;
-  pdfSpeechPlaying = true;
-  pdfSpeechPaused = false;
+  pdfSpeechPlaying = continuePlaying;
+  pdfSpeechPaused = !continuePlaying;
   updatePdfSpeechButton();
   updatePdfSpeechProgress();
   const targetWord = pdfSpeechPlan.chunks[targetChunkIndex].words[targetWordIndex];
-  setPdfSpeechStatus(`Seeking to “${targetWord.text}”…`, "analyzing");
   highlightPdfSpeechWord(targetWord);
-  speakCurrentPdfChunk();
+  if (continuePlaying) {
+    setPdfSpeechStatus(`Seeking to “${targetWord.text}”…`, "analyzing");
+    speakCurrentPdfChunk();
+  } else {
+    setPdfSpeechStatus(`Paused at “${targetWord.text}”`, "paused");
+  }
 }
 
-function handlePdfSpeechWordClick(event) {
-  if (event.button !== 0 || !pdfSpeechPlan.wordCount || !pdfSpeechBackend.available) return;
+function pdfSpeechWordHitAtEvent(event) {
+  if (!pdfSpeechPlan.wordCount) return null;
   const target = event.target instanceof Element ? event.target : null;
-  if (!target || target.closest("a, button, input, select, textarea")) return;
+  if (!target || target.closest("a, button, input, select, textarea")) return null;
   const pageShell = target.closest(".pdf-page");
-  if (!pageShell || !pdfViewer.contains(pageShell)) return;
+  if (!pageShell || !pdfViewer.contains(pageShell)) return null;
   const x = event.clientX;
   const y = event.clientY;
   const pageNumber = Number(pageShell.dataset.page);
@@ -14586,16 +15417,22 @@ function handlePdfSpeechWordClick(event) {
     .filter((metadata) => metadata.pageNumber === pageNumber)
     .map((metadata) => ({ metadata, bounds: pdfSpeechWordClientBounds(pageShell, metadata) }))
     .filter(({ bounds }) => x >= bounds.left - 2 && x <= bounds.right + 2 && y >= bounds.top - 2 && y <= bounds.bottom + 2);
-  if (!matches.length) return;
-  const hit = matches.reduce((best, candidate) => {
+  if (!matches.length) return null;
+  return matches.reduce((best, candidate) => {
     const centerX = candidate.bounds.left + candidate.bounds.width / 2;
     const centerY = candidate.bounds.top + candidate.bounds.height / 2;
     const distance = Math.hypot(x - centerX, y - centerY);
     return !best || distance < best.distance ? { ...candidate, distance } : best;
   }, null);
+}
+
+function handlePdfSpeechWordClick(event) {
+  if (event.button !== 0 || !pdfSpeechBackend.available) return;
+  const hit = pdfSpeechWordHitAtEvent(event);
   if (!hit) return;
   event.preventDefault();
   event.stopImmediatePropagation();
+  pdfSpeechAutoFollow = true;
   const metadata = hit.metadata;
   seekPdfSpeechToWord({
     domKey: metadata.domKey,
@@ -14607,7 +15444,177 @@ function handlePdfSpeechWordClick(event) {
   });
 }
 
+function pdfWordDefinitionCacheMap() {
+  if (pdfWordDefinitionCache) return pdfWordDefinitionCache;
+  let stored = [];
+  try {
+    stored = JSON.parse(localStorage.getItem("openleafWordDefinitionsV2") || "[]");
+  } catch (_error) {
+    stored = [];
+  }
+  pdfWordDefinitionCache = new Map(Array.isArray(stored) ? stored.slice(-200) : []);
+  return pdfWordDefinitionCache;
+}
+
+function rememberPdfWordDefinition(word, result) {
+  const cache = pdfWordDefinitionCacheMap();
+  cache.set(word, result);
+  while (cache.size > 200) cache.delete(cache.keys().next().value);
+  try {
+    localStorage.setItem("openleafWordDefinitionsV2", JSON.stringify(Array.from(cache.entries())));
+  } catch (_error) {
+    // A session cache is still available if browser storage is full or disabled.
+  }
+}
+
+function closePdfWordDefinition() {
+  pdfWordDefinitionRequest += 1;
+  if (!pdfWordDefinitionCard) return;
+  const wordElement = pdfWordDefinitionCard.pdfWordElement;
+  if (wordElement) wordElement.classList.remove("is-defining");
+  if (pdfWordDefinitionCard.pdfHighlightLayer) pdfWordDefinitionCard.pdfHighlightLayer.remove();
+  pdfWordDefinitionCard.remove();
+  pdfWordDefinitionCard = null;
+  const selection = window.getSelection();
+  if (selection) selection.removeAllRanges();
+}
+
+function positionPdfWordDefinitionCard(card, anchorX, anchorY) {
+  const margin = 12;
+  const gap = 10;
+  const bounds = card.getBoundingClientRect();
+  const left = clampNumber(anchorX - 18, margin, window.innerWidth - bounds.width - margin, margin);
+  const below = anchorY + gap;
+  const top = below + bounds.height <= window.innerHeight - margin
+    ? below
+    : Math.max(margin, anchorY - bounds.height - gap);
+  card.style.left = `${Math.round(left)}px`;
+  card.style.top = `${Math.round(top)}px`;
+}
+
+function renderPdfWordDefinition(card, result) {
+  if (!card || card !== pdfWordDefinitionCard) return;
+  const word = card.querySelector(".pdf-word-definition-word");
+  const pronunciation = card.querySelector(".pdf-word-definition-pronunciation");
+  const definition = card.querySelector(".pdf-word-definition-text");
+  word.textContent = result.word || card.dataset.word;
+  pronunciation.textContent = result.pronunciation || "";
+  pronunciation.hidden = !result.pronunciation;
+  definition.textContent = result.definition || "No definition found for this word.";
+  card.classList.remove("is-loading");
+  positionPdfWordDefinitionCard(card, card.pdfAnchorX, card.pdfAnchorY);
+}
+
+function highlightPdfDefinitionWord(wordElement) {
+  const domKey = String(wordElement.dataset.pdfSpeechKey || "");
+  const word = pdfSpeechWordMetadata.get(domKey);
+  if (!word) return null;
+  const pageShell = wordElement.closest(".pdf-page");
+  if (!pageShell) return null;
+  const geometry = pdfSpeechWordPageGeometry(pageShell, word, wordElement);
+  const layer = document.createElement("div");
+  layer.className = "pdf-definition-highlight-layer";
+  const highlight = document.createElement("span");
+  highlight.className = "pdf-speech-highlight";
+  const padding = 4;
+  highlight.style.left = `${Math.max(0, geometry.x - padding)}px`;
+  highlight.style.top = `${Math.max(0, geometry.top - padding)}px`;
+  highlight.style.width = `${Math.max(1, geometry.width) + padding * 2}px`;
+  highlight.style.height = `${Math.max(1, geometry.height) + padding * 2}px`;
+  layer.style.width = `${Number(pageShell.dataset.renderedWidth) || pageShell.clientWidth}px`;
+  layer.style.height = `${Number(pageShell.dataset.renderedHeight) || pageShell.clientHeight}px`;
+  const ratio = renderedPdfZoom ? pdfZoom / renderedPdfZoom : 1;
+  layer.style.transform = ratio !== 1 ? `scale(${ratio})` : "";
+  layer.appendChild(highlight);
+  pageShell.appendChild(layer);
+  return layer;
+}
+
+async function showPdfWordDefinition(word, wordElement, anchorX, anchorY) {
+  closePdfWordDefinition();
+  const request = ++pdfWordDefinitionRequest;
+  const card = document.createElement("aside");
+  card.className = "pdf-word-definition-card is-loading";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-label", `Definition of ${word}`);
+  card.dataset.word = word;
+  card.pdfWordElement = wordElement;
+  card.pdfAnchorX = anchorX;
+  card.pdfAnchorY = anchorY;
+  card.pdfHighlightLayer = highlightPdfDefinitionWord(wordElement);
+  card.innerHTML = `
+    <button class="pdf-word-definition-close" type="button" aria-label="Close definition">×</button>
+    <strong class="pdf-word-definition-word"></strong>
+    <span class="pdf-word-definition-pronunciation" hidden></span>
+    <p class="pdf-word-definition-text">Finding a concise definition…</p>
+  `;
+  card.querySelector(".pdf-word-definition-word").textContent = word;
+  card.querySelector(".pdf-word-definition-close").addEventListener("click", (event) => {
+    event.stopPropagation();
+    closePdfWordDefinition();
+  });
+  card.addEventListener("contextmenu", (event) => event.stopPropagation());
+  document.body.appendChild(card);
+  pdfWordDefinitionCard = card;
+  if (!card.pdfHighlightLayer) wordElement.classList.add("is-defining");
+  positionPdfWordDefinitionCard(card, anchorX, anchorY);
+
+  const cache = pdfWordDefinitionCacheMap();
+  if (cache.has(word.toLowerCase()) && cache.get(word.toLowerCase()).pronunciation) {
+    renderPdfWordDefinition(card, cache.get(word.toLowerCase()));
+    return;
+  }
+  try {
+    const result = await window.localOverleaf.lookupWordDefinition(word);
+    if (request !== pdfWordDefinitionRequest || card !== pdfWordDefinitionCard) return;
+    rememberPdfWordDefinition(word.toLowerCase(), result);
+    renderPdfWordDefinition(card, result);
+  } catch (_error) {
+    if (request !== pdfWordDefinitionRequest || card !== pdfWordDefinitionCard) return;
+    renderPdfWordDefinition(card, {
+      word,
+      partOfSpeech: "definition unavailable",
+      definition: "Openleaf could not reach the definition service. Right-click again when you’re online."
+    });
+  }
+}
+
+function handlePdfSpeechWordDefinition(event) {
+  const target = event.target instanceof Element ? event.target : null;
+  let wordElement = target && target.closest(".pdf-speech-word");
+  if (!wordElement) {
+    const hit = pdfSpeechWordHitAtEvent(event);
+    wordElement = hit && pdfViewer.querySelector(`[data-pdf-speech-key="${CSS.escape(hit.metadata.domKey)}"]`);
+  }
+  if (!wordElement) return;
+  if (!window.localOverleaf.lookupWordDefinition) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+
+  const textNode = Array.from(wordElement.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+  const source = String(textNode ? textNode.textContent : wordElement.textContent || "");
+  const lexicalWord = source.match(/[\p{L}\p{M}]+(?:[’'-][\p{L}\p{M}]+)*/u);
+  const word = lexicalWord ? lexicalWord[0] : source.trim();
+  if (word) void showPdfWordDefinition(word, wordElement, event.clientX, event.clientY);
+}
+
 function pdfSpeechWordClientBounds(pageShell, word) {
+  const wordElement = word && word.domKey
+    ? pageShell.querySelector(`[data-pdf-speech-key="${CSS.escape(word.domKey)}"]`)
+    : null;
+  if (wordElement) {
+    const bounds = wordElement.getBoundingClientRect();
+    if (bounds.width > 0 && bounds.height > 0) {
+      return {
+        left: bounds.left,
+        top: bounds.top,
+        right: bounds.right,
+        bottom: bounds.bottom,
+        width: bounds.width,
+        height: bounds.height
+      };
+    }
+  }
   const canvas = pageShell.querySelector("canvas");
   const canvasBounds = (canvas || pageShell).getBoundingClientRect();
   const renderedWidth = Number(pageShell.dataset.renderedWidth) || Math.max(1, pageShell.offsetWidth);
@@ -14638,12 +15645,42 @@ function pdfSpeechWordClientBounds(pageShell, word) {
   };
 }
 
+function pdfSpeechWordPageGeometry(pageShell, word, suppliedElement = null) {
+  const canvas = pageShell.querySelector("canvas");
+  const canvasBounds = (canvas || pageShell).getBoundingClientRect();
+  const renderedWidth = Number(pageShell.dataset.renderedWidth) || Math.max(1, pageShell.offsetWidth);
+  const renderedHeight = Number(pageShell.dataset.renderedHeight) || Math.max(1, pageShell.offsetHeight);
+  const scaleX = canvasBounds.width / Math.max(1, renderedWidth);
+  const scaleY = canvasBounds.height / Math.max(1, renderedHeight);
+  const wordElement = suppliedElement || (word && word.domKey
+    ? pageShell.querySelector(`[data-pdf-speech-key="${CSS.escape(word.domKey)}"]`)
+    : null);
+  if (wordElement) {
+    const bounds = wordElement.getBoundingClientRect();
+    if (bounds.width > 0 && bounds.height > 0 && scaleX > 0 && scaleY > 0) {
+      return {
+        x: (bounds.left - canvasBounds.left) / scaleX,
+        top: (bounds.top - canvasBounds.top) / scaleY,
+        width: bounds.width / scaleX,
+        height: bounds.height / scaleY
+      };
+    }
+  }
+  return {
+    x: Number(word && word.x) || 0,
+    top: Number(word && word.top) || 0,
+    width: Math.max(1, Number(word && word.width) || 1),
+    height: Math.max(1, Number(word && word.height) || 1)
+  };
+}
+
 function preparePdfSpeechAudio(chunkIndex, voiceId = pdfSpeechVoiceId()) {
   const chunk = pdfSpeechPlan.chunks[chunkIndex];
   if (!chunk) return Promise.reject(new Error("No speech chunk."));
-  const key = `${voiceId}:${chunk.text}`;
+  const speechText = applyPdfPronunciationRules(chunk.text);
+  const key = `${voiceId}:${speechText}`;
   if (pdfSpeechAudioCache.has(key)) return pdfSpeechAudioCache.get(key);
-  const request = window.localOverleaf.synthesizePdfSpeech(chunk.text, 1, voiceId);
+  const request = window.localOverleaf.synthesizePdfSpeech(speechText, 1, voiceId);
   pdfSpeechAudioCache.set(key, request);
   while (pdfSpeechAudioCache.size > 3) {
     pdfSpeechAudioCache.delete(pdfSpeechAudioCache.keys().next().value);
@@ -14810,10 +15847,12 @@ function highlightPdfSpeechWord(word) {
   const ratio = renderedPdfZoom ? pdfZoom / renderedPdfZoom : 1;
   layer.style.transform = ratio !== 1 ? `scale(${ratio})` : "";
 
-  const nextLeft = Math.max(0, word.x - 5);
-  const nextTop = Math.max(0, word.top - 3);
-  const nextWidth = Math.max(12, word.width + 10);
-  const nextHeight = Math.max(13, word.height + 6);
+  const geometry = pdfSpeechWordPageGeometry(pageShell, word);
+  const highlightPadding = 4;
+  const nextLeft = Math.max(0, geometry.x - highlightPadding);
+  const nextTop = Math.max(0, geometry.top - highlightPadding);
+  const nextWidth = Math.max(1, geometry.width) + highlightPadding * 2;
+  const nextHeight = Math.max(1, geometry.height) + highlightPadding * 2;
   const previousLeft = Number.parseFloat(highlight.style.left);
   const previousTop = Number.parseFloat(highlight.style.top);
   const travel = canMorph && Number.isFinite(previousLeft) && Number.isFinite(previousTop)
@@ -14843,6 +15882,7 @@ function highlightPdfSpeechWord(word) {
 }
 
 function scrollPdfSpeechWordIntoView(word, pageShell) {
+  if (!pdfSpeechAutoFollow) return;
   const viewerBounds = pdfViewer.getBoundingClientRect();
   const wordBounds = pdfSpeechWordClientBounds(pageShell, word);
   const safeTop = viewerBounds.top + 48;
@@ -14851,6 +15891,10 @@ function scrollPdfSpeechWordIntoView(word, pageShell) {
   if (wordBounds.top < safeTop) delta = wordBounds.top - safeTop;
   else if (wordBounds.bottom > safeBottom) delta = wordBounds.bottom - safeBottom;
   if (Math.abs(delta) > 1) pdfViewer.scrollBy({ top: delta, behavior: "smooth" });
+}
+
+function handlePdfSpeechManualNavigation() {
+  if (pdfSpeechPlaying || pdfSpeechPaused) pdfSpeechAutoFollow = false;
 }
 
 function clearPdfSpeechHighlight() {

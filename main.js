@@ -24,6 +24,7 @@ const appIconPngPath = path.join(repoRoot, "assets", "icon.png");
 let mainWindow;
 const terminalSessions = new Map();
 const pythonSessions = new Map();
+const wordDefinitionCache = new Map();
 let pdfSpeechSession = null;
 let pdfSpeechCachePruned = false;
 const presentationPreviewJobs = new Map();
@@ -3022,7 +3023,7 @@ function pdfSpeechRuntimeStatus() {
     available,
     backend: available ? "mlx" : "unavailable",
     model: available ? "Kokoro-82M" : "",
-    voice: available ? "Bella" : "",
+    voice: available ? "Adam" : "",
     detail: available
       ? "Kokoro-82M runs locally with MLX on Apple Silicon."
       : "The local Kokoro/MLX runtime is not installed."
@@ -4454,6 +4455,47 @@ async function saveAgents(_event, payload = {}) {
   };
 }
 
+function readableWordPronunciation(value) {
+  const phonemes = String(value || "").trim().split(/\s+/).filter(Boolean).map((phoneme) => ({
+    base: phoneme.replace(/\d/g, ""),
+    stress: Number((phoneme.match(/\d/) || ["0"])[0]) || 0
+  }));
+  if (!phonemes.length) return "";
+  const sounds = {
+    AA: "ah", AE: "a", AH: "uh", AO: "aw", AW: "ow", AY: "eye",
+    EH: "eh", ER: "er", EY: "ay", IH: "ih", IY: "ee", OW: "oh",
+    OY: "oy", UH: "u", UW: "oo", B: "b", CH: "ch", D: "d",
+    DH: "th", F: "f", G: "g", HH: "h", JH: "j", K: "k",
+    L: "l", M: "m", N: "n", NG: "ng", P: "p", R: "r",
+    S: "s", SH: "sh", T: "t", TH: "th", V: "v", W: "w",
+    Y: "y", Z: "z", ZH: "zh"
+  };
+  const vowels = new Set(["AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"]);
+  const commonTwoSoundOnsets = new Set(["BL", "BR", "CH", "CL", "CR", "DR", "FL", "FR", "GL", "PL", "PR", "SH", "SK", "SL", "SM", "SN", "SP", "ST", "SW", "TH", "TR", "TW", "WH"]);
+  const vowelIndexes = phonemes.map((phoneme, index) => vowels.has(phoneme.base) ? index : -1).filter((index) => index >= 0);
+  if (!vowelIndexes.length) return phonemes.map((phoneme) => sounds[phoneme.base] || phoneme.base.toLowerCase()).join("");
+
+  const syllables = [];
+  let start = 0;
+  vowelIndexes.forEach((vowelIndex, index) => {
+    const nextVowel = vowelIndexes[index + 1];
+    let end = phonemes.length;
+    if (Number.isInteger(nextVowel)) {
+      const between = phonemes.slice(vowelIndex + 1, nextVowel).map((phoneme) => phoneme.base);
+      const onsetPair = between.slice(-2).join("");
+      const onsetLength = between.length >= 2 && commonTwoSoundOnsets.has(onsetPair) ? 2 : Math.min(1, between.length);
+      end = nextVowel - onsetLength;
+    }
+    const members = phonemes.slice(start, end);
+    if (members.length) {
+      const spelling = members.map((phoneme) => sounds[phoneme.base] || phoneme.base.toLowerCase()).join("");
+      syllables.push(members.some((phoneme) => phoneme.stress === 1) ? spelling.toUpperCase() : spelling);
+    }
+    start = end;
+  });
+  return syllables.filter(Boolean).join("-");
+}
+
 ipcMain.handle("list-projects", listProjects);
 ipcMain.handle("add-project", addProject);
 ipcMain.handle("add-project-from-path", addProjectFromPath);
@@ -4511,6 +4553,42 @@ ipcMain.handle("open-pdf", openPdf);
 ipcMain.handle("download-pdf", downloadPdf);
 ipcMain.handle("pdf-speech-status", pdfSpeechRuntimeStatus);
 ipcMain.handle("pdf-speech-synthesize", synthesizePdfSpeech);
+ipcMain.handle("lookup-word-definition", async (_event, payload = {}) => {
+  const word = String(payload.word || "").normalize("NFKC").trim().toLowerCase();
+  if (!/^[\p{L}\p{M}]+(?:[’'-][\p{L}\p{M}]+)*$/u.test(word) || word.length > 64) {
+    return { word, definition: "", partOfSpeech: "" };
+  }
+  if (wordDefinitionCache.has(word)) return wordDefinitionCache.get(word);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const params = new URLSearchParams({ sp: word, md: "dr", max: "1" });
+    const response = await fetch(`https://api.datamuse.com/words?${params}`, { signal: controller.signal });
+    if (!response.ok) throw new Error(`Definition lookup failed (${response.status}).`);
+    const entries = await response.json();
+    const exact = Array.isArray(entries)
+      ? entries.find((entry) => String(entry.word || "").toLowerCase() === word) || entries[0]
+      : null;
+    const raw = exact && Array.isArray(exact.defs) ? String(exact.defs[0] || "") : "";
+    const pronunciationTag = exact && Array.isArray(exact.tags)
+      ? String(exact.tags.find((tag) => String(tag).startsWith("pron:")) || "").slice(5)
+      : "";
+    const separator = raw.indexOf("\t");
+    const partCode = separator >= 0 ? raw.slice(0, separator) : "";
+    const result = {
+      word: String((exact && exact.word) || word),
+      partOfSpeech: ({ n: "noun", v: "verb", adj: "adjective", adv: "adverb", u: "" })[partCode] || partCode,
+      pronunciation: readableWordPronunciation(pronunciationTag),
+      definition: (separator >= 0 ? raw.slice(separator + 1) : raw).trim()
+    };
+    wordDefinitionCache.set(word, result);
+    while (wordDefinitionCache.size > 400) wordDefinitionCache.delete(wordDefinitionCache.keys().next().value);
+    return result;
+  } finally {
+    clearTimeout(timeout);
+  }
+});
 ipcMain.handle("download-project-package", downloadProjectPackage);
 ipcMain.handle("push-project-to-github", pushProjectToGithub);
 ipcMain.handle("pull-project-from-github", pullProjectFromGithub);

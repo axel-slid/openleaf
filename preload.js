@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("localOverleaf", {
+  isTestRuntime: process.env.OPENLEAF_SKIP_LATEX_CHECK === "1",
   listProjects: () => ipcRenderer.invoke("list-projects"),
   addProject: (kind) => ipcRenderer.invoke("add-project", { kind }),
   addProjectFromPath: (paths) => ipcRenderer.invoke("add-project-from-path", { paths }),
@@ -52,6 +53,7 @@ contextBridge.exposeInMainWorld("localOverleaf", {
   downloadPdf: (projectId, relativePath = "") => ipcRenderer.invoke("download-pdf", { projectId, relativePath }),
   pdfSpeechStatus: () => ipcRenderer.invoke("pdf-speech-status"),
   synthesizePdfSpeech: (text, speed, voice) => ipcRenderer.invoke("pdf-speech-synthesize", { text, speed, voice }),
+  lookupWordDefinition: (word) => ipcRenderer.invoke("lookup-word-definition", { word }),
   openExternalLink: (url) => ipcRenderer.invoke("open-external-link", url),
   openHistoryWindow: (payload) => ipcRenderer.invoke("open-history-window", payload),
   readAgents: (projectId) => ipcRenderer.invoke("read-agents", projectId),

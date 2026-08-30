@@ -382,7 +382,33 @@
               <p id="pdfMeta">main.pdf</p>
               <div id="pdfFileMenu" class="pdf-file-menu" hidden></div>
             </div>
-            <button id="compileButton" class="compile-pill" type="button" title="Compile PDF - up to date">Compile</button>
+            <button id="compileButton" class="compile-pill" type="button" title="Compile PDF - up to date">
+              <span class="compile-pill-label">Compile</span>
+              <svg class="compile-pill-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12"></path>
+                <path d="m7 10 5 5 5-5"></path>
+                <path d="M5 20h14"></path>
+              </svg>
+            </button>
+            <div id="pdfSpeechControls" class="pdf-speech-controls" aria-label="Local PDF voice reader">
+              <div class="pdf-speech-pill">
+                <button id="pdfSpeechButton" class="pdf-speech-button" type="button" aria-label="Read PDF aloud" title="Read PDF aloud with a local neural voice" aria-pressed="false" disabled>
+                  <svg class="pdf-speech-play-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m8 5 11 7-11 7Z"></path>
+                  </svg>
+                  <svg class="pdf-speech-pause-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14M16 5v14"></path>
+                  </svg>
+                </button>
+                <div class="pdf-speech-progress" aria-label="PDF reading progress">
+                  <strong id="pdfSpeechProgressCurrent">0:00</strong>
+                  <span id="pdfSpeechProgressTotal">/ --:--</span>
+                </div>
+                <span class="pdf-speech-wave" aria-hidden="true"><i></i><i></i><i></i></span>
+              </div>
+              <span id="pdfSpeechStatus" class="visually-hidden" role="status" aria-live="polite">Waiting for PDF</span>
+              <span id="pdfSpeechProgressDetail" class="visually-hidden">0 of 0 words</span>
+            </div>
             <div class="pdf-header-actions">
               <button id="pdfSidebarButton" class="pdf-sidebar-button" type="button" aria-pressed="false" aria-label="Show PDF sidebar" title="Show PDF sidebar">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -447,6 +473,14 @@
                   <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
                 </svg>
               </button>
+              <button id="pdfCinematicButton" class="pdf-reader-button pdf-cinematic-button" type="button" aria-label="Open Cinematic Mode" title="Cinematic Mode" hidden>
+                <svg class="yin-yang-symbol" viewBox="0 0 20 20" aria-hidden="true">
+                  <circle class="yin-yang-outline" cx="10" cy="10" r="8"></circle>
+                  <path class="yin-yang-half" d="M10 2A8 8 0 0 0 10 18a4 4 0 0 0 0-8 4 4 0 0 1 0-8Z"></path>
+                  <circle class="yin-yang-dark-dot" cx="10" cy="6" r="1.3"></circle>
+                  <circle class="yin-yang-light-dot" cx="10" cy="14" r="1.3"></circle>
+                </svg>
+              </button>
             </div>
           </div>
           <div class="pdf-viewer-shell" id="pdfViewerShell">
@@ -454,26 +488,6 @@
               <div id="pdfThumbnailList" class="pdf-thumbnail-list" aria-label="PDF page thumbnails"></div>
             </aside>
             <div id="pdfViewer" class="pdf-viewer" aria-label="Compiled manuscript pages"></div>
-            <div id="pdfSpeechControls" class="pdf-speech-controls" aria-label="Local PDF voice reader">
-              <div class="pdf-speech-pill">
-                <button id="pdfSpeechButton" class="pdf-speech-button" type="button" aria-label="Read PDF aloud" title="Read PDF aloud with a local neural voice" aria-pressed="false" disabled>
-                  <svg class="pdf-speech-play-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m8 5 11 7-11 7Z"></path>
-                  </svg>
-                  <svg class="pdf-speech-pause-icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M8 5v14M16 5v14"></path>
-                  </svg>
-                </button>
-                <div class="pdf-speech-progress" aria-label="PDF reading progress">
-                  <strong id="pdfSpeechProgressCurrent">0:00</strong>
-                  <span id="pdfSpeechProgressTotal">/ --:--</span>
-                </div>
-                <span class="pdf-speech-wave" aria-hidden="true"><i></i><i></i><i></i></span>
-              </div>
-              <span id="pdfSpeechStatus" class="visually-hidden" role="status" aria-live="polite">Waiting for PDF</span>
-              <span id="pdfSpeechProgressDetail" class="visually-hidden">0 of 0 words</span>
-            </div>
-
           </div>
           <section id="pythonNotebookPanel" class="python-notebook-panel" aria-label="Python notebook output" hidden>
             <header class="python-notebook-header">
@@ -1324,6 +1338,13 @@
               <input id="settingsNotesToggle" type="checkbox">
             </label>
             <label class="setting-row">
+              <span class="setting-row-copy">
+                <span>Extra features</span>
+                <small>Show experimental tools such as Cinematic Mode.</small>
+              </span>
+              <input id="settingsExtraFeaturesToggle" type="checkbox">
+            </label>
+            <label class="setting-row">
               <span>Selection edit agent</span>
               <select id="settingsAgentChoice">
                 <option value="codex">Codex</option>
@@ -1354,6 +1375,11 @@
                 <input id="pdfSpeechRate" type="range" min="0.5" max="2" step="0.05" value="1" aria-label="PDF reading speed">
                 <output id="pdfSpeechRateOutput" for="pdfSpeechRate">1.0×</output>
               </span>
+            </label>
+            <label class="setting-column pronunciation-dictionary-setting" for="pdfPronunciationDictionary">
+              <span>Pronunciation dictionary</span>
+              <small>One speech-only replacement per line. Example: <code>cm = centimeter</code></small>
+              <textarea id="pdfPronunciationDictionary" class="settings-textarea" rows="5" spellcheck="false" placeholder="cm = centimeter&#10;Dr. = doctor"></textarea>
             </label>
           </section>
 
@@ -1449,6 +1475,10 @@
 
           <section class="settings-section" data-settings-panel="documentation">
             <div class="documentation-panel">
+              <div class="documentation-tour-callout">
+                <span><strong>New to Openleaf?</strong><small>Replay the guided tour of 10 essential features.</small></span>
+                <button id="replayWelcomeTourButton" class="settings-action-button primary" type="button">Start tutorial</button>
+              </div>
               <h3>Run locally</h3>
               <p>Clone the public repo, install dependencies, then launch the Electron app from the project directory.</p>
               <pre class="documentation-code"><code>git clone https://github.com/axel-slid/openleaf.git
@@ -1496,6 +1526,28 @@ tectonic main.tex</code></pre>
       </div>
     </aside>
   </div>
+
+  <section id="pdfCinematicStage" class="pdf-cinematic-stage" role="dialog" aria-modal="true" aria-labelledby="pdfCinematicTitle" hidden>
+    <img id="pdfCinematicArtwork" class="pdf-cinematic-artwork" alt="Artwork from the current PDF page">
+    <div class="pdf-cinematic-ambient" aria-hidden="true"></div>
+    <div class="pdf-cinematic-vignette" aria-hidden="true"></div>
+    <header class="pdf-cinematic-header">
+      <span class="pdf-cinematic-brand visually-hidden"><i></i> Openleaf Cinematic</span>
+      <button id="pdfCinematicCloseButton" class="pdf-cinematic-close" type="button" aria-label="Close Cinematic Mode" title="Close Cinematic Mode">
+        <svg class="icon icon-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    </header>
+    <div class="pdf-cinematic-copy">
+      <span id="pdfCinematicKicker" class="pdf-cinematic-kicker visually-hidden">Visual narration</span>
+      <h2 id="pdfCinematicTitle" class="visually-hidden">Preparing the scene…</h2>
+      <p id="pdfCinematicNarration">Preparing the passage…</p>
+      <div class="pdf-cinematic-audio-state">
+        <span class="pdf-cinematic-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span id="pdfCinematicStatus" role="status" aria-live="polite">Preparing local narration…</span>
+      </div>
+    </div>
+    <div class="pdf-cinematic-progress" aria-hidden="true"><i id="pdfCinematicProgressBar"></i></div>
+  </section>
 
   <div id="pythonKernelMenu" class="python-kernel-menu" role="listbox" aria-label="Python kernels" hidden></div>
 
