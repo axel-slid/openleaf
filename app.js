@@ -15292,16 +15292,47 @@ function formatPdfSpeechTime(value) {
 function pdfSpeechDurationEstimate() {
   let knownDuration = 0;
   let knownWords = 0;
+  const secondsPerWordSamples = [];
+  const knownIndexes = [];
   pdfSpeechChunkDurations.forEach((duration, index) => {
     if (!(duration > 0)) return;
+    const chunkWords = pdfSpeechPlan.chunks[index] ? pdfSpeechPlan.chunks[index].words.length : 0;
+    if (chunkWords > 0) {
+      secondsPerWordSamples.push(duration / chunkWords);
+      knownIndexes.push(index);
+    }
     knownDuration += duration;
-    knownWords += pdfSpeechPlan.chunks[index] ? pdfSpeechPlan.chunks[index].words.length : 0;
+    knownWords += chunkWords;
   });
-  if (!knownWords) return { duration: 0, estimated: true };
   const complete = pdfSpeechChunkDurations.length > 0 && pdfSpeechChunkDurations.every((duration) => duration > 0);
+  if (complete) return { duration: knownDuration, estimated: false };
+
+  const voiceWordsPerMinute = {
+    am_adam: 150.7,
+    am_michael: 150.7,
+    af_bella: 160.2,
+    af_sarah: 160.2,
+    af_heart: 166.5
+  }[pdfSpeechVoiceId()] || 155;
+  const baselineDuration = pdfSpeechPlan.wordCount * 60 / voiceWordsPerMinute;
+  if (!knownWords || !secondsPerWordSamples.length) {
+    return { duration: baselineDuration, estimated: true };
+  }
+
+  secondsPerWordSamples.sort((left, right) => left - right);
+  const middle = Math.floor(secondsPerWordSamples.length / 2);
+  const medianSecondsPerWord = secondsPerWordSamples.length % 2
+    ? secondsPerWordSamples[middle]
+    : (secondsPerWordSamples[middle - 1] + secondsPerWordSamples[middle]) / 2;
+  const sampledDuration = medianSecondsPerWord * pdfSpeechPlan.wordCount;
+  const sampleSpan = knownIndexes.length > 1
+    ? (Math.max(...knownIndexes) - Math.min(...knownIndexes)) / Math.max(1, pdfSpeechPlan.chunks.length - 1)
+    : 0;
+  const distributedSamplesReady = secondsPerWordSamples.length >= 5 && sampleSpan >= 0.45;
+  const confidence = distributedSamplesReady ? 1 : Math.min(0.22, knownWords / 900);
   return {
-    duration: complete ? knownDuration : knownDuration * (pdfSpeechPlan.wordCount / knownWords),
-    estimated: !complete
+    duration: baselineDuration + (sampledDuration - baselineDuration) * confidence,
+    estimated: true
   };
 }
 
@@ -15480,11 +15511,18 @@ async function preloadRemainingPdfSpeechChunks(revision, startIndex) {
   if (pdfSpeechBackgroundPreloadActive || revision !== pdfSpeechPlanRevision) return;
   pdfSpeechBackgroundPreloadActive = true;
   try {
-    // Keep only a short runway warm. Synthesizing an entire book at open time
-    // competes with PDF painting and can retain hundreds of audio buffers.
-    // Playback extends the runway with queuePdfSpeechLookahead as it advances.
-    const endIndex = Math.min(pdfSpeechPlan.chunks.length, Math.max(0, startIndex) + 5);
-    for (let index = Math.max(0, startIndex); index < endIndex; index += 1) {
+    // Sample a short runway plus evenly spaced passages. This keeps CPU and
+    // memory bounded while preventing a cover page or table of contents from
+    // distorting the duration shown for a book-length document.
+    const chunkCount = pdfSpeechPlan.chunks.length;
+    const indexes = Array.from(new Set([
+      Math.max(0, startIndex),
+      Math.floor(chunkCount * 0.25),
+      Math.floor(chunkCount * 0.5),
+      Math.floor(chunkCount * 0.75),
+      Math.max(0, chunkCount - 1)
+    ].map((index) => Math.min(Math.max(0, chunkCount - 1), index))));
+    for (const index of indexes) {
       if (revision !== pdfSpeechPlanRevision) return;
       if (pdfSpeechChunkDurations[index] > 0) continue;
       await waitForPdfSpeechPreloadIdle();
