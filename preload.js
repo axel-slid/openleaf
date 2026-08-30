@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("localOverleaf", {
   templatePreviewPdf: (templateId) => ipcRenderer.invoke("template-preview-pdf", templateId),
   cacheTemplatePreview: (templateId, dataUrl) => ipcRenderer.invoke("cache-template-preview", { templateId, dataUrl }),
   cacheProjectPreview: (projectId, dataUrl) => ipcRenderer.invoke("cache-project-preview", { projectId, dataUrl }),
+  getPdfViewPreview: (projectId, relativePath = "") => ipcRenderer.invoke("get-pdf-view-preview", { projectId, relativePath }),
+  cachePdfViewPreview: (projectId, relativePath, dataUrl) => ipcRenderer.invoke("cache-pdf-view-preview", { projectId, relativePath, dataUrl }),
   importTemplate: () => ipcRenderer.invoke("import-template"),
   removeTemplate: (templateId) => ipcRenderer.invoke("remove-template", templateId),
   createProjectFromTemplate: (templateId) => ipcRenderer.invoke("create-project-from-template", templateId),

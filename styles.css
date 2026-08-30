@@ -12993,20 +12993,56 @@ body[data-theme="dark"] .pdf-speech-highlight {
 }
 
 .pdf-cinematic-artwork {
-  animation: pdf-cinematic-drift 18s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
-  height: 112%;
-  inset: -6%;
+  height: 100%;
+  inset: 0;
   object-fit: cover;
   opacity: var(--cinematic-art-opacity);
   position: absolute;
-  transform: scale(1.035) translate3d(-0.8%, 0.5%, 0);
+  transform: none;
   transition: opacity 220ms ease, filter 220ms ease;
-  width: 112%;
-  will-change: transform;
+  width: 100%;
 }
 
-@keyframes pdf-cinematic-drift {
-  to { transform: scale(1.115) translate3d(1.5%, -1%, 0); }
+.pdf-cinematic-toolbar {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+
+.pdf-cinematic-toolbar > :not(.pdf-cinematic-close) {
+  display: none !important;
+}
+
+.pdf-cached-page-image {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.pdf-page.pdf-page-cached {
+  height: auto;
+  max-width: min(1100px, calc(100% - 24px));
+  overflow: hidden;
+  width: 100%;
+}
+
+.pdf-opening-placeholder {
+  align-self: flex-start;
+  aspect-ratio: 8.5 / 11;
+  background: var(--pdf-paper);
+  border-radius: 2px;
+  max-width: min(780px, calc(100% - 24px));
+  opacity: 0.32;
+  width: 100%;
+}
+
+.pdf-viewer.pdf-dark-render .pdf-cached-page-image {
+  filter: var(--pdf-dark-filter);
+}
+
+.project-cache-placeholder {
+  min-height: 1px;
 }
 
 .pdf-cinematic-ambient {

@@ -381,6 +381,10 @@ function projectPreviewRootPath() {
   return path.join(app.getPath("userData"), "project-previews");
 }
 
+function pdfViewPreviewRootPath() {
+  return path.join(app.getPath("userData"), "pdf-view-previews");
+}
+
 function presentationEditorCacheRootPath() {
   return path.join(app.getPath("userData"), "presentation-editor", "cache");
 }
@@ -768,6 +772,14 @@ function projectPreviewPngPath(projectId) {
   return path.join(projectPreviewRootPath(), `${safeCacheName(projectId)}.png`);
 }
 
+function pdfViewPreviewPath(projectId, relativePath = "") {
+  const documentKey = crypto.createHash("sha1")
+    .update(`${String(projectId || "project")}\n${String(relativePath || "main.pdf")}`)
+    .digest("hex")
+    .slice(0, 20);
+  return path.join(pdfViewPreviewRootPath(), `${documentKey}.webp`);
+}
+
 function freshPreviewUrl(previewPath, sourcePath = "") {
   if (!fs.existsSync(previewPath)) return "";
 
@@ -814,11 +826,14 @@ function projectReadingFiles(project, rootPath) {
       if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== ".pdf") return;
       const relativePath = path.relative(rootPath, absolutePath).split(path.sep).join("/");
       const parts = relativePath.split("/");
+      const textRelativePath = `.openleaf-reading-text/${crypto.createHash("sha1").update(relativePath).digest("hex").slice(0, 16)}/main.tex`;
       readings.push({
         name: path.basename(entry.name, path.extname(entry.name)),
         fileName: entry.name,
         relativePath,
-        category: parts.length > 1 ? parts[0].replace(/^\d+\s*/, "") : "Readings"
+        category: parts.length > 1 ? parts[0].replace(/^\d+\s*/, "") : "Readings",
+        previewImageUrl: freshPreviewUrl(pdfViewPreviewPath(project.id, relativePath), absolutePath),
+        textRelativePath: fs.existsSync(path.join(rootPath, textRelativePath)) ? textRelativePath : ""
       });
     });
   };
@@ -1982,10 +1997,12 @@ async function templatePreviewPdf(_event, templateId) {
   return pdf.buffer.slice(pdf.byteOffset, pdf.byteOffset + pdf.byteLength);
 }
 
-function pngBufferFromDataUrl(dataUrl) {
-  const match = String(dataUrl || "").match(/^data:image\/png;base64,([a-z0-9+/=]+)$/i);
-  if (!match) throw new Error("Preview cache requires a PNG data URL.");
-  return Buffer.from(match[1], "base64");
+function imageBufferFromDataUrl(dataUrl, allowedTypes = ["png"]) {
+  const match = String(dataUrl || "").match(/^data:image\/(png|webp);base64,([a-z0-9+/=]+)$/i);
+  if (!match || !allowedTypes.includes(match[1].toLowerCase())) {
+    throw new Error(`Preview cache requires a ${allowedTypes.join(" or ").toUpperCase()} data URL.`);
+  }
+  return Buffer.from(match[2], "base64");
 }
 
 async function cacheTemplatePreview(_event, payload = {}) {
@@ -1994,7 +2011,7 @@ async function cacheTemplatePreview(_event, payload = {}) {
 
   const previewPath = templatePreviewPngPath(templateId);
   await fsp.mkdir(path.dirname(previewPath), { recursive: true });
-  await fsp.writeFile(previewPath, pngBufferFromDataUrl(payload.dataUrl));
+  await fsp.writeFile(previewPath, imageBufferFromDataUrl(payload.dataUrl));
   return { previewImageUrl: freshPreviewUrl(previewPath) };
 }
 
@@ -2005,8 +2022,29 @@ async function cacheProjectPreview(_event, payload = {}) {
 
   const previewPath = projectPreviewPngPath(project.id);
   await fsp.mkdir(path.dirname(previewPath), { recursive: true });
-  await fsp.writeFile(previewPath, pngBufferFromDataUrl(payload.dataUrl));
+  await fsp.writeFile(previewPath, imageBufferFromDataUrl(payload.dataUrl));
   return { previewImageUrl: freshPreviewUrl(previewPath, pdfPath) };
+}
+
+async function getPdfViewPreview(_event, payload = {}) {
+  const project = await getProject(payload.projectId);
+  const relativePath = String(payload.relativePath || "").trim();
+  const sourcePath = relativePath ? safeProjectPath(project, relativePath) : pdfPathFor(project);
+  if (!fs.existsSync(sourcePath) || path.extname(sourcePath).toLowerCase() !== ".pdf") {
+    return { previewImageUrl: "" };
+  }
+  const previewPath = pdfViewPreviewPath(project.id, relativePath);
+  return { previewImageUrl: freshPreviewUrl(previewPath, sourcePath) };
+}
+
+async function cachePdfViewPreview(_event, payload = {}) {
+  const project = await getProject(payload.projectId);
+  const relativePath = String(payload.relativePath || "").trim();
+  const sourcePath = await selectedPdfPath(project, relativePath);
+  const previewPath = pdfViewPreviewPath(project.id, relativePath);
+  await fsp.mkdir(path.dirname(previewPath), { recursive: true });
+  await fsp.writeFile(previewPath, imageBufferFromDataUrl(payload.dataUrl, ["webp"]));
+  return { previewImageUrl: freshPreviewUrl(previewPath, sourcePath) };
 }
 
 async function compileProjectIfPossible(projectId) {
@@ -4538,6 +4576,8 @@ ipcMain.handle("list-templates", listTemplates);
 ipcMain.handle("template-preview-pdf", templatePreviewPdf);
 ipcMain.handle("cache-template-preview", cacheTemplatePreview);
 ipcMain.handle("cache-project-preview", cacheProjectPreview);
+ipcMain.handle("get-pdf-view-preview", getPdfViewPreview);
+ipcMain.handle("cache-pdf-view-preview", cachePdfViewPreview);
 ipcMain.handle("import-template", importTemplate);
 ipcMain.handle("remove-template", removeTemplate);
 ipcMain.handle("create-project-from-template", createProjectFromTemplate);

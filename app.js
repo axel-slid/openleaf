@@ -2583,6 +2583,7 @@ let pdfPronunciationDictionaryTimer = null;
 let pdfDarkMode = false;
 let pdfRenderMode = "adaptive";
 let selectedPdfRelativePath = "";
+const pdfViewPreviewWrites = new Set();
 let remoteCompiledPdfRelativePath = "";
 let remoteCompiledPdfBuffer = null;
 let pdfSidebarVisible = false;
@@ -7999,7 +8000,7 @@ function wait(ms) {
 }
 
 async function loadProjects() {
-  projectGrid.innerHTML = '<div class="project-loading">Loading projects...</div>';
+  if (!projectGrid.childElementCount) projectGrid.innerHTML = '<div class="project-cache-placeholder" aria-hidden="true"></div>';
 
   try {
     const data = await window.localOverleaf.listProjects();
@@ -8262,6 +8263,8 @@ function renderProjectCollectionCard(collection) {
   card.dataset.collectionId = collection.id;
   const tiles = members.slice(0, 4).map((project) => project.previewImageUrl
     ? `<img src="${escapeHtml(project.previewImageUrl)}" alt="">`
+    : project.readingFiles && project.readingFiles.find((reading) => reading.previewImageUrl)
+      ? `<img src="${escapeHtml(project.readingFiles.find((reading) => reading.previewImageUrl).previewImageUrl)}" alt="">`
     : `<span>${escapeHtml((projectDisplaySortName(project)[0] || "P").toUpperCase())}</span>`).join("");
   card.innerHTML = `
     <span class="project-collection-preview" aria-hidden="true">${tiles}</span>
@@ -8375,7 +8378,7 @@ function renderOpenProjectCollection(collection, overlay) {
       card.dataset.projectId = project.id;
       if (reading) card.dataset.pdfRelativePath = reading.relativePath;
       card.innerHTML = `
-        <span class="project-division-preview">${project.previewImageUrl ? `<img src="${escapeHtml(project.previewImageUrl)}" alt="">` : "PDF"}</span>
+        <span class="project-division-preview">${(reading && reading.previewImageUrl) || project.previewImageUrl ? `<img src="${escapeHtml((reading && reading.previewImageUrl) || project.previewImageUrl)}" alt="">` : "PDF"}</span>
         <span class="project-division-card-copy">
           <strong>${escapeHtml(title)}</strong>
           ${reading ? `<small>${escapeHtml(reading.category || "Reading")}</small>` : ""}
@@ -8385,7 +8388,10 @@ function renderOpenProjectCollection(collection, overlay) {
       card.addEventListener("click", (event) => {
         if (event.target.closest("button")) return;
         closeProjectCollection();
-        openProject(project.id, { pdfRelativePath: reading ? reading.relativePath : "" });
+        openProject(project.id, {
+          pdfRelativePath: reading ? reading.relativePath : "",
+          sourceRelativePath: reading ? reading.textRelativePath : ""
+        });
       });
       const removeButton = card.querySelector("button");
       if (removeButton) removeButton.addEventListener("click", () => {
@@ -8401,7 +8407,7 @@ function renderOpenProjectCollection(collection, overlay) {
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
           closeProjectCollection();
-          openProject(project.id, { pdfRelativePath: reading.relativePath });
+          openProject(project.id, { pdfRelativePath: reading.relativePath, sourceRelativePath: reading.textRelativePath });
         });
       }
       card.addEventListener("dragstart", (event) => {
@@ -8639,6 +8645,7 @@ function cacheActiveProjectPreview(sourceCanvas) {
     || !activeProject
     || isRemoteProject()
     || pdfDarkMode
+    || !activeProject.pdfExists
     || activeProject.previewImageUrl
     || !window.localOverleaf.cacheProjectPreview
   ) return;
@@ -8661,6 +8668,42 @@ function cacheActiveProjectPreview(sourceCanvas) {
       if (result && result.previewImageUrl && activeProject) activeProject.previewImageUrl = result.previewImageUrl;
     })
     .catch(() => {});
+}
+
+function cachePdfViewPreview(sourceCanvas, relativePath, fingerprint) {
+  if (!sourceCanvas || !activeProject || isRemoteProject() || !window.localOverleaf.cachePdfViewPreview) return;
+  const cacheKey = `${activeProject.id}:${relativePath || "main.pdf"}:${fingerprint || "current"}`;
+  if (pdfViewPreviewWrites.has(cacheKey)) return;
+  const sourceWidth = sourceCanvas.width;
+  const sourceHeight = sourceCanvas.height;
+  if (!(sourceWidth > 1) || !(sourceHeight > 1)) return;
+  pdfViewPreviewWrites.add(cacheKey);
+  const width = Math.min(1100, sourceWidth);
+  const height = Math.max(1, Math.round(width * sourceHeight / sourceWidth));
+  const previewCanvas = document.createElement("canvas");
+  previewCanvas.width = width;
+  previewCanvas.height = height;
+  const context = previewCanvas.getContext("2d");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(sourceCanvas, 0, 0, width, height);
+  window.localOverleaf.cachePdfViewPreview(
+    activeProject.id,
+    relativePath || "",
+    previewCanvas.toDataURL("image/webp", 0.84)
+  ).catch(() => pdfViewPreviewWrites.delete(cacheKey));
+}
+
+function showCachedPdfViewPreview(previewImageUrl, token) {
+  if (!previewImageUrl || token !== pdfRenderToken || pdfViewer.querySelector(".pdf-page:not(.pdf-page-cached)")) return;
+  const page = document.createElement("div");
+  page.className = "pdf-page pdf-page-cached";
+  const image = previewImageElement(previewImageUrl, `${activePdfName()} cached preview`);
+  image.className = "pdf-cached-page-image";
+  page.appendChild(image);
+  pdfViewer.replaceChildren(page);
 }
 
 function toggleNewProjectPanel(force) {
@@ -11558,7 +11601,7 @@ async function saveActivePresentation() {
   }
 }
 
-async function openProject(projectId, { pdfRelativePath = "" } = {}) {
+async function openProject(projectId, { pdfRelativePath = "", sourceRelativePath = "" } = {}) {
   resetTextTabs();
   cancelProjectFileCreation();
   selectedFileTreeNode = null;
@@ -11576,7 +11619,7 @@ async function openProject(projectId, { pdfRelativePath = "" } = {}) {
   setFileSidebarVisible(false, { persist: false });
   setTerminalCollapsed(true, { persist: false });
   setCompileLogCollapsed(true, { persist: false });
-  await loadManuscript(projectId, { pdfRelativePath });
+  await loadManuscript(projectId, { pdfRelativePath, sourceRelativePath });
   await loadProjectFiles();
   if (typeof loadNotesForActiveProject === "function") loadNotesForActiveProject();
   startExternalSourcePolling();
@@ -11619,16 +11662,14 @@ async function showProjects({ discardChanges = false } = {}) {
   return true;
 }
 
-async function loadManuscript(projectId = activeProject && activeProject.id, { pdfRelativePath = "" } = {}) {
+async function loadManuscript(projectId = activeProject && activeProject.id, { pdfRelativePath = "", sourceRelativePath = "" } = {}) {
   if (!projectId) return;
 
   setBusy(true);
   isLoading = true;
-  setSaveState("Loading...");
-  setCompileState("Loading PDF...");
 
   try {
-    const data = await window.localOverleaf.load(projectId);
+    const data = await window.localOverleaf.load(projectId, sourceRelativePath);
     activeProject = data.project;
     resetTextTabs();
     selectedPdfRelativePath = pdfRelativePath;
@@ -11638,7 +11679,7 @@ async function loadManuscript(projectId = activeProject && activeProject.id, { p
     setMode("source");
     updateEditorFileTitle();
     pdfTitle.textContent = activeProject.pdfName || "main.pdf";
-    pdfMeta.textContent = "Loading pages...";
+    pdfMeta.textContent = "";
     updateActiveDocumentTitle();
     populateProjectSettingsForm();
     updateStats();
@@ -11894,7 +11935,12 @@ async function selectPdfFile(relativePath = "") {
   selectedPdfRelativePath = relativePath;
   if (pdfFileMenu) pdfFileMenu.hidden = true;
   updatePdfTitleFromSelection();
-  pdfMeta.textContent = "Loading pages...";
+  const reading = activeProject && Array.isArray(activeProject.readingFiles)
+    ? activeProject.readingFiles.find((item) => item.relativePath === relativePath)
+    : null;
+  if (reading && reading.textRelativePath && activeFile && activeFile.relativePath !== reading.textRelativePath) {
+    await loadProjectFile(reading.textRelativePath, { confirmUnsaved: true, preview: false });
+  }
   await renderPdf({ showLoading: true, preserveView: false });
 }
 
@@ -14389,7 +14435,12 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
   const preservedViewState = preserveView ? capturePdfViewState() : null;
   applyPdfRenderMode();
   if (showLoading || !hasExistingPages) {
-    pdfViewer.innerHTML = '<div class="pdf-loading">Rendering PDF...</div>';
+    pdfViewer.innerHTML = '<div class="pdf-opening-placeholder" aria-hidden="true"></div>';
+  }
+  if (!isRemoteProject() && window.localOverleaf.getPdfViewPreview) {
+    window.localOverleaf.getPdfViewPreview(activeProject.id, pdfRelativePath)
+      .then((result) => showCachedPdfViewPreview(result && result.previewImageUrl, token))
+      .catch(() => {});
   }
   if (isRemoteProject()) {
     updatePdfTitleFromSelection();
@@ -14479,7 +14530,10 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
         preparePdfCanvasForRender(context, canvas);
         await pageToRender.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
         if (token !== pdfRenderToken) return;
-        if (pageNumber === 1) cacheActiveProjectPreview(canvas);
+        if (pageNumber === 1) {
+          cacheActiveProjectPreview(canvas);
+          cachePdfViewPreview(canvas, pdfRelativePath, speechFingerprint);
+        }
         applyPdfCanvasRenderMode(context, canvas);
         pageShell.dataset.canvasRendered = "true";
       };
@@ -14847,7 +14901,6 @@ async function openPdfLink(url) {
 function applyDarkPdfCanvas(context, canvas) {
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
-  const figureBoxes = detectPdfFigureBoxes(data, canvas.width, canvas.height);
   const basePaper = cssColorToRgb(themeColor("--pdf-dark-paper", "#111827"), { r: 17, g: 24, b: 39 });
   const baseText = cssColorToRgb(themeColor("--text", "#f8fafc"), { r: 248, g: 250, b: 252 });
   const paper = basePaper;
@@ -14867,11 +14920,6 @@ function applyDarkPdfCanvas(context, canvas) {
       data[index + 2] = b;
       data[index + 3] = 255;
     }
-
-    const pixelIndex = index / 4;
-    const x = pixelIndex % canvas.width;
-    const y = Math.floor(pixelIndex / canvas.width);
-    if (pointInBoxes(x, y, figureBoxes)) continue;
 
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
@@ -15432,7 +15480,11 @@ async function preloadRemainingPdfSpeechChunks(revision, startIndex) {
   if (pdfSpeechBackgroundPreloadActive || revision !== pdfSpeechPlanRevision) return;
   pdfSpeechBackgroundPreloadActive = true;
   try {
-    for (let index = Math.max(0, startIndex); index < pdfSpeechPlan.chunks.length; index += 1) {
+    // Keep only a short runway warm. Synthesizing an entire book at open time
+    // competes with PDF painting and can retain hundreds of audio buffers.
+    // Playback extends the runway with queuePdfSpeechLookahead as it advances.
+    const endIndex = Math.min(pdfSpeechPlan.chunks.length, Math.max(0, startIndex) + 5);
+    for (let index = Math.max(0, startIndex); index < endIndex; index += 1) {
       if (revision !== pdfSpeechPlanRevision) return;
       if (pdfSpeechChunkDurations[index] > 0) continue;
       await waitForPdfSpeechPreloadIdle();
