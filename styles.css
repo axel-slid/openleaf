@@ -12440,11 +12440,6 @@ body[data-theme="dark"] .template-preview .template-equation {
   white-space: pre;
 }
 
-.pdf-text-layer .pdf-speech-word:hover:not(.is-speaking) {
-  background: rgba(250, 204, 21, 0.16);
-  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.45);
-}
-
 .pdf-text-layer .pdf-speech-word.is-speaking {
   background: rgba(253, 224, 71, 0.48);
   border-radius: 3px;

@@ -2540,6 +2540,7 @@ let pdfSpeechPlanRevision = 0;
 let pdfSpeechPreparedCount = 0;
 let pdfSpeechPreprocessActive = false;
 let pdfSpeechChunkDurations = [];
+let pdfSpeechWordMetadata = new Map();
 let pdfDarkMode = false;
 let pdfRenderMode = "adaptive";
 let selectedPdfRelativePath = "";
@@ -5724,6 +5725,7 @@ function wireEvents() {
   if (pdfFitButton) pdfFitButton.addEventListener("click", fitPdfToBoundaries);
   pdfViewer.addEventListener("wheel", handlePdfWheelZoom, { passive: false });
   pdfViewer.addEventListener("scroll", updatePdfPageIndicator, { passive: true });
+  pdfViewer.addEventListener("click", handlePdfSpeechWordClick, true);
   pdfViewer.addEventListener("gesturestart", handlePdfGestureStart);
   pdfViewer.addEventListener("gesturechange", handlePdfGestureChange);
   pdfViewer.addEventListener("gestureend", handlePdfGestureEnd);
@@ -13503,7 +13505,9 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
           }
           const activeChunk = pdfSpeechPlan.chunks[pdfSpeechChunkIndex];
           const activeWord = activeChunk && (activeChunk.words[pdfSpeechWordIndex] || activeChunk.words[0]);
-          if (activeWord && activeWord.pageNumber === pageNumber) highlightPdfSpeechWord(activeWord);
+          if ((pdfSpeechPlaying || pdfSpeechPaused) && activeWord && activeWord.pageNumber === pageNumber) {
+            highlightPdfSpeechWord(activeWord);
+          }
         });
       }
       if (progressiveRender) {
@@ -13548,7 +13552,11 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
     updatePdfPageIndicator();
     if (preserveSpeechSession) {
       const activeChunk = pdfSpeechPlan.chunks[pdfSpeechChunkIndex];
-      if (activeChunk) highlightPdfSpeechWord(activeChunk.words[pdfSpeechWordIndex] || activeChunk.words[0]);
+      if ((pdfSpeechPlaying || pdfSpeechPaused) && activeChunk) {
+        highlightPdfSpeechWord(activeChunk.words[pdfSpeechWordIndex] || activeChunk.words[0]);
+      } else {
+        clearPdfSpeechHighlight();
+      }
     } else {
       preparePdfSpeechPlan(nextPageTextLines, pdf.numPages, speechDocumentKey, speechFingerprint);
     }
@@ -14016,6 +14024,7 @@ function beginPdfSpeechAnalysis() {
   pdfSpeechPlanRevision += 1;
   pdfSpeechPlan = { chunks: [], wordCount: 0, pageCount: 0, documentKey: "", fingerprint: "" };
   pdfSpeechChunkDurations = [];
+  pdfSpeechWordMetadata = new Map();
   updatePdfSpeechProgress();
   if (pdfSpeechButton) pdfSpeechButton.disabled = true;
   setPdfSpeechStatus("Analyzing PDF…", "analyzing");
@@ -14029,6 +14038,7 @@ function resetPdfSpeechPlan(message = "Waiting for PDF") {
   pdfSpeechPlanRevision += 1;
   pdfSpeechPlan = { chunks: [], wordCount: 0, pageCount: 0, documentKey: "", fingerprint: "" };
   pdfSpeechChunkDurations = [];
+  pdfSpeechWordMetadata = new Map();
   updatePdfSpeechProgress();
   if (pdfSpeechButton) pdfSpeechButton.disabled = true;
   setPdfSpeechStatus(message);
@@ -14036,24 +14046,31 @@ function resetPdfSpeechPlan(message = "Waiting for PDF") {
 
 function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprint = "") {
   const words = [];
+  const pageWordIndexes = new Map();
   Array.from(pageLines.entries())
     .sort((left, right) => left[0] - right[0])
     .forEach(([pageNumber, lines]) => {
       lines.forEach((line) => {
         (line.words || []).forEach((word) => {
           const spokenText = normalizePdfSpeechToken(word.text);
-          if (spokenText) words.push({ ...word, pageNumber, spokenText });
+          if (spokenText) {
+            const pageWordIndex = pageWordIndexes.get(pageNumber) || 0;
+            words.push({ ...word, pageNumber, pageWordIndex, spokenText });
+            pageWordIndexes.set(pageNumber, pageWordIndex + 1);
+          }
         });
       });
     });
+  const chunks = buildPdfSpeechChunks(words);
   pdfSpeechPlan = {
-    chunks: buildPdfSpeechChunks(words),
+    chunks,
     wordCount: words.length,
     pageCount: Number(pageCount) || pageLines.size,
     documentKey,
     fingerprint
   };
   pdfSpeechChunkDurations = new Array(pdfSpeechPlan.chunks.length).fill(0);
+  rebuildPdfSpeechWordMetadata();
   pdfSpeechChunkIndex = 0;
   pdfSpeechWordIndex = 0;
   pdfSpeechFirstChunkReady = false;
@@ -14063,6 +14080,65 @@ function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprin
   clearPdfSpeechHighlight();
   updatePdfSpeechProgress();
   startPdfSpeechPreprocessing();
+}
+
+function rebuildPdfSpeechWordMetadata() {
+  const voice = pdfSpeechVoiceId();
+  const metadata = new Map();
+  pdfSpeechPlan.chunks.forEach((chunk, chunkIndex) => {
+    chunk.words.forEach((word, wordIndex) => {
+      metadata.set(word.domKey, {
+        domKey: word.domKey,
+        documentKey: pdfSpeechPlan.documentKey,
+        fingerprint: pdfSpeechPlan.fingerprint,
+        voice,
+        pageNumber: word.pageNumber,
+        pageWordIndex: word.pageWordIndex,
+        chunkIndex,
+        wordIndex,
+        text: word.text,
+        x: word.x,
+        top: word.top,
+        width: word.width,
+        height: word.height,
+        start: null,
+        end: null
+      });
+    });
+  });
+  pdfSpeechWordMetadata = metadata;
+  bindPdfSpeechWordMetadata();
+}
+
+function recordPdfSpeechChunkMetadata(chunkIndex, timings, voice) {
+  const chunk = pdfSpeechPlan.chunks[chunkIndex];
+  if (!chunk) return;
+  (timings || []).forEach((timing) => {
+    const word = chunk.words[timing.wordIndex];
+    if (!word || !word.domKey) return;
+    const current = pdfSpeechWordMetadata.get(word.domKey);
+    if (!current) return;
+    pdfSpeechWordMetadata.set(word.domKey, {
+      ...current,
+      voice,
+      start: Number(timing.start) || 0,
+      end: Number(timing.end) || 0
+    });
+  });
+  bindPdfSpeechWordMetadata();
+}
+
+function bindPdfSpeechWordMetadata(root = pdfViewer) {
+  if (!root || !pdfSpeechWordMetadata.size) return;
+  root.querySelectorAll(".pdf-speech-word[data-pdf-speech-key]").forEach((element) => {
+    const metadata = pdfSpeechWordMetadata.get(element.dataset.pdfSpeechKey);
+    if (!metadata) return;
+    element.dataset.pdfSpeechChunkIndex = String(metadata.chunkIndex);
+    element.dataset.pdfSpeechWordIndex = String(metadata.wordIndex);
+    element.dataset.pdfSpeechVoice = metadata.voice;
+    if (metadata.start !== null) element.dataset.pdfSpeechStart = String(metadata.start);
+    if (metadata.end !== null) element.dataset.pdfSpeechEnd = String(metadata.end);
+  });
 }
 
 function normalizePdfSpeechToken(value) {
@@ -14217,6 +14293,7 @@ async function startPdfSpeechPreprocessing() {
       const result = await preparePdfSpeechAudio(index);
       if (revision !== pdfSpeechPlanRevision) return;
       pdfSpeechChunkDurations[index] = Number(result.duration) || 0;
+      recordPdfSpeechChunkMetadata(index, alignPdfSpeechTimings(pdfSpeechPlan.chunks[index].words, result.timings, result.duration), result.voice);
       pdfSpeechPreparedCount = index + 1;
       if (pdfSpeechPreparedCount >= initialBufferSize) pdfSpeechFirstChunkReady = true;
       if (!pdfSpeechPlaying && !pdfSpeechPaused) updatePdfSpeechReadyState();
@@ -14244,6 +14321,7 @@ async function queuePdfSpeechLookahead(startIndex) {
       const result = await preparePdfSpeechAudio(index);
       if (revision !== pdfSpeechPlanRevision || !pdfSpeechPlaying) return;
       pdfSpeechChunkDurations[index] = Number(result.duration) || 0;
+      recordPdfSpeechChunkMetadata(index, alignPdfSpeechTimings(pdfSpeechPlan.chunks[index].words, result.timings, result.duration), result.voice);
       pdfSpeechPreparedCount = pdfSpeechChunkDurations.filter((duration) => duration > 0).length;
       updatePdfSpeechProgress();
     }
@@ -14283,6 +14361,7 @@ function restartPdfSpeechPreprocessing() {
   pdfSpeechPreparedCount = 0;
   pdfSpeechPreprocessActive = false;
   pdfSpeechChunkDurations = new Array(pdfSpeechPlan.chunks.length).fill(0);
+  rebuildPdfSpeechWordMetadata();
   updatePdfSpeechProgress();
   startPdfSpeechPreprocessing();
 }
@@ -14349,6 +14428,7 @@ async function speakCurrentPdfChunk() {
     if (pdfSpeechButton) pdfSpeechButton.disabled = false;
     cancelPdfSpeechAudio({ invalidate: false });
     pdfSpeechCurrentTimings = alignPdfSpeechTimings(chunk.words, result.timings, result.duration);
+    recordPdfSpeechChunkMetadata(pdfSpeechChunkIndex, pdfSpeechCurrentTimings, result.voice);
     pdfSpeechAudio = new Audio(result.audioUrl);
     pdfSpeechAudio.preload = "auto";
     pdfSpeechAudio.playbackRate = pdfSpeechPlaybackRate();
@@ -14364,15 +14444,7 @@ async function speakCurrentPdfChunk() {
     pdfSpeechAudio.addEventListener("error", handlePdfSpeechPlaybackError, { once: true });
     const startingTiming = pdfSpeechCurrentTimings.find((timing) => timing.wordIndex === pdfSpeechWordIndex);
     if (startingTiming && startingTiming.start > 0) {
-      if (pdfSpeechAudio.readyState < HTMLMediaElement.HAVE_METADATA) {
-        await new Promise((resolve, reject) => {
-          pdfSpeechAudio.addEventListener("loadedmetadata", resolve, { once: true });
-          pdfSpeechAudio.addEventListener("error", reject, { once: true });
-          pdfSpeechAudio.load();
-        });
-      }
-      if (generation !== pdfSpeechRequestGeneration || !pdfSpeechPlaying) return;
-      pdfSpeechAudio.currentTime = startingTiming.start;
+      await seekPdfSpeechAudio(pdfSpeechAudio, startingTiming.start, generation);
     }
     await pdfSpeechAudio.play();
     if (generation !== pdfSpeechRequestGeneration) return;
@@ -14387,18 +14459,71 @@ async function speakCurrentPdfChunk() {
   }
 }
 
-function seekPdfSpeechToWord(domKey) {
-  if (!domKey || !pdfSpeechPlan.chunks.length || !pdfSpeechBackend.available) return;
-  let targetChunkIndex = -1;
-  let targetWordIndex = -1;
-  pdfSpeechPlan.chunks.some((chunk, chunkIndex) => {
-    const wordIndex = chunk.words.findIndex((word) => word.domKey === domKey);
-    if (wordIndex < 0) return false;
-    targetChunkIndex = chunkIndex;
-    targetWordIndex = wordIndex;
-    return true;
+async function seekPdfSpeechAudio(audio, targetTime, generation) {
+  if (audio.readyState < HTMLMediaElement.HAVE_METADATA) {
+    await new Promise((resolve, reject) => {
+      audio.addEventListener("loadedmetadata", resolve, { once: true });
+      audio.addEventListener("error", reject, { once: true });
+      audio.load();
+    });
+  }
+  if (generation !== pdfSpeechRequestGeneration || !pdfSpeechPlaying) return;
+  const duration = Number(audio.duration) || Number.POSITIVE_INFINITY;
+  const nextTime = Math.max(0, Math.min(Number(targetTime) || 0, duration - 0.02));
+  if (Math.abs(audio.currentTime - nextTime) < 0.03) return;
+  await new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      audio.removeEventListener("seeked", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, 1500);
+    audio.addEventListener("seeked", finish, { once: true });
+    audio.currentTime = nextTime;
   });
-  if (targetChunkIndex < 0 || targetWordIndex < 0) return;
+}
+
+function seekPdfSpeechToWord({ domKey = "", pageNumber = 0, pageWordIndex = -1, chunkIndex = -1, wordIndex = -1, text = "" } = {}) {
+  if (!pdfSpeechPlan.chunks.length || !pdfSpeechBackend.available) return;
+  const stored = pdfSpeechWordMetadata.get(domKey);
+  let targetChunkIndex = stored ? stored.chunkIndex : Number(chunkIndex);
+  let targetWordIndex = stored ? stored.wordIndex : Number(wordIndex);
+  const directChunk = pdfSpeechPlan.chunks[targetChunkIndex];
+  const directWord = directChunk && directChunk.words[targetWordIndex];
+  if (!directWord || directWord.domKey !== domKey) {
+    targetChunkIndex = -1;
+    targetWordIndex = -1;
+    pdfSpeechPlan.chunks.some((chunk, nextChunkIndex) => {
+      const nextWordIndex = chunk.words.findIndex((word) => word.domKey === domKey);
+      if (nextWordIndex < 0) return false;
+      targetChunkIndex = nextChunkIndex;
+      targetWordIndex = nextWordIndex;
+      return true;
+    });
+  }
+  if (targetChunkIndex < 0 || targetWordIndex < 0) {
+    const normalizedTarget = normalizePdfSpeechAlignment(text);
+    let closest = null;
+    pdfSpeechPlan.chunks.forEach((chunk, chunkIndex) => {
+      chunk.words.forEach((word, wordIndex) => {
+        if (word.pageNumber !== Number(pageNumber)) return;
+        if (normalizedTarget && normalizePdfSpeechAlignment(word.text) !== normalizedTarget) return;
+        const distance = Math.abs(Number(word.pageWordIndex) - Number(pageWordIndex));
+        if (!closest || distance < closest.distance) closest = { chunkIndex, wordIndex, distance };
+      });
+    });
+    if (closest) {
+      targetChunkIndex = closest.chunkIndex;
+      targetWordIndex = closest.wordIndex;
+    }
+  }
+  if (targetChunkIndex < 0 || targetWordIndex < 0) {
+    setPdfSpeechStatus(`Could not seek to “${text || "word"}”`, "error");
+    return;
+  }
 
   cancelPdfSpeechAudio();
   pdfSpeechChunkIndex = targetChunkIndex;
@@ -14407,8 +14532,42 @@ function seekPdfSpeechToWord(domKey) {
   pdfSpeechPaused = false;
   updatePdfSpeechButton();
   updatePdfSpeechProgress();
-  highlightPdfSpeechWord(pdfSpeechPlan.chunks[targetChunkIndex].words[targetWordIndex]);
+  const targetWord = pdfSpeechPlan.chunks[targetChunkIndex].words[targetWordIndex];
+  setPdfSpeechStatus(`Seeking to “${targetWord.text}”…`, "analyzing");
+  highlightPdfSpeechWord(targetWord);
   speakCurrentPdfChunk();
+}
+
+function handlePdfSpeechWordClick(event) {
+  if (event.button !== 0 || !pdfSpeechPlan.wordCount || !pdfSpeechBackend.available) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || target.closest("a, button, input, select, textarea")) return;
+  const pageShell = target.closest(".pdf-page");
+  if (!pageShell || !pdfViewer.contains(pageShell)) return;
+  const x = event.clientX;
+  const y = event.clientY;
+  const matches = Array.from(pageShell.querySelectorAll(".pdf-speech-word[data-pdf-speech-key]"))
+    .map((element) => ({ element, bounds: element.getBoundingClientRect() }))
+    .filter(({ bounds }) => x >= bounds.left - 2 && x <= bounds.right + 2 && y >= bounds.top - 2 && y <= bounds.bottom + 2);
+  if (!matches.length) return;
+  const hit = matches.reduce((best, candidate) => {
+    const centerX = candidate.bounds.left + candidate.bounds.width / 2;
+    const centerY = candidate.bounds.top + candidate.bounds.height / 2;
+    const distance = Math.hypot(x - centerX, y - centerY);
+    return !best || distance < best.distance ? { ...candidate, distance } : best;
+  }, null);
+  if (!hit) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const element = hit.element;
+  seekPdfSpeechToWord({
+    domKey: element.dataset.pdfSpeechKey,
+    pageNumber: Number(pageShell.dataset.page),
+    pageWordIndex: Number(element.dataset.pdfSpeechPageWordIndex),
+    chunkIndex: Number(element.dataset.pdfSpeechChunkIndex),
+    wordIndex: Number(element.dataset.pdfSpeechWordIndex),
+    text: element.textContent
+  });
 }
 
 function preparePdfSpeechAudio(chunkIndex, voiceId = pdfSpeechVoiceId()) {
@@ -14594,9 +14753,12 @@ function highlightPdfSpeechWord(word) {
 function scrollPdfSpeechWordIntoView(element, pageShell) {
   const viewerBounds = pdfViewer.getBoundingClientRect();
   const wordBounds = element.getBoundingClientRect();
-  if (wordBounds.top < viewerBounds.top + 42 || wordBounds.bottom > viewerBounds.bottom - 72) {
-    pageShell.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-  }
+  const safeTop = viewerBounds.top + 48;
+  const safeBottom = viewerBounds.bottom - 86;
+  let delta = 0;
+  if (wordBounds.top < safeTop) delta = wordBounds.top - safeTop;
+  else if (wordBounds.bottom > safeBottom) delta = wordBounds.bottom - safeBottom;
+  if (Math.abs(delta) > 1) pdfViewer.scrollBy({ top: delta, behavior: "smooth" });
 }
 
 function clearPdfSpeechHighlight() {
@@ -14612,6 +14774,7 @@ async function buildPdfTextLayer(textContent, viewport, pdfjsLib, pageNumber) {
   layer.style.setProperty("--scale-factor", String(viewport.scale || 1));
   const textLayer = new pdfjsLib.TextLayer({ textContentSource: textContent, container: layer, viewport });
   await textLayer.render();
+  let pageWordIndex = 0;
   textLayer.textDivs.forEach((textDiv, itemIndex) => {
     const source = String(textLayer.textContentItemsStr[itemIndex] || textDiv.textContent || "");
     const matches = Array.from(source.matchAll(/\S+/g));
@@ -14624,19 +14787,16 @@ async function buildPdfTextLayer(textContent, viewport, pdfjsLib, pageNumber) {
       const word = document.createElement("span");
       word.className = "pdf-speech-word";
       word.dataset.pdfSpeechKey = `${pageNumber}:${itemIndex}:${matchIndex}`;
+      word.dataset.pdfSpeechPageWordIndex = String(pageWordIndex);
       word.textContent = match[0];
-      word.title = `Read from “${match[0]}”`;
-      word.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        seekPdfSpeechToWord(word.dataset.pdfSpeechKey);
-      });
       fragment.appendChild(word);
+      pageWordIndex += 1;
       cursor = start + match[0].length;
     });
     if (cursor < source.length) fragment.appendChild(document.createTextNode(source.slice(cursor)));
     textDiv.replaceChildren(fragment);
   });
+  bindPdfSpeechWordMetadata(layer);
   return layer;
 }
 
