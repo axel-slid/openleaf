@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, screen } = require("electron");
 const { execFile, execFileSync, spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -24,6 +24,8 @@ const appIconPngPath = path.join(repoRoot, "assets", "icon.png");
 let mainWindow;
 const terminalSessions = new Map();
 const pythonSessions = new Map();
+let pdfSpeechSession = null;
+let pdfSpeechCachePruned = false;
 const presentationPreviewJobs = new Map();
 const terminalPath = [
   "/opt/homebrew/bin",
@@ -150,10 +152,26 @@ function resolveRepoRoot() {
   return __dirname;
 }
 
+function widestDisplayWindowBounds(preferredWidth, preferredHeight) {
+  const displays = screen.getAllDisplays();
+  const display = displays.slice().sort((left, right) => (
+    (right.workArea.width * right.scaleFactor) - (left.workArea.width * left.scaleFactor)
+  ))[0] || screen.getPrimaryDisplay();
+  const workArea = display.workArea;
+  const width = Math.min(preferredWidth, workArea.width);
+  const height = Math.min(preferredHeight, workArea.height);
+  return {
+    x: Math.round(workArea.x + Math.max(0, (workArea.width - width) / 2)),
+    y: Math.round(workArea.y + Math.max(0, (workArea.height - height) / 2)),
+    width,
+    height
+  };
+}
+
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1520,
-    height: 980,
+  const windowBounds = widestDisplayWindowBounds(1520, 980);
+  const window = new BrowserWindow({
+    ...windowBounds,
     minWidth: 1180,
     minHeight: 700,
     title: "Openleaf",
@@ -176,32 +194,46 @@ function createWindow() {
       sandbox: true
     }
   });
+  const windowWebContentsId = window.webContents.id;
 
   if (process.platform === "darwin" && app.dock && fs.existsSync(appIconPngPath)) {
     app.dock.setIcon(appIconPngPath);
   }
 
-  mainWindow.loadFile(path.join(__dirname, "index.html"));
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow = window;
+  window.loadFile(path.join(__dirname, "index.html"));
+  window.once("ready-to-show", () => window.show());
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  window.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
   });
 
-  mainWindow.on("enter-full-screen", () => sendEditorCommand("fullscreen-enter"));
-  mainWindow.on("leave-full-screen", () => sendEditorCommand("fullscreen-leave"));
+  window.on("enter-full-screen", () => sendEditorCommand("fullscreen-enter", window));
+  window.on("leave-full-screen", () => sendEditorCommand("fullscreen-leave", window));
 
-  mainWindow.on("closed", () => {
-    killTerminalSessions();
-    killPythonSessions();
-    mainWindow = null;
+  window.on("closed", () => {
+    killTerminalSessionsForWebContents(windowWebContentsId);
+    const remainingWindows = BrowserWindow.getAllWindows().filter((candidate) => !candidate.isDestroyed());
+    if (remainingWindows.length === 0) {
+      killPythonSessions();
+    }
+    if (mainWindow === window) mainWindow = remainingWindows[0] || null;
   });
+
+  return window;
 }
 
-function sendEditorCommand(command) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("editor-command", command);
+function activeWindow() {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  if (focusedWindow && !focusedWindow.isDestroyed()) return focusedWindow;
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+  return BrowserWindow.getAllWindows().find((window) => !window.isDestroyed()) || null;
+}
+
+function sendEditorCommand(command, targetWindow = activeWindow()) {
+  if (targetWindow && !targetWindow.isDestroyed()) {
+    targetWindow.webContents.send("editor-command", command);
   }
 }
 
@@ -225,6 +257,12 @@ function buildMenu() {
     {
       label: "File",
       submenu: [
+        {
+          label: "New Window",
+          accelerator: "CommandOrControl+N",
+          click: () => createWindow()
+        },
+        { type: "separator" },
         {
           label: "Command Palette",
           accelerator: "CommandOrControl+P",
@@ -311,9 +349,10 @@ function buildMenu() {
 }
 
 function toggleFullscreen() {
-  if (!mainWindow || mainWindow.isDestroyed()) return { fullscreen: false };
-  const next = !mainWindow.isFullScreen();
-  mainWindow.setFullScreen(next);
+  const window = activeWindow();
+  if (!window) return { fullscreen: false };
+  const next = !window.isFullScreen();
+  window.setFullScreen(next);
   return { fullscreen: next };
 }
 
@@ -420,9 +459,9 @@ async function openExternalLink(_event, rawUrl) {
 
 async function openHistoryWindow(_event, payload = {}) {
   const history = normalizeHistoryPayload(payload);
+  const windowBounds = widestDisplayWindowBounds(1080, 760);
   const historyWindow = new BrowserWindow({
-    width: 1080,
-    height: 760,
+    ...windowBounds,
     minWidth: 760,
     minHeight: 520,
     title: `History - ${history.fileName}`,
@@ -1926,7 +1965,7 @@ async function cacheTemplatePreview(_event, payload = {}) {
 async function cacheProjectPreview(_event, payload = {}) {
   const project = await getProject(payload.projectId);
   const pdfPath = pdfPathFor(project);
-  if (!fs.existsSync(pdfPath)) throw new Error("Project has no PDF to cache.");
+  if (!fs.existsSync(pdfPath)) throw new Error("Preview output is not ready to cache.");
 
   const previewPath = projectPreviewPngPath(project.id);
   await fsp.mkdir(path.dirname(previewPath), { recursive: true });
@@ -2669,7 +2708,7 @@ function ensurePtyHelperExecutable() {
   }
 }
 
-async function createTerminal(_event, payload = {}) {
+async function createTerminal(event, payload = {}) {
   const project = payload.projectId ? await getProject(payload.projectId) : null;
   const cwd = project ? projectRootFor(project) : repoRoot;
   const preset = terminalPreset(payload.kind || "shell", cwd, payload);
@@ -2683,13 +2722,21 @@ async function createTerminal(_event, payload = {}) {
     env: terminalEnv(cwd)
   });
 
-  terminalSessions.set(id, { ptyProcess, cwd, ...preset });
+  const ownerWebContents = event.sender;
+  terminalSessions.set(id, {
+    ptyProcess,
+    cwd,
+    ownerWebContents,
+    ownerWebContentsId: ownerWebContents.id,
+    ...preset
+  });
 
   ptyProcess.onData((data) => sendTerminalData(id, data));
   ptyProcess.onExit(({ exitCode, signal }) => {
+    const session = terminalSessions.get(id);
     terminalSessions.delete(id);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("terminal-exit", { id, code: exitCode, signal });
+    if (session && !session.ownerWebContents.isDestroyed()) {
+      session.ownerWebContents.send("terminal-exit", { id, code: exitCode, signal });
     }
   });
 
@@ -2702,8 +2749,9 @@ async function createTerminal(_event, payload = {}) {
 }
 
 function sendTerminalData(id, data) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("terminal-data", { id, data: String(data) });
+  const session = terminalSessions.get(id);
+  if (session && !session.ownerWebContents.isDestroyed()) {
+    session.ownerWebContents.send("terminal-data", { id, data: String(data) });
   }
 }
 
@@ -2735,6 +2783,14 @@ function killTerminal(_event, id) {
 function killTerminalSessions() {
   terminalSessions.forEach((session) => session.ptyProcess.kill("SIGTERM"));
   terminalSessions.clear();
+}
+
+function killTerminalSessionsForWebContents(webContentsId) {
+  terminalSessions.forEach((session, id) => {
+    if (session.ownerWebContentsId !== webContentsId) return;
+    session.ptyProcess.kill("SIGTERM");
+    terminalSessions.delete(id);
+  });
 }
 
 function pythonSessionKey(projectId, relativePath) {
@@ -2947,6 +3003,209 @@ function killPythonSessions() {
   pythonSessions.clear();
 }
 
+function pdfSpeechRuntimePaths() {
+  const runtimeRoot = path.join(app.getPath("userData"), "tts-runtime");
+  return {
+    runtimeRoot,
+    python: path.join(runtimeRoot, "venv", "bin", "python"),
+    worker: path.join(__dirname, "scripts", "openleaf_tts_worker.py")
+  };
+}
+
+function pdfSpeechRuntimeStatus() {
+  const runtime = pdfSpeechRuntimePaths();
+  const available = process.platform === "darwin"
+    && process.arch === "arm64"
+    && fs.existsSync(runtime.python)
+    && fs.existsSync(runtime.worker);
+  return {
+    available,
+    backend: available ? "mlx" : "unavailable",
+    model: available ? "Kokoro-82M" : "",
+    voice: available ? "Bella" : "",
+    detail: available
+      ? "Kokoro-82M runs locally with MLX on Apple Silicon."
+      : "The local Kokoro/MLX runtime is not installed."
+  };
+}
+
+const pdfSpeechVoices = new Set(["af_bella", "af_sarah", "am_michael", "am_adam", "af_heart"]);
+
+function pdfSpeechCacheRoot() {
+  return path.join(app.getPath("userData"), "tts-cache");
+}
+
+async function prunePdfSpeechCache() {
+  if (pdfSpeechCachePruned) return;
+  pdfSpeechCachePruned = true;
+  const root = pdfSpeechCacheRoot();
+  let entries = [];
+  try {
+    entries = await fsp.readdir(root, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === "ENOENT") return;
+    throw error;
+  }
+  const files = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const filePath = path.join(root, entry.name);
+    try {
+      const stat = await fsp.stat(filePath);
+      files.push({ filePath, size: stat.size, mtimeMs: stat.mtimeMs });
+    } catch (_error) {
+      // Cache entries can disappear while pruning.
+    }
+  }
+  files.sort((left, right) => right.mtimeMs - left.mtimeMs);
+  const maximumBytes = 384 * 1024 * 1024;
+  const maximumAgeMs = 14 * 24 * 60 * 60 * 1000;
+  let retainedBytes = 0;
+  const now = Date.now();
+  for (const file of files) {
+    retainedBytes += file.size;
+    if (now - file.mtimeMs <= maximumAgeMs && retainedBytes <= maximumBytes) continue;
+    await fsp.unlink(file.filePath).catch(() => {});
+  }
+}
+
+function createPdfSpeechSession() {
+  const runtime = pdfSpeechRuntimePaths();
+  if (!pdfSpeechRuntimeStatus().available) throw new Error("The local Kokoro/MLX runtime is unavailable.");
+  const useLowPriorityLauncher = process.platform === "darwin" && fs.existsSync("/usr/bin/nice");
+  const child = spawn(useLowPriorityLauncher ? "/usr/bin/nice" : runtime.python, [
+    ...(useLowPriorityLauncher ? ["-n", "10", runtime.python] : []),
+    "-u",
+    runtime.worker
+  ], {
+    cwd: path.dirname(runtime.worker),
+    env: {
+      ...process.env,
+      PATH: terminalPath,
+      PYTHONUNBUFFERED: "1",
+      TOKENIZERS_PARALLELISM: "false"
+    },
+    stdio: ["pipe", "pipe", "pipe"]
+  });
+  const session = {
+    child,
+    pending: new Map(),
+    stdoutBuffer: "",
+    stderrBuffer: "",
+    closed: false
+  };
+  pdfSpeechSession = session;
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    session.stdoutBuffer += chunk;
+    let newline = session.stdoutBuffer.indexOf("\n");
+    while (newline !== -1) {
+      const line = session.stdoutBuffer.slice(0, newline).trim();
+      session.stdoutBuffer = session.stdoutBuffer.slice(newline + 1);
+      if (line) resolvePdfSpeechLine(session, line);
+      newline = session.stdoutBuffer.indexOf("\n");
+    }
+  });
+  child.stderr.on("data", (chunk) => {
+    session.stderrBuffer = `${session.stderrBuffer}${chunk}`.slice(-16000);
+  });
+  child.on("error", (error) => closePdfSpeechSession(session, error));
+  child.on("close", (code, signal) => {
+    const detail = session.stderrBuffer.trim() || `Local voice stopped (${signal || code || 0}).`;
+    closePdfSpeechSession(session, new Error(detail));
+  });
+  return session;
+}
+
+function resolvePdfSpeechLine(session, line) {
+  let response;
+  try {
+    response = JSON.parse(line);
+  } catch (error) {
+    session.stderrBuffer = `${session.stderrBuffer}\n${line}`.slice(-16000);
+    return;
+  }
+  const pending = session.pending.get(String(response.id || ""));
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  session.pending.delete(String(response.id));
+  if (response.ok) pending.resolve(response);
+  else pending.reject(new Error(response.error || "Local neural speech generation failed."));
+}
+
+function closePdfSpeechSession(session, error = new Error("Local voice stopped.")) {
+  if (!session || session.closed) return;
+  session.closed = true;
+  if (pdfSpeechSession === session) pdfSpeechSession = null;
+  session.pending.forEach((pending) => {
+    clearTimeout(pending.timer);
+    pending.reject(error);
+  });
+  session.pending.clear();
+}
+
+function killPdfSpeechSession() {
+  if (!pdfSpeechSession) return;
+  if (!pdfSpeechSession.closed) pdfSpeechSession.child.kill("SIGTERM");
+  closePdfSpeechSession(pdfSpeechSession);
+}
+
+async function synthesizePdfSpeech(_event, payload = {}) {
+  const text = String(payload.text || "").trim();
+  if (!text) throw new Error("Speech text is empty.");
+  if (text.length > 1200) throw new Error("Speech chunk is too long.");
+  const speed = Math.min(2, Math.max(0.5, Number(payload.speed) || 1));
+  const voice = pdfSpeechVoices.has(String(payload.voice || "")) ? String(payload.voice) : "af_bella";
+  await fsp.mkdir(pdfSpeechCacheRoot(), { recursive: true });
+  await prunePdfSpeechCache();
+  const cacheKey = crypto.createHash("sha256").update(`kokoro-82m-v2\0${voice}\0${speed.toFixed(2)}\0${text}`).digest("hex");
+  const audioPath = path.join(pdfSpeechCacheRoot(), `${cacheKey}.wav`);
+  const metadataPath = path.join(pdfSpeechCacheRoot(), `${cacheKey}.json`);
+  if (fs.existsSync(audioPath) && fs.existsSync(metadataPath)) {
+    try {
+      const metadata = JSON.parse(await fsp.readFile(metadataPath, "utf8"));
+      return { ...metadata, audioUrl: pathToFileURL(audioPath).href, cached: true };
+    } catch (_error) {
+      await Promise.all([fsp.unlink(audioPath).catch(() => {}), fsp.unlink(metadataPath).catch(() => {})]);
+    }
+  }
+  let session = pdfSpeechSession;
+  if (!session || session.closed || session.child.stdin.destroyed) session = createPdfSpeechSession();
+  const id = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      session.pending.delete(id);
+      reject(new Error("The local neural voice took too long to generate audio."));
+    }, 180000);
+    session.pending.set(id, {
+      resolve: async (response) => {
+        try {
+          const metadata = {
+            duration: response.duration,
+            sampleRate: response.sampleRate,
+            timings: response.timings,
+            model: response.model,
+            voice: response.voice
+          };
+          await fsp.writeFile(metadataPath, JSON.stringify(metadata));
+          resolve({ ...metadata, audioUrl: pathToFileURL(audioPath).href, cached: false });
+        } catch (error) {
+          reject(error);
+        }
+      },
+      reject,
+      timer
+    });
+    session.child.stdin.write(`${JSON.stringify({ id, text, speed, voice, outputPath: audioPath })}\n`, (error) => {
+      if (!error) return;
+      clearTimeout(timer);
+      session.pending.delete(id);
+      reject(error);
+    });
+  });
+}
+
 function clampTerminalDimension(value, min, max, fallback) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -2985,6 +3244,19 @@ async function loadPresentationProject(_event, projectId) {
   };
 }
 
+async function getPresentationProjectRevision(_event, payload = {}) {
+  const projectId = typeof payload === "string" ? payload : payload.projectId;
+  const project = await getProject(projectId);
+  if (projectKind(project) !== "presentation") throw new Error("This is not a PowerPoint project.");
+  const buffer = await fsp.readFile(project.texPath);
+  const stat = await fsp.stat(project.texPath);
+  return {
+    revision: crypto.createHash("sha256").update(buffer).digest("hex"),
+    mtimeMs: stat.mtimeMs,
+    size: stat.size
+  };
+}
+
 async function savePresentationProject(_event, payload = {}) {
   const project = await getProject(payload.projectId);
   if (projectKind(project) !== "presentation") throw new Error("This is not a PowerPoint project.");
@@ -3000,7 +3272,8 @@ async function savePresentationProject(_event, payload = {}) {
     presentation: result.presentation,
     pdf: result.pdf,
     thumbnailPdf: result.thumbnailPdf,
-    backupPath: result.backupPath
+    backupPath: result.backupPath,
+    mergeStatus: result.mergeStatus
   };
 }
 
@@ -3758,7 +4031,7 @@ async function downloadPdf(_event, payload) {
   const options = payload && typeof payload === "object" ? payload : { projectId: payload };
   const project = await getProject(options.projectId);
   const sourcePath = await selectedPdfPath(project, options.relativePath);
-  if (!fs.existsSync(sourcePath)) throw new Error("No compiled PDF exists yet. Compile the project first.");
+  if (!fs.existsSync(sourcePath)) throw new Error("Compile the project before downloading its output.");
 
   const result = await dialog.showSaveDialog(mainWindow, {
     title: "Download PDF",
@@ -4208,6 +4481,25 @@ ipcMain.handle("import-project-files", importProjectFiles);
 ipcMain.handle("load-manuscript", loadManuscript);
 ipcMain.handle("load-presentation-project", loadPresentationProject);
 ipcMain.handle("save-presentation-project", savePresentationProject);
+ipcMain.handle("get-presentation-project-revision", getPresentationProjectRevision);
+ipcMain.handle("presentation-clipboard-write-element", (_event, payload = {}) => {
+  clipboard.writeText(String(payload.plainText || "OpenLeaf slide element"));
+  return { ok: true };
+});
+ipcMain.handle("presentation-clipboard-read", () => {
+  const image = clipboard.readImage();
+  if (image && !image.isEmpty()) {
+    const size = image.getSize();
+    return {
+      kind: "image",
+      dataUrl: image.toDataURL(),
+      mediaType: "image/png",
+      width: size.width || 1,
+      height: size.height || 1
+    };
+  }
+  return { kind: "text", text: clipboard.readText() };
+});
 ipcMain.handle("read-project-file", readProjectFile);
 ipcMain.handle("save-manuscript", saveManuscript);
 ipcMain.handle("list-python-interpreters", listPythonInterpreters);
@@ -4217,6 +4509,8 @@ ipcMain.handle("compile-manuscript", compileManuscript);
 ipcMain.handle("read-pdf", readPdf);
 ipcMain.handle("open-pdf", openPdf);
 ipcMain.handle("download-pdf", downloadPdf);
+ipcMain.handle("pdf-speech-status", pdfSpeechRuntimeStatus);
+ipcMain.handle("pdf-speech-synthesize", synthesizePdfSpeech);
 ipcMain.handle("download-project-package", downloadProjectPackage);
 ipcMain.handle("push-project-to-github", pushProjectToGithub);
 ipcMain.handle("pull-project-from-github", pullProjectFromGithub);
@@ -4234,6 +4528,7 @@ ipcMain.on("terminal-resize", resizeTerminal);
 app.on("before-quit", () => {
   killTerminalSessions();
   killPythonSessions();
+  killPdfSpeechSession();
 });
 
 app.whenReady().then(() => {

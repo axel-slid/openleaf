@@ -454,6 +454,25 @@
               <div id="pdfThumbnailList" class="pdf-thumbnail-list" aria-label="PDF page thumbnails"></div>
             </aside>
             <div id="pdfViewer" class="pdf-viewer" aria-label="Compiled manuscript pages"></div>
+            <div id="pdfSpeechControls" class="pdf-speech-controls" aria-label="Local PDF voice reader">
+              <div class="pdf-speech-pill">
+                <button id="pdfSpeechButton" class="pdf-speech-button" type="button" aria-label="Read PDF aloud" title="Read PDF aloud with a local neural voice" aria-pressed="false" disabled>
+                  <svg class="pdf-speech-play-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m8 5 11 7-11 7Z"></path>
+                  </svg>
+                  <svg class="pdf-speech-pause-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5v14M16 5v14"></path>
+                  </svg>
+                </button>
+                <div class="pdf-speech-progress" aria-label="PDF reading progress">
+                  <strong id="pdfSpeechProgressCurrent">0:00</strong>
+                  <span id="pdfSpeechProgressTotal">/ --:--</span>
+                </div>
+                <span class="pdf-speech-wave" aria-hidden="true"><i></i><i></i><i></i></span>
+              </div>
+              <span id="pdfSpeechStatus" class="visually-hidden" role="status" aria-live="polite">Waiting for PDF</span>
+              <span id="pdfSpeechProgressDetail" class="visually-hidden">0 of 0 words</span>
+            </div>
 
           </div>
           <section id="pythonNotebookPanel" class="python-notebook-panel" aria-label="Python notebook output" hidden>
@@ -695,7 +714,13 @@
         </div>
         <div class="pptx-title-block">
           <strong id="pptxProjectTitle">Presentation</strong>
-          <span id="pptxSaveStatus">Saved</span>
+          <div class="pptx-title-status-row">
+            <span id="pptxSaveStatus">Saved</span>
+            <span id="pptxCollaborationStatus" class="pptx-collaboration-status" data-state="synced" title="Object-level shared editing is enabled">
+              <span aria-hidden="true"></span>
+              Shared editing
+            </span>
+          </div>
         </div>
         <div class="pptx-topbar-actions">
           <button class="settingsButton" type="button" title="Settings" aria-label="Settings">
@@ -746,7 +771,7 @@
             <span>Fit</span>
           </button>
         </div>
-        <div class="pptx-tool-group">
+        <div class="pptx-tool-group pptx-insert-tools">
           <button id="pptxSelectButton" class="active" type="button" title="Select">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 3 12 9-6 1 3 6-2 1-3-6-4 4Z"></path></svg>
           </button>
@@ -756,7 +781,7 @@
           <button id="pptxAddLineButton" type="button" title="Insert line">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 18 14-12"></path><path d="m16 6h3v3"></path></svg>
           </button>
-          <button id="pptxAddImageButton" type="button" title="Insert image">
+          <button id="pptxAddImageButton" type="button" title="Insert image (or paste with ⌘V)">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8" cy="9" r="2"></circle><path d="m4 18 5-5 3 3 3-4 5 6"></path></svg>
           </button>
           <button id="pptxAddRectangleButton" type="button" title="Insert rectangle">
@@ -773,6 +798,69 @@
           </button>
           <input id="pptxImageFileInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
         </div>
+        <div id="pptxContextToolbar" class="pptx-context-toolbar" role="group" aria-label="Selected object formatting" hidden>
+          <span id="pptxElementType" class="pptx-selection-chip">Text</span>
+          <div id="pptxTextContextControls" class="pptx-text-context-controls">
+            <button id="pptxEditTextButton" type="button" title="Edit text (Enter)" aria-label="Edit selected text">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"></path><path d="m13.5 8.5 3 3"></path></svg>
+            </button>
+            <select id="pptxFontFamilyInput" class="pptx-font-family-control" aria-label="Font family" title="Font family">
+              <option value="Aptos">Aptos</option>
+              <option value="Arial">Arial</option>
+              <option value="Helvetica Neue">Helvetica Neue</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Times New Roman">Times New Roman</option>
+            </select>
+            <input id="pptxFontSizeInput" class="pptx-font-size-control" type="number" min="6" max="200" step="1" aria-label="Font size" title="Font size">
+            <button id="pptxBoldButton" type="button" aria-pressed="false" title="Bold (⌘B)"><strong>B</strong></button>
+            <button id="pptxItalicButton" type="button" aria-pressed="false" title="Italic (⌘I)"><em>I</em></button>
+            <button id="pptxUnderlineButton" type="button" aria-pressed="false" title="Underline (⌘U)"><u>U</u></button>
+            <select id="pptxAlignSelect" aria-label="Text alignment" title="Text alignment">
+              <option value="l">Left</option>
+              <option value="ctr">Center</option>
+              <option value="r">Right</option>
+              <option value="just">Justify</option>
+            </select>
+          </div>
+          <label class="pptx-color-control" title="Text or fill color">
+            <span class="pptx-color-icon" aria-hidden="true">A</span>
+            <input id="pptxColorInput" type="color" aria-label="Text or fill color">
+          </label>
+          <div id="pptxOutlineControls" class="pptx-outline-controls" role="group" aria-label="Border formatting" hidden>
+            <span class="pptx-outline-label">Border</span>
+            <label class="pptx-line-color-control" title="Border color">
+              <span class="pptx-line-color-icon" aria-hidden="true"></span>
+              <input id="pptxLineColorInput" type="color" aria-label="Border color">
+            </label>
+            <label class="pptx-line-width-control" title="Border width in points">
+              <input id="pptxLineWidthInput" type="number" min="0" max="20" step="0.25" aria-label="Border width in points">
+              <span aria-hidden="true">pt</span>
+            </label>
+            <select id="pptxLineStyleSelect" class="pptx-line-style-control" aria-label="Border style" title="Border style">
+              <option value="solid">Solid</option>
+              <option value="dash">Dashed</option>
+              <option value="dot">Dotted</option>
+              <option value="dashDot">Dash-dot</option>
+            </select>
+          </div>
+          <div class="pptx-order-controls" role="group" aria-label="Layer order">
+            <button id="pptxSendToBackButton" type="button" title="Send to back (⌥⇧↓)" aria-label="Send to back">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="4" width="10" height="7" rx="1"></rect><rect x="5" y="13" width="14" height="7" rx="1"></rect><path d="M12 3v11m-3-3 3 3 3-3"></path></svg>
+            </button>
+            <button id="pptxSendBackwardButton" type="button" title="Send backward (⌥↓)" aria-label="Send backward">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="4" width="10" height="7" rx="1"></rect><rect x="5" y="13" width="14" height="7" rx="1"></rect><path d="m9 9 3 3 3-3"></path></svg>
+            </button>
+            <button id="pptxBringForwardButton" type="button" title="Bring forward (⌥↑)" aria-label="Bring forward">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="7" rx="1"></rect><rect x="7" y="13" width="10" height="7" rx="1"></rect><path d="m9 15 3-3 3 3"></path></svg>
+            </button>
+            <button id="pptxBringToFrontButton" type="button" title="Bring to front (⌥⇧↑)" aria-label="Bring to front">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="7" rx="1"></rect><rect x="7" y="13" width="10" height="7" rx="1"></rect><path d="M12 21V10m-3 3 3-3 3 3"></path></svg>
+            </button>
+          </div>
+          <button id="pptxDeleteElementButton" type="button" title="Delete selected object">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></svg>
+          </button>
+        </div>
         <div class="pptx-tool-spacer"></div>
         <div class="pptx-tool-group pptx-slide-style-tools">
           <button id="pptxBackgroundButton" class="pptx-labeled-tool" type="button">Background</button>
@@ -781,13 +869,39 @@
           <button id="pptxTransitionButton" class="pptx-labeled-tool" type="button">Transition</button>
           <input id="pptxBackgroundColorInput" type="color" value="#ffffff" hidden>
         </div>
-        <div class="pptx-tool-group">
-          <button id="pptxDeleteElementButton" type="button" title="Delete selected element" disabled>
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></svg>
-          </button>
-        </div>
       </div>
       <main class="pptx-workspace">
+        <aside class="pptx-file-pane" aria-label="Presentation files">
+          <header class="pptx-file-pane-header">
+            <strong>Files</strong>
+            <div class="file-header-actions">
+              <button id="pptxFileRefreshButton" class="icon-button" type="button" aria-label="Refresh files" title="Refresh files">
+                <span class="refresh-glyph" aria-hidden="true">&#8635;</span>
+              </button>
+              <button id="pptxNewFileButton" class="icon-button" type="button" aria-label="New file" title="New file">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
+                  <path d="M14 2v6h6M12 11v6M9 14h6"></path>
+                </svg>
+              </button>
+              <button id="pptxNewFolderButton" class="icon-button" type="button" aria-label="New folder" title="New folder">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"></path>
+                  <path d="M12 10v6M9 13h6"></path>
+                </svg>
+              </button>
+              <button id="pptxDownloadPackageButton" class="icon-button" type="button" aria-label="Download package" title="Download package">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"></path>
+                  <path d="M3 8l3-4h12l3 4"></path>
+                  <path d="M12 10v6"></path>
+                  <path d="m8.5 12.5 3.5 3.5 3.5-3.5"></path>
+                </svg>
+              </button>
+            </div>
+          </header>
+          <div id="pptxFileTree" class="file-tree pptx-file-tree" aria-label="Project files"></div>
+        </aside>
         <aside class="pptx-slide-pane">
           <header>
             <strong>Slides</strong>
@@ -802,7 +916,7 @@
               <label class="pptx-stage-zoom-controls">
                 <span>Zoom</span>
                 <button id="pptxZoomOutButton" class="pptx-zoom-step-button" type="button" title="Zoom out" aria-label="Zoom out">&minus;</button>
-                <input id="pptxZoomRange" type="range" min="25" max="400" value="100" step="5">
+                <input id="pptxZoomRange" type="range" min="25" max="400" value="100" step="5" aria-label="Presentation zoom">
                 <button id="pptxZoomInButton" class="pptx-zoom-step-button" type="button" title="Zoom in" aria-label="Zoom in">+</button>
                 <output id="pptxZoomOutput">100%</output>
               </label>
@@ -818,50 +932,21 @@
             <div id="pptxSlideCanvas" class="pptx-slide-canvas">
               <canvas id="pptxBackgroundCanvas"></canvas>
               <div id="pptxElementLayer" class="pptx-element-layer"></div>
+              <div id="pptxVerticalGuide" class="pptx-alignment-guide pptx-alignment-guide-vertical" aria-hidden="true"></div>
+              <div id="pptxHorizontalGuide" class="pptx-alignment-guide pptx-alignment-guide-horizontal" aria-hidden="true"></div>
             </div>
           </div>
         </section>
-        <aside class="pptx-inspector">
-          <header>
-            <strong>Properties</strong>
-            <span id="pptxElementType">No selection</span>
-          </header>
-          <div id="pptxInspectorEmpty" class="pptx-inspector-empty">
-            Select an element on the slide to edit it.
-          </div>
-          <div id="pptxInspectorFields" class="pptx-inspector-fields" hidden>
-            <label class="pptx-field pptx-field-wide">
-              <span>Text</span>
-              <textarea id="pptxTextInput" rows="5"></textarea>
-            </label>
-            <div class="pptx-field-grid">
-              <label class="pptx-field"><span>X (in)</span><input id="pptxXInput" type="number" min="0" step="0.01"></label>
-              <label class="pptx-field"><span>Y (in)</span><input id="pptxYInput" type="number" min="0" step="0.01"></label>
-              <label class="pptx-field"><span>Width</span><input id="pptxWidthInput" type="number" min="0.05" step="0.01"></label>
-              <label class="pptx-field"><span>Height</span><input id="pptxHeightInput" type="number" min="0.05" step="0.01"></label>
-            </div>
-            <div class="pptx-field-grid">
-              <label class="pptx-field"><span>Font size</span><input id="pptxFontSizeInput" type="number" min="6" max="200" step="1"></label>
-              <label class="pptx-field"><span>Color</span><input id="pptxColorInput" type="color"></label>
-            </div>
-            <label class="pptx-field pptx-field-wide">
-              <span>Font</span>
-              <input id="pptxFontFamilyInput" type="text" placeholder="Aptos">
-            </label>
-            <div class="pptx-format-row" aria-label="Text formatting">
-              <button id="pptxBoldButton" type="button" aria-pressed="false"><strong>B</strong></button>
-              <button id="pptxItalicButton" type="button" aria-pressed="false"><em>I</em></button>
-              <button id="pptxUnderlineButton" type="button" aria-pressed="false"><u>U</u></button>
-              <select id="pptxAlignSelect" aria-label="Text alignment">
-                <option value="l">Left</option>
-                <option value="ctr">Center</option>
-                <option value="r">Right</option>
-              </select>
-            </div>
-            <p class="pptx-inspector-note">Images, charts, and shapes can be moved or resized. Text styling applies to text boxes.</p>
-          </div>
-        </aside>
       </main>
+      <div class="pptx-editor-internals" hidden aria-hidden="true">
+        <span id="pptxInspectorEmpty"></span>
+        <div id="pptxInspectorFields"></div>
+        <textarea id="pptxTextInput" tabindex="-1"></textarea>
+        <input id="pptxXInput" type="number" tabindex="-1">
+        <input id="pptxYInput" type="number" tabindex="-1">
+        <input id="pptxWidthInput" type="number" tabindex="-1">
+        <input id="pptxHeightInput" type="number" tabindex="-1">
+      </div>
       <div id="pptxTerminalSlot" class="pptx-terminal-slot" aria-label="PowerPoint terminal"></div>
       <footer class="pptx-statusbar">
         <span id="pptxStatusSlide">Slide 1 of 1</span>
@@ -1032,6 +1117,7 @@
           <span class="settings-nav-label">General</span>
           <button class="settings-nav-button active" type="button" data-settings-section="workspace">Workspace</button>
           <button class="settings-nav-button" type="button" data-settings-section="appearance">Appearance</button>
+          <button class="settings-nav-button" type="button" data-settings-section="voice">Voice</button>
         </div>
         <div class="settings-nav-group settings-nav-project-group">
           <span class="settings-nav-label">Project</span>
@@ -1244,6 +1330,30 @@
                 <option value="claude">Claude</option>
                 <option value="shell">Shell</option>
               </select>
+            </label>
+          </section>
+
+          <section class="settings-section voice-settings-panel" data-settings-panel="voice">
+            <div class="setting-column voice-settings-intro">
+              <span>Local PDF reader</span>
+              <small>Choose the on-device voice and playback speed used by the reader pill.</small>
+            </div>
+            <label class="setting-row">
+              <span>PDF reader voice</span>
+              <select id="pdfSpeechVoice" aria-label="PDF reader voice">
+                <option value="af_bella" selected>Bella · natural</option>
+                <option value="af_sarah">Sarah · clear</option>
+                <option value="am_michael">Michael · warm</option>
+                <option value="am_adam">Adam · deep</option>
+                <option value="af_heart">Heart · bright</option>
+              </select>
+            </label>
+            <label class="setting-row pdf-reader-speed-setting" for="pdfSpeechRate">
+              <span>PDF reading speed</span>
+              <span class="settings-range-control">
+                <input id="pdfSpeechRate" type="range" min="0.5" max="2" step="0.05" value="1" aria-label="PDF reading speed">
+                <output id="pdfSpeechRateOutput" for="pdfSpeechRate">1.0×</output>
+              </span>
             </label>
           </section>
 

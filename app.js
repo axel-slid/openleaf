@@ -8,6 +8,7 @@ const pptxFitButton = document.getElementById("pptxFitButton");
 const pptxBackButton = document.getElementById("pptxBackButton");
 const pptxProjectTitle = document.getElementById("pptxProjectTitle");
 const pptxSaveStatus = document.getElementById("pptxSaveStatus");
+const pptxCollaborationStatus = document.getElementById("pptxCollaborationStatus");
 const pptxSaveButton = document.getElementById("pptxSaveButton");
 const pptxPresentButton = document.getElementById("pptxPresentButton");
 const pptxPresentControls = document.getElementById("pptxPresentControls");
@@ -32,6 +33,16 @@ const pptxLayoutButton = document.getElementById("pptxLayoutButton");
 const pptxThemeButton = document.getElementById("pptxThemeButton");
 const pptxTransitionButton = document.getElementById("pptxTransitionButton");
 const pptxDeleteElementButton = document.getElementById("pptxDeleteElementButton");
+const pptxSendToBackButton = document.getElementById("pptxSendToBackButton");
+const pptxSendBackwardButton = document.getElementById("pptxSendBackwardButton");
+const pptxBringForwardButton = document.getElementById("pptxBringForwardButton");
+const pptxBringToFrontButton = document.getElementById("pptxBringToFrontButton");
+const pptxFilePane = document.querySelector(".pptx-file-pane");
+const pptxFileTree = document.getElementById("pptxFileTree");
+const pptxFileRefreshButton = document.getElementById("pptxFileRefreshButton");
+const pptxNewFileButton = document.getElementById("pptxNewFileButton");
+const pptxNewFolderButton = document.getElementById("pptxNewFolderButton");
+const pptxDownloadPackageButton = document.getElementById("pptxDownloadPackageButton");
 const pptxSlideCount = document.getElementById("pptxSlideCount");
 const pptxSlideList = document.getElementById("pptxSlideList");
 const pptxStageLabel = document.getElementById("pptxStageLabel");
@@ -44,6 +55,11 @@ const pptxStageViewport = document.getElementById("pptxStageViewport");
 const pptxSlideCanvas = document.getElementById("pptxSlideCanvas");
 const pptxBackgroundCanvas = document.getElementById("pptxBackgroundCanvas");
 const pptxElementLayer = document.getElementById("pptxElementLayer");
+const pptxVerticalGuide = document.getElementById("pptxVerticalGuide");
+const pptxHorizontalGuide = document.getElementById("pptxHorizontalGuide");
+const pptxContextToolbar = document.getElementById("pptxContextToolbar");
+const pptxTextContextControls = document.getElementById("pptxTextContextControls");
+const pptxEditTextButton = document.getElementById("pptxEditTextButton");
 const pptxElementType = document.getElementById("pptxElementType");
 const pptxInspectorEmpty = document.getElementById("pptxInspectorEmpty");
 const pptxInspectorFields = document.getElementById("pptxInspectorFields");
@@ -54,6 +70,10 @@ const pptxWidthInput = document.getElementById("pptxWidthInput");
 const pptxHeightInput = document.getElementById("pptxHeightInput");
 const pptxFontSizeInput = document.getElementById("pptxFontSizeInput");
 const pptxColorInput = document.getElementById("pptxColorInput");
+const pptxOutlineControls = document.getElementById("pptxOutlineControls");
+const pptxLineColorInput = document.getElementById("pptxLineColorInput");
+const pptxLineWidthInput = document.getElementById("pptxLineWidthInput");
+const pptxLineStyleSelect = document.getElementById("pptxLineStyleSelect");
 const pptxFontFamilyInput = document.getElementById("pptxFontFamilyInput");
 const pptxBoldButton = document.getElementById("pptxBoldButton");
 const pptxItalicButton = document.getElementById("pptxItalicButton");
@@ -139,6 +159,15 @@ const pdfViewer = document.getElementById("pdfViewer");
 const previewPane = document.querySelector(".preview-pane");
 const previewPaneHeader = document.getElementById("previewPaneHeader");
 const pdfViewerShell = document.getElementById("pdfViewerShell");
+const pdfSpeechControls = document.getElementById("pdfSpeechControls");
+const pdfSpeechButton = document.getElementById("pdfSpeechButton");
+const pdfSpeechStatus = document.getElementById("pdfSpeechStatus");
+const pdfSpeechProgressCurrent = document.getElementById("pdfSpeechProgressCurrent");
+const pdfSpeechProgressTotal = document.getElementById("pdfSpeechProgressTotal");
+const pdfSpeechProgressDetail = document.getElementById("pdfSpeechProgressDetail");
+const pdfSpeechRate = document.getElementById("pdfSpeechRate");
+const pdfSpeechRateOutput = document.getElementById("pdfSpeechRateOutput");
+const pdfSpeechVoice = document.getElementById("pdfSpeechVoice");
 const pythonNotebookPanel = document.getElementById("pythonNotebookPanel");
 const pythonNotebookMeta = document.getElementById("pythonNotebookMeta");
 const pythonNotebookFeed = document.getElementById("pythonNotebookFeed");
@@ -2460,6 +2489,8 @@ const SPELL_IGNORED_WORDS = new Set([
 
 let editor;
 let projects = [];
+let projectPreviewGeneration = 0;
+let projectPreviewQueue = Promise.resolve();
 let templateLibrary = { builtIn: [], custom: [] };
 let projectFiles = [];
 let activeProject = null;
@@ -2485,11 +2516,30 @@ let pdfJsPromise = null;
 let pdfRenderToken = 0;
 let pdfResizeTimer = null;
 let pdfZoomGestureTimer = null;
+let pdfLazyRenderObserver = null;
+let pdfLazyRenderQueue = [];
+let pdfLazyRenderActive = false;
 let pdfGestureStartZoom = DEFAULT_PDF_ZOOM;
 let pdfPageTextLines = new Map();
 let renderedPdfPageCount = 0;
 let renderedPdfZoom = DEFAULT_PDF_ZOOM;
 let pdfZoom = DEFAULT_PDF_ZOOM;
+let pdfSpeechPlan = { chunks: [], wordCount: 0, pageCount: 0, documentKey: "", fingerprint: "" };
+let pdfSpeechChunkIndex = 0;
+let pdfSpeechWordIndex = 0;
+let pdfSpeechPlaying = false;
+let pdfSpeechPaused = false;
+let pdfSpeechBackend = { available: false, model: "", voice: "" };
+let pdfSpeechAudio = null;
+let pdfSpeechAnimationFrame = 0;
+let pdfSpeechRequestGeneration = 0;
+let pdfSpeechCurrentTimings = [];
+let pdfSpeechAudioCache = new Map();
+let pdfSpeechFirstChunkReady = false;
+let pdfSpeechPlanRevision = 0;
+let pdfSpeechPreparedCount = 0;
+let pdfSpeechPreprocessActive = false;
+let pdfSpeechChunkDurations = [];
 let pdfDarkMode = false;
 let pdfRenderMode = "adaptive";
 let selectedPdfRelativePath = "";
@@ -2514,6 +2564,8 @@ let terminalSessions = [];
 let activeTerminalId = null;
 let splitTerminalIds = [];
 let terminalFitTimer = null;
+const AGENT_OUTPUT_IDLE_MS = 4000;
+const AGENT_TURN_MINIMUM_MS = 6000;
 let agentsLoadToken = 0;
 let fileContextMenu = null;
 let projectContextMenu = null;
@@ -2523,13 +2575,17 @@ let copiedProjectItem = null;
 let draggedTextTabPath = "";
 let activeMediaFile = null;
 const PPTX_EMU_PER_INCH = 914400;
+const OPENLEAF_PRESENTATION_ELEMENT_MIME = "application/x-openleaf-presentation-element";
 let activePresentation = null;
 let activePresentationPdf = null;
 let activePresentationThumbnailPdf = null;
 let activePresentationSlideIndex = 0;
 let selectedPresentationElement = null;
 let presentationChangeMap = new Map();
+let presentationElementBaselines = new Map();
 let presentationDirty = false;
+let presentationCollaborationTimer = null;
+let presentationCollaborationBusy = false;
 let presentationRenderToken = 0;
 let presentationThumbnailToken = 0;
 let presentationBackgroundRenderTask = null;
@@ -2538,7 +2594,12 @@ let presentationZoomAnchor = null;
 let presentationCanvasScale = 1;
 let presentationDragState = null;
 let presentationSelectionScope = "canvas";
+let presentationTextSelection = null;
+let presentationSelectionInspectorFrame = 0;
 let presentationSlideClipboard = null;
+let presentationElementClipboard = null;
+let presentationElementPasteCount = 0;
+let presentationPasteShortcutAt = 0;
 let presentationUndoStack = [];
 let presentationRedoStack = [];
 let presentationHistorySuspended = false;
@@ -2580,6 +2641,7 @@ async function init() {
   setupSettings();
   setupSourceEditor();
   setupTerminalPanel();
+  setupPdfSpeech();
   wireEvents();
   await loadProjects();
 }
@@ -4283,7 +4345,19 @@ function setPresentationTerminalOpen(open, { persist = true } = {}) {
   }
   if (persist) localStorage.setItem("openleafPresentationTerminalOpen", String(expanded));
   if (expanded) {
-    if (!terminalSessions.length) void createTerminalSession("shell");
+    const projectRoot = activeProject && activeProject.rootPath;
+    const belongsToActiveProject = (session) => (
+      !session.exited
+      && activeProject
+      && session.projectId === activeProject.id
+      && (!projectRoot || session.cwd === projectRoot)
+    );
+    const projectSession = terminalSessions.find((session) => (
+      belongsToActiveProject(session)
+      && session.kind === "shell"
+    )) || terminalSessions.find(belongsToActiveProject);
+    if (projectSession) activateTerminal(projectSession.id);
+    else void createTerminalSession("shell");
     scheduleTerminalFit();
   }
   requestAnimationFrame(() => {
@@ -5445,6 +5519,11 @@ function wireEvents() {
   projectRowsButton.addEventListener("click", () => setProjectView("rows"));
   backToProjectsButton.addEventListener("click", showProjects);
   if (pptxBackButton) pptxBackButton.addEventListener("click", showProjects);
+  if (pptxFileRefreshButton) pptxFileRefreshButton.addEventListener("click", loadProjectFiles);
+  if (pptxNewFileButton) pptxNewFileButton.addEventListener("click", () => createProjectFile("file"));
+  if (pptxNewFolderButton) pptxNewFolderButton.addEventListener("click", () => createProjectFile("folder"));
+  if (pptxDownloadPackageButton) pptxDownloadPackageButton.addEventListener("click", downloadProjectPackage);
+  if (pptxFilePane) wireFileDrop(pptxFilePane);
   if (pptxSaveButton) pptxSaveButton.addEventListener("click", saveActivePresentation);
   if (pptxPresentButton) pptxPresentButton.addEventListener("click", () => void setPresentationView(true));
   if (pptxPresentPreviousButton) {
@@ -5512,6 +5591,23 @@ function wireEvents() {
     });
   }
   if (pptxDeleteElementButton) pptxDeleteElementButton.addEventListener("click", deleteSelectedPresentationElement);
+  if (pptxSendToBackButton) pptxSendToBackButton.addEventListener("click", () => reorderSelectedPresentationElement("back"));
+  if (pptxSendBackwardButton) pptxSendBackwardButton.addEventListener("click", () => reorderSelectedPresentationElement("backward"));
+  if (pptxBringForwardButton) pptxBringForwardButton.addEventListener("click", () => reorderSelectedPresentationElement("forward"));
+  if (pptxBringToFrontButton) pptxBringToFrontButton.addEventListener("click", () => reorderSelectedPresentationElement("front"));
+  if (pptxEditTextButton) {
+    pptxEditTextButton.addEventListener("click", () => {
+      focusPresentationElementText(selectedPresentationElement);
+    });
+  }
+  if (pptxContextToolbar) {
+    pptxContextToolbar.addEventListener("pointerdown", (event) => {
+      const selectionState = capturePresentationTextSelection();
+      if (selectionState && selectionState.end > selectionState.start && event.target.closest("button")) {
+        event.preventDefault();
+      }
+    });
+  }
   if (pptxTerminalToggle) {
     pptxTerminalToggle.addEventListener("click", () => {
       setPresentationTerminalOpen(!presentationScreen.classList.contains("pptx-terminal-open"));
@@ -5568,6 +5664,21 @@ function wireEvents() {
       updateSelectedPresentationElement(isText ? "color" : "fillColor", pptxColorInput.value);
     });
   }
+  if (pptxLineColorInput) {
+    pptxLineColorInput.addEventListener("input", () => {
+      updateSelectedPresentationOutline({ lineColor: pptxLineColorInput.value }, { activateIfNeeded: true });
+    });
+  }
+  if (pptxLineWidthInput) {
+    pptxLineWidthInput.addEventListener("input", () => {
+      updateSelectedPresentationOutline({ lineWidth: pptxLineWidthInput.value });
+    });
+  }
+  if (pptxLineStyleSelect) {
+    pptxLineStyleSelect.addEventListener("change", () => {
+      updateSelectedPresentationOutline({ lineStyle: pptxLineStyleSelect.value }, { activateIfNeeded: true });
+    });
+  }
   [
     [pptxBoldButton, "bold"],
     [pptxItalicButton, "italic"],
@@ -5575,12 +5686,20 @@ function wireEvents() {
   ].forEach(([button, property]) => {
     if (!button) return;
     button.addEventListener("click", () => {
-      if (selectedPresentationElement) updateSelectedPresentationElement(property, !selectedPresentationElement[property]);
+      if (selectedPresentationElement) updateSelectedPresentationElement(property, !presentationSelectionStyleValue(property));
     });
   });
   if (pptxAlignSelect) {
     pptxAlignSelect.addEventListener("change", () => updateSelectedPresentationElement("align", pptxAlignSelect.value));
   }
+  document.addEventListener("selectionchange", () => {
+    if (!presentationScreen || presentationScreen.hidden) return;
+    capturePresentationTextSelection();
+    cancelAnimationFrame(presentationSelectionInspectorFrame);
+    presentationSelectionInspectorFrame = requestAnimationFrame(() => {
+      if (presentationScreen && !presentationScreen.hidden) renderPresentationInspector();
+    });
+  });
   topRefreshFilesButton.addEventListener("click", refreshActiveProject);
   railRefreshFilesButton.addEventListener("click", refreshActiveProject);
   wireFileDrop(filePane);
@@ -5595,6 +5714,9 @@ function wireEvents() {
   if (pushGithubButton) pushGithubButton.addEventListener("click", pushActiveProjectToGithub);
   if (pullGithubButton) pullGithubButton.addEventListener("click", pullActiveProjectFromGithub);
   if (pdfReaderButton) pdfReaderButton.addEventListener("click", togglePdfReaderMode);
+  if (pdfSpeechButton) pdfSpeechButton.addEventListener("click", togglePdfSpeech);
+  if (pdfSpeechRate) pdfSpeechRate.addEventListener("input", handlePdfSpeechRateChange);
+  if (pdfSpeechVoice) pdfSpeechVoice.addEventListener("change", handlePdfSpeechVoiceChange);
   closeHistoryButton.addEventListener("click", () => setHistoryPanelOpen(false));
   pdfZoomOutButton.addEventListener("click", () => changePdfZoom(-0.1));
   pdfZoomInButton.addEventListener("click", () => changePdfZoom(0.1));
@@ -5735,6 +5857,10 @@ function wireEvents() {
   }, true);
   document.addEventListener("keydown", handlePresentationHistoryShortcut, true);
   window.addEventListener("keydown", handleGlobalShortcut);
+  document.addEventListener("copy", handlePresentationCopy);
+  document.addEventListener("paste", (event) => {
+    void handlePresentationPaste(event);
+  });
 
   if (window.localOverleaf) {
     window.localOverleaf.onCommand((command) => {
@@ -6378,6 +6504,7 @@ function setSettingsPanel(section) {
   const title = {
     general: "General",
     appearance: "Appearance",
+    voice: "Voice",
     profile: "Profile",
     workspace: "Workspace",
     project: "GitHub",
@@ -6808,6 +6935,14 @@ function applyPdfLiveZoom() {
     if (linkLayer) {
       linkLayer.style.transform = ratio === 1 ? "" : `scale(${ratio})`;
     }
+    const speechLayer = pageShell.querySelector(".pdf-speech-highlight-layer");
+    if (speechLayer) {
+      speechLayer.style.transform = ratio === 1 ? "" : `scale(${ratio})`;
+    }
+    const textLayer = pageShell.querySelector(".pdf-text-layer");
+    if (textLayer) {
+      textLayer.style.transform = ratio === 1 ? "" : `scale(${ratio})`;
+    }
   });
 
   pdfViewer.scrollLeft = (centerX / oldScrollWidth) * pdfViewer.scrollWidth - pdfViewer.clientWidth / 2;
@@ -6898,7 +7033,10 @@ function setupTerminalPanel() {
       return;
     }
     const session = terminalSessions.find((item) => item.id === id);
-    if (session) session.term.write(data);
+    if (session) {
+      session.term.write(data);
+      trackAgentTerminalOutput(session, data);
+    }
   });
 
   window.localOverleaf.onTerminalExit(({ id, code, signal }) => {
@@ -6924,8 +7062,55 @@ function setupTerminalPanel() {
     session.exited = true;
     session.term.writeln("");
     session.term.writeln(`\x1b[38;5;244m[process exited: ${signal || code || 0}]\x1b[0m`);
+    if (isCompileAgentSession(session) && Number(code) === 0 && !signal) {
+      finishAgentTurn(session.id, { force: true });
+    }
     renderTerminalTabs();
   });
+}
+
+function isCompileAgentSession(session) {
+  return Boolean(session && (session.kind === "codex" || session.kind === "claude"));
+}
+
+function markAgentTurnStarted(session) {
+  if (!isCompileAgentSession(session)) return;
+  clearTimeout(session.agentCompileTimer);
+  session.agentCompileTimer = null;
+  session.agentTurnPending = true;
+  session.agentOutputSeen = false;
+  session.agentTurnStartedAt = Date.now();
+}
+
+function trackAgentTerminalOutput(session, data) {
+  if (!isCompileAgentSession(session) || !session.agentTurnPending || !String(data || "").length) return;
+  session.agentOutputSeen = true;
+  clearTimeout(session.agentCompileTimer);
+  const minimumRemaining = Math.max(0, AGENT_TURN_MINIMUM_MS - (Date.now() - session.agentTurnStartedAt));
+  session.agentCompileTimer = setTimeout(
+    () => finishAgentTurn(session.id),
+    Math.max(AGENT_OUTPUT_IDLE_MS, minimumRemaining)
+  );
+}
+
+async function finishAgentTurn(id, { force = false } = {}) {
+  const session = terminalSessions.find((item) => item.id === id);
+  if (!isCompileAgentSession(session) || !session.agentTurnPending || (!force && !session.agentOutputSeen)) return false;
+
+  clearTimeout(session.agentCompileTimer);
+  session.agentCompileTimer = null;
+  session.agentTurnPending = false;
+
+  if (!activeProject || (session.projectId && session.projectId !== activeProject.id)) return false;
+  if (!activeMediaFile && getSourceText() !== savedText) {
+    compileLog.textContent = "Agent finished. Save or reload the editor changes before compiling.";
+    return false;
+  }
+
+  compileLog.textContent = "Agent finished. Syncing files and compiling...";
+  await pollExternalSourceUpdate();
+  await compileManuscript({ manual: false });
+  return true;
 }
 
 async function createTerminalSession(kind = "shell") {
@@ -6940,7 +7125,8 @@ async function createTerminalSession(kind = "shell") {
   setTerminalControlsDisabled(true);
 
   try {
-    const descriptor = await window.localOverleaf.createTerminal(isRemoteProject() ? null : activeProject && activeProject.id, requestedKind, {
+    const terminalProjectId = isRemoteProject() ? null : activeProject && activeProject.id;
+    const descriptor = await window.localOverleaf.createTerminal(terminalProjectId, requestedKind, {
       remote: remoteWorkspace
     });
     const sessionIndex = nextTerminalIndex(requestedKind);
@@ -6970,15 +7156,23 @@ async function createTerminalSession(kind = "shell") {
       title: `${descriptor.title} ${sessionIndex}`,
       commandLabel: descriptor.commandLabel,
       cwd: descriptor.cwd,
+      projectId: terminalProjectId,
       kind: requestedKind,
       term,
       fitAddon,
       node: terminalNode,
       exited: false,
+      agentTurnPending: false,
+      agentOutputSeen: false,
+      agentTurnStartedAt: 0,
+      agentCompileTimer: null,
       readyAt: Date.now() + (requestedKind === "codex" ? 1500 : requestedKind === "claude" ? 1200 : 350)
     };
 
-    term.onData((data) => window.localOverleaf.writeTerminal(session.id, data));
+    term.onData((data) => {
+      if (/[\r\n]/.test(data)) markAgentTurnStarted(session);
+      window.localOverleaf.writeTerminal(session.id, data);
+    });
     term.onResize(({ cols, rows }) => window.localOverleaf.resizeTerminal(session.id, cols, rows));
     term.writeln(`\x1b[38;5;214m${descriptor.commandLabel}\x1b[0m`);
     term.writeln(`\x1b[38;5;244m${descriptor.cwd}\x1b[0m`);
@@ -7153,6 +7347,7 @@ function removeTerminalSession(id) {
   if (index === -1) return;
 
   const [session] = terminalSessions.splice(index, 1);
+  clearTimeout(session.agentCompileTimer);
   session.term.dispose();
   session.node.remove();
 
@@ -7305,6 +7500,7 @@ async function sendSelectionToCodex() {
 
   await waitForTerminalReady(session);
   const pastedMessage = message.replace(/\r\n?/g, "\n");
+  markAgentTurnStarted(session);
   window.localOverleaf.writeTerminal(session.id, `\x1b[200~${pastedMessage}\x1b[201~\r`);
   compileLog.textContent = `Sent selected text to ${agentKind === "claude" ? "Claude" : agentKind === "shell" ? "Shell" : "Codex"}.`;
 }
@@ -7544,6 +7740,7 @@ async function loadProjects() {
 }
 
 function renderProjectGrid() {
+  const previewGeneration = ++projectPreviewGeneration;
   updateProjectViewButtons();
   updateProjectSortControl();
   const query = projectSearch.value.trim().toLowerCase();
@@ -7571,7 +7768,7 @@ function renderProjectGrid() {
         ${TRASH_ICON_SVG}
       </button>
       <span class="project-preview" aria-hidden="true">
-        <span class="project-preview-message">${project.pdfExists ? "Rendering preview" : "No PDF yet"}</span>
+        <span class="project-preview-message">${project.pdfExists ? "Rendering preview" : "Preparing preview"}</span>
       </span>
       <span class="project-card-copy">
         <span class="project-card-title-row">
@@ -7610,8 +7807,17 @@ function renderProjectGrid() {
       toggleProjectFavorite(project);
     });
     projectGrid.appendChild(card);
-    renderProjectPreview(card, project);
+    scheduleProjectPreview(card, project, previewGeneration);
   });
+}
+
+function scheduleProjectPreview(card, project, generation) {
+  projectPreviewQueue = projectPreviewQueue
+    .catch(() => {})
+    .then(async () => {
+      if (generation !== projectPreviewGeneration || !card.isConnected) return;
+      await renderProjectPreview(card, project);
+    });
 }
 
 function sortProjectsForDisplay(items) {
@@ -7794,7 +8000,7 @@ async function toggleProjectFavorite(project) {
 
 async function renderProjectPreview(card, project) {
   const preview = card.querySelector(".project-preview");
-  if (!preview || !project.pdfExists) return;
+  if (!preview) return;
   const canUseCachedPreview = project.previewImageUrl && (!pdfDarkMode || pdfRenderMode === "original");
   preview.classList.toggle("pdf-dark-render", pdfDarkMode && pdfRenderMode !== "original");
   preview.classList.toggle("pdf-invert-pages", pdfDarkMode && pdfRenderMode === "invert");
@@ -7820,6 +8026,7 @@ async function renderProjectPreview(card, project) {
 
     const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
     const pdf = await loadingTask.promise;
+    project.pdfExists = true;
     const page = await pdf.getPage(1);
     if (!card.isConnected) return;
 
@@ -7849,7 +8056,7 @@ async function renderProjectPreview(card, project) {
     preview.replaceChildren(canvas);
   } catch (error) {
     if (!card.isConnected) return;
-    preview.innerHTML = '<span class="project-preview-message">Preview unavailable</span>';
+    preview.innerHTML = '<span class="project-preview-message">Open to fix preview</span>';
   }
 }
 
@@ -8012,8 +8219,60 @@ function presentationElementKey(slide, element) {
 }
 
 function clonePresentationValue(value) {
+  if (value === undefined || value === null) return value;
   if (typeof structuredClone === "function") return structuredClone(value);
   return JSON.parse(JSON.stringify(value));
+}
+
+const PRESENTATION_TRACKED_ELEMENT_PROPERTIES = [
+  "text",
+  "richTextRuns",
+  "x",
+  "y",
+  "cx",
+  "cy",
+  "fontSize",
+  "fontFamily",
+  "color",
+  "fillColor",
+  "lineColor",
+  "lineWidth",
+  "lineStyle",
+  "bold",
+  "italic",
+  "underline",
+  "align",
+  "zIndex"
+];
+
+function presentationElementTrackedState(element) {
+  const state = {};
+  PRESENTATION_TRACKED_ELEMENT_PROPERTIES.forEach((property) => {
+    state[property] = clonePresentationValue(
+      property === "richTextRuns" ? normalizedPresentationTextRuns(element) : element?.[property]
+    );
+  });
+  return state;
+}
+
+function rebuildPresentationElementBaselines() {
+  presentationElementBaselines = new Map();
+  (activePresentation?.slides || []).forEach((slide) => {
+    (slide.elements || []).forEach((element) => {
+      if (!element.isNew) {
+        presentationElementBaselines.set(presentationElementKey(slide, element), presentationElementTrackedState(element));
+      }
+    });
+  });
+}
+
+function presentationValuesEqual(left, right) {
+  if (Object.is(left, right)) return true;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch (error) {
+    return false;
+  }
 }
 
 function presentationHistorySnapshot() {
@@ -8091,6 +8350,75 @@ function setPresentationStatus(message, state = "") {
   pptxSaveStatus.dataset.state = state;
 }
 
+function setPresentationCollaborationStatus(message, state = "synced") {
+  if (!pptxCollaborationStatus) return;
+  pptxCollaborationStatus.lastChild.textContent = message;
+  pptxCollaborationStatus.dataset.state = state;
+}
+
+function stopPresentationCollaborationPolling() {
+  if (presentationCollaborationTimer) clearInterval(presentationCollaborationTimer);
+  presentationCollaborationTimer = null;
+  presentationCollaborationBusy = false;
+}
+
+async function reloadPresentationFromSharedSource() {
+  if (!activeProject || !activePresentation) return false;
+  const projectId = activeProject.id;
+  const slideIndex = activePresentationSlideIndex;
+  const result = await window.localOverleaf.loadPresentationProject(projectId);
+  if (!activeProject || activeProject.id !== projectId || presentationDirty) return false;
+  activeProject = result.project || activeProject;
+  activePresentation = result.presentation;
+  rebuildPresentationElementBaselines();
+  await loadPresentationPdf(result.pdf, result.thumbnailPdf);
+  activePresentationSlideIndex = Math.min(slideIndex, Math.max(0, activePresentation.slides.length - 1));
+  selectedPresentationElement = null;
+  presentationSelectionScope = "canvas";
+  presentationUndoStack = [];
+  presentationRedoStack = [];
+  updatePresentationHistoryButtons();
+  await renderPresentationSlideList();
+  await renderPresentationSlide();
+  renderPresentationInspector();
+  setPresentationStatus("Updated from shared poster", "ok");
+  setPresentationCollaborationStatus("Shared · synced", "synced");
+  return true;
+}
+
+async function pollPresentationCollaboration() {
+  if (
+    presentationCollaborationBusy
+    || !activeProject
+    || !activePresentation
+    || presentationScreen.hidden
+    || !window.localOverleaf.getPresentationProjectRevision
+  ) return;
+  presentationCollaborationBusy = true;
+  try {
+    const source = await window.localOverleaf.getPresentationProjectRevision(activeProject.id);
+    if (!source?.revision || source.revision === activePresentation.revision) return;
+    if (presentationDirty) {
+      setPresentationStatus("Shared edits available · Save to merge", "unsaved");
+      setPresentationCollaborationStatus("Shared · merge pending", "pending");
+      return;
+    }
+    await reloadPresentationFromSharedSource();
+  } catch (error) {
+    setPresentationCollaborationStatus("Shared · offline", "conflict");
+  } finally {
+    presentationCollaborationBusy = false;
+  }
+}
+
+function startPresentationCollaborationPolling() {
+  stopPresentationCollaborationPolling();
+  setPresentationCollaborationStatus("Shared · synced", "synced");
+  presentationCollaborationTimer = setInterval(() => {
+    void pollPresentationCollaboration();
+  }, 2500);
+}
+
 async function loadPresentationPdf(pdfBuffer, thumbnailPdfBuffer) {
   if (presentationZoomRenderFrame) {
     cancelAnimationFrame(presentationZoomRenderFrame);
@@ -8131,9 +8459,11 @@ async function loadPresentationPdf(pdfBuffer, thumbnailPdfBuffer) {
 async function openPresentationProject(project) {
   clearTimeout(autoCompileTimer);
   stopExternalSourcePolling();
+  stopPresentationCollaborationPolling();
   activeProject = project;
   activePresentation = null;
   selectedPresentationElement = null;
+  presentationTextSelection = null;
   presentationChangeMap = new Map();
   presentationDirty = false;
   presentationSelectionScope = "canvas";
@@ -8147,8 +8477,9 @@ async function openPresentationProject(project) {
   presentationScreen.classList.remove("pptx-presenting");
   if (pptxPresentControls) pptxPresentControls.hidden = true;
   placePresentationTerminalPanel();
-  setPresentationTerminalOpen(localStorage.getItem("openleafPresentationTerminalOpen") === "true", { persist: false });
+  setPresentationTerminalOpen(false, { persist: false });
   pptxProjectTitle.textContent = project.displayName || project.name || project.texName || "Presentation";
+  if (pptxFileTree) pptxFileTree.innerHTML = '<div class="file-message">Loading files...</div>';
   pptxSlideList.innerHTML = '<div class="file-message">Loading slides...</div>';
   pptxElementLayer.innerHTML = "";
   setPresentationStatus("Loading PowerPoint…");
@@ -8158,14 +8489,17 @@ async function openPresentationProject(project) {
     const data = await window.localOverleaf.loadPresentationProject(project.id);
     activeProject = data.project || project;
     activePresentation = data.presentation;
+    rebuildPresentationElementBaselines();
     await loadPresentationPdf(data.pdf, data.thumbnailPdf);
     pptxProjectTitle.textContent = activePresentation.fileName || activeProject.displayName || activeProject.name;
     pptxSlideCount.textContent = `${activePresentation.slides.length}`;
     presentationScreen.style.setProperty("--pptx-aspect", `${activePresentation.width} / ${activePresentation.height}`);
+    await loadProjectFiles();
     await renderPresentationSlideList();
     await renderPresentationSlide();
     renderPresentationInspector();
     setPresentationStatus("Saved", "ok");
+    startPresentationCollaborationPolling();
     pptxSaveButton.disabled = false;
   } catch (error) {
     pptxSlideList.innerHTML = `<div class="file-message file-error">${escapeHtml(formatError(error))}</div>`;
@@ -8203,7 +8537,7 @@ async function renderPresentationSlideList() {
     });
     pptxSlideList.appendChild(button);
   });
-  await renderPresentationThumbnails(token);
+  void renderPresentationThumbnails(token).catch(() => {});
 }
 
 async function renderPresentationThumbnails(token) {
@@ -8226,7 +8560,15 @@ async function renderPresentationThumbnails(token) {
     canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
     const context = canvas.getContext("2d");
     context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-    await page.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
+    const task = page.render({ canvasContext: context, viewport, background: "#ffffff" });
+    const completed = await Promise.race([
+      task.promise.then(() => true).catch(() => false),
+      new Promise((resolve) => setTimeout(() => resolve(false), 8000))
+    ]);
+    if (!completed) {
+      task.cancel();
+      return;
+    }
   }
 }
 
@@ -8265,6 +8607,7 @@ function setPresentationZoom(value, focalPoint = {}) {
   const clamped = Math.max(minimum, Math.min(maximum, Number(value) || 100));
   presentationZoomAnchor = capturePresentationZoomAnchor(focalPoint);
   pptxZoomRange.value = String(clamped);
+  presentationScreen.classList.toggle("pptx-overview-mode", clamped < 90);
   if (pptxZoomOutput) pptxZoomOutput.value = `${clamped}%`;
   if (presentationZoomRenderFrame) cancelAnimationFrame(presentationZoomRenderFrame);
   presentationZoomRenderFrame = requestAnimationFrame(() => {
@@ -8319,6 +8662,7 @@ async function renderPresentationSlide({ preserveSelection = false } = {}) {
   pptxStageLabel.textContent = `Slide ${activePresentationSlideIndex + 1} of ${activePresentation.slides.length}`;
   if (pptxStatusSlide) pptxStatusSlide.textContent = `Slide ${activePresentationSlideIndex + 1} of ${activePresentation.slides.length}`;
   updatePresentationViewControls();
+  presentationScreen.classList.toggle("pptx-overview-mode", Number(pptxZoomRange.value || 100) < 90);
   if (pptxZoomOutput) pptxZoomOutput.value = `${pptxZoomRange.value}%`;
   if (pptxBackgroundColorInput && /^#[0-9a-f]{6}$/i.test(slide.backgroundColor || "")) {
     pptxBackgroundColorInput.value = slide.backgroundColor;
@@ -8354,7 +8698,11 @@ async function renderPresentationSlide({ preserveSelection = false } = {}) {
   const renderTask = page.render({ canvasContext: context, viewport, background: "#ffffff" });
   presentationBackgroundRenderTask = renderTask;
   try {
-    await renderTask.promise;
+    const completed = await Promise.race([
+      renderTask.promise.then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 12000))
+    ]);
+    if (!completed) renderTask.cancel();
   } catch (error) {
     if (error?.name !== "RenderingCancelledException") throw error;
     return;
@@ -8375,6 +8723,22 @@ function presentationTextAlign(value) {
   return "left";
 }
 
+function presentationElementCanHaveOutline(element) {
+  return Boolean(element && ["p:sp", "p:pic", "p:cxnSp"].includes(element.tagName));
+}
+
+function presentationLineCssStyle(value) {
+  if (value === "dash") return "dashed";
+  if (value === "dot") return "dotted";
+  if (value === "dashDot") return "dashed";
+  return "solid";
+}
+
+function presentationLinePixels(width) {
+  const points = Math.max(0, Number(width) || 0);
+  return points * (PPTX_EMU_PER_INCH / 72) * presentationCanvasScale;
+}
+
 function positionPresentationElementNode(node, element) {
   const scale = presentationCanvasScale;
   node.style.left = `${element.x * scale}px`;
@@ -8388,10 +8752,272 @@ function decorateSelectedPresentationElementNode(node, element) {
   if (!node || !element) return;
   node.classList.add("selected");
   if (node.querySelector(".pptx-element-handle")) return;
-  const handle = document.createElement("span");
-  handle.className = "pptx-element-handle";
-  handle.addEventListener("pointerdown", (event) => beginPresentationElementResize(event, element, node));
-  node.appendChild(handle);
+  ["nw", "ne", "sw", "se"].forEach((direction) => {
+    const handle = document.createElement("span");
+    handle.className = "pptx-element-handle";
+    handle.dataset.handle = direction;
+    handle.setAttribute("aria-hidden", "true");
+    handle.addEventListener("pointerdown", (event) => beginPresentationElementResize(event, element, node, direction));
+    node.appendChild(handle);
+  });
+}
+
+function presentationTextRunFallback(element, text = "") {
+  return {
+    text,
+    fontSize: Number(element.fontSize) || 18,
+    fontFamily: element.fontFamily || "Aptos",
+    color: element.color || "#1f2937",
+    bold: Boolean(element.bold),
+    italic: Boolean(element.italic),
+    underline: Boolean(element.underline)
+  };
+}
+
+function mergePresentationTextRuns(runs) {
+  const merged = [];
+  runs.filter((run) => run && run.text !== "").forEach((run) => {
+    const normalized = { ...presentationTextRunFallback(run, String(run.text || "")), ...run };
+    normalized.text = String(run.text || "");
+    const previous = merged[merged.length - 1];
+    const sameStyle = previous
+      && previous.fontSize === normalized.fontSize
+      && previous.fontFamily === normalized.fontFamily
+      && previous.color === normalized.color
+      && previous.bold === Boolean(normalized.bold)
+      && previous.italic === Boolean(normalized.italic)
+      && previous.underline === Boolean(normalized.underline);
+    normalized.bold = Boolean(normalized.bold);
+    normalized.italic = Boolean(normalized.italic);
+    normalized.underline = Boolean(normalized.underline);
+    if (sameStyle) previous.text += normalized.text;
+    else merged.push(normalized);
+  });
+  return merged;
+}
+
+function normalizedPresentationTextRuns(element) {
+  const text = String(element.text || "");
+  const source = Array.isArray(element.richTextRuns) ? element.richTextRuns : [];
+  const runs = mergePresentationTextRuns(source);
+  if (!runs.length || runs.map((run) => run.text).join("") !== text) {
+    return [presentationTextRunFallback(element, text)];
+  }
+  return runs;
+}
+
+function presentationTextRunsWithUpdatedText(element, nextText) {
+  const previousText = String(element.text || "");
+  const normalizedNextText = String(nextText || "");
+  const previousRuns = normalizedPresentationTextRuns(element);
+  if (previousText === normalizedNextText) return previousRuns;
+
+  const characterStyles = [];
+  previousRuns.forEach((run) => {
+    const style = { ...run };
+    delete style.text;
+    for (let index = 0; index < run.text.length; index += 1) characterStyles.push(style);
+  });
+
+  let prefixLength = 0;
+  const sharedLength = Math.min(previousText.length, normalizedNextText.length);
+  while (
+    prefixLength < sharedLength
+    && previousText[prefixLength] === normalizedNextText[prefixLength]
+  ) prefixLength += 1;
+
+  let suffixLength = 0;
+  while (
+    suffixLength < previousText.length - prefixLength
+    && suffixLength < normalizedNextText.length - prefixLength
+    && previousText[previousText.length - suffixLength - 1]
+      === normalizedNextText[normalizedNextText.length - suffixLength - 1]
+  ) suffixLength += 1;
+
+  const fallbackStyle = presentationTextRunFallback(element, "");
+  delete fallbackStyle.text;
+  const insertedStyle = characterStyles[prefixLength - 1]
+    || characterStyles[Math.min(prefixLength, Math.max(0, characterStyles.length - 1))]
+    || fallbackStyle;
+  const nextRuns = [];
+  for (let index = 0; index < normalizedNextText.length; index += 1) {
+    let style = insertedStyle;
+    if (index < prefixLength) style = characterStyles[index] || insertedStyle;
+    else if (index >= normalizedNextText.length - suffixLength) {
+      const previousIndex = previousText.length - (normalizedNextText.length - index);
+      style = characterStyles[previousIndex] || insertedStyle;
+    }
+    nextRuns.push({ ...style, text: normalizedNextText[index] });
+  }
+  return mergePresentationTextRuns(nextRuns);
+}
+
+function presentationFontPixels(fontSize) {
+  return Math.max(4, Number(fontSize || 18) * (pptxSlideCanvas.clientWidth / activePresentation.widthInches) / 72);
+}
+
+function renderPresentationRichText(textNode, element) {
+  textNode.innerHTML = "";
+  normalizedPresentationTextRuns(element).forEach((run) => {
+    const span = document.createElement("span");
+    span.className = "pptx-text-run";
+    span.textContent = run.text;
+    span.style.color = run.color || element.color || "#1f2937";
+    span.style.fontFamily = run.fontFamily || element.fontFamily || "Aptos";
+    span.style.fontSize = `${presentationFontPixels(run.fontSize)}px`;
+    span.style.fontWeight = run.bold ? "700" : "400";
+    span.style.fontStyle = run.italic ? "italic" : "normal";
+    span.style.textDecoration = run.underline ? "underline" : "none";
+    textNode.appendChild(span);
+  });
+}
+
+function presentationTextOffset(root, node, offset) {
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(root);
+    range.setEnd(node, offset);
+    return range.toString().length;
+  } catch (error) {
+    return 0;
+  }
+}
+
+function capturePresentationTextSelection() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return presentationTextSelection;
+  const range = selection.getRangeAt(0);
+  const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+    ? range.startContainer
+    : range.startContainer.parentElement;
+  const endElement = range.endContainer.nodeType === Node.ELEMENT_NODE
+    ? range.endContainer
+    : range.endContainer.parentElement;
+  const textNode = startElement && startElement.closest ? startElement.closest(".pptx-element-text") : null;
+  if (!textNode || !endElement || !textNode.contains(endElement)) return presentationTextSelection;
+  const elementNode = textNode.closest(".pptx-element");
+  if (!elementNode) return presentationTextSelection;
+  const start = presentationTextOffset(textNode, range.startContainer, range.startOffset);
+  const end = presentationTextOffset(textNode, range.endContainer, range.endOffset);
+  presentationTextSelection = {
+    elementId: elementNode.dataset.elementId,
+    start: Math.min(start, end),
+    end: Math.max(start, end)
+  };
+  return presentationTextSelection;
+}
+
+function presentationTextPointAtOffset(root, requestedOffset) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let remaining = Math.max(0, Number(requestedOffset) || 0);
+  let node = walker.nextNode();
+  let last = null;
+  while (node) {
+    last = node;
+    const length = node.textContent.length;
+    if (remaining <= length) return { node, offset: remaining };
+    remaining -= length;
+    node = walker.nextNode();
+  }
+  if (!last) {
+    last = document.createTextNode("");
+    root.appendChild(last);
+  }
+  return { node: last, offset: last.textContent.length };
+}
+
+function presentationWordBoundsAtOffset(text, requestedOffset) {
+  const source = String(text || "");
+  if (!source) return null;
+  const isWordCharacter = (character) => /[\p{L}\p{N}_'-]/u.test(character || "");
+  let offset = Math.max(0, Math.min(source.length, Number(requestedOffset) || 0));
+  if (offset === source.length && offset > 0) offset -= 1;
+  if (!isWordCharacter(source[offset]) && offset > 0 && isWordCharacter(source[offset - 1])) offset -= 1;
+  if (!isWordCharacter(source[offset])) return null;
+  let start = offset;
+  let end = offset + 1;
+  while (start > 0 && isWordCharacter(source[start - 1])) start -= 1;
+  while (end < source.length && isWordCharacter(source[end])) end += 1;
+  return { start, end };
+}
+
+function restorePresentationTextSelection(textNode, selectionState) {
+  if (!textNode || !selectionState) return;
+  const selection = window.getSelection();
+  const start = presentationTextPointAtOffset(textNode, selectionState.start);
+  const end = presentationTextPointAtOffset(textNode, selectionState.end);
+  const range = document.createRange();
+  range.setStart(start.node, start.offset);
+  range.setEnd(end.node, end.offset);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function presentationSelectionStyleValue(property) {
+  const element = selectedPresentationElement;
+  if (!element) return undefined;
+  const selection = capturePresentationTextSelection();
+  if (!selection || selection.elementId !== String(element.id) || selection.end <= selection.start) {
+    return element[property];
+  }
+  let cursor = 0;
+  const matchingRuns = normalizedPresentationTextRuns(element).filter((run) => {
+    const runStart = cursor;
+    const runEnd = cursor + run.text.length;
+    cursor = runEnd;
+    return selection.start < runEnd && selection.end > runStart;
+  });
+  if (!matchingRuns.length) return element[property];
+  if (["bold", "italic", "underline"].includes(property)) {
+    return matchingRuns.every((run) => Boolean(run[property]));
+  }
+  return matchingRuns[0][property];
+}
+
+function applyPresentationTextRangeFormat(element, selectionState, property, value) {
+  const nextRuns = [];
+  let cursor = 0;
+  normalizedPresentationTextRuns(element).forEach((run) => {
+    const runStart = cursor;
+    const runEnd = cursor + run.text.length;
+    cursor = runEnd;
+    const overlapStart = Math.max(runStart, selectionState.start);
+    const overlapEnd = Math.min(runEnd, selectionState.end);
+    if (overlapStart >= overlapEnd) {
+      nextRuns.push(run);
+      return;
+    }
+    const beforeLength = overlapStart - runStart;
+    const selectedLength = overlapEnd - overlapStart;
+    if (beforeLength > 0) nextRuns.push({ ...run, text: run.text.slice(0, beforeLength) });
+    nextRuns.push({
+      ...run,
+      text: run.text.slice(beforeLength, beforeLength + selectedLength),
+      [property]: value
+    });
+    if (overlapEnd < runEnd) nextRuns.push({ ...run, text: run.text.slice(beforeLength + selectedLength) });
+  });
+  element.richTextRuns = mergePresentationTextRuns(nextRuns);
+}
+
+function formatSelectedPresentationTextRange(property, value) {
+  const element = selectedPresentationElement;
+  if (!element || !(element.type === "text" || element.hasTextBody)) return false;
+  const selectionState = capturePresentationTextSelection();
+  if (!selectionState || selectionState.elementId !== String(element.id) || selectionState.end <= selectionState.start) return false;
+  recordPresentationUndo();
+  applyPresentationTextRangeFormat(element, selectionState, property, value);
+  markPresentationElementChanged(element);
+  const elementNode = pptxElementLayer.querySelector(`[data-element-id="${CSS.escape(String(element.id))}"]`);
+  const textNode = elementNode && elementNode.querySelector(".pptx-element-text");
+  if (textNode) {
+    const wasEditing = elementNode.classList.contains("editing");
+    renderPresentationRichText(textNode, element);
+    textNode.contentEditable = wasEditing ? "true" : "false";
+    if (wasEditing) restorePresentationTextSelection(textNode, selectionState);
+  }
+  renderPresentationInspector();
+  return true;
 }
 
 function renderPresentationElements() {
@@ -8406,18 +9032,35 @@ function renderPresentationElements() {
     node.style.zIndex = String(Math.max(1, element.zIndex + 1));
     node.style.color = element.color || "#1f2937";
     node.style.fontFamily = element.fontFamily || "Aptos";
-    node.style.fontSize = `${Math.max(4, element.fontSize * (pptxSlideCanvas.clientWidth / activePresentation.widthInches) / 72)}px`;
+    node.style.fontSize = `${presentationFontPixels(element.fontSize)}px`;
     node.style.fontWeight = element.bold ? "700" : "400";
     node.style.fontStyle = element.italic ? "italic" : "normal";
     node.style.textDecoration = element.underline ? "underline" : "none";
     node.style.textAlign = presentationTextAlign(element.align);
     node.style.justifyContent = element.verticalAlign === "ctr" ? "center" : element.verticalAlign === "b" ? "flex-end" : "flex-start";
     positionPresentationElementNode(node, element);
+    const hasLocalVisualChange = element.isNew
+      || presentationChangeMap.has(presentationElementKey(slide, element));
+    if (hasLocalVisualChange && element.fillColor && element.tagName === "p:sp") {
+      node.style.background = element.fillColor;
+    }
+    if (hasLocalVisualChange && presentationElementCanHaveOutline(element)) {
+      const lineWidth = Math.max(0, Number(element.lineWidth) || 0);
+      if (lineWidth > 0) {
+        node.style.borderColor = element.lineColor || "#1f2937";
+        node.style.borderStyle = presentationLineCssStyle(element.lineStyle);
+        node.style.borderWidth = `${Math.max(1, presentationLinePixels(lineWidth))}px`;
+      } else {
+        node.style.borderColor = "transparent";
+        node.style.borderWidth = "0";
+      }
+    }
+    if (element.shapeType === "ellipse") node.style.borderRadius = "50%";
 
     if (isText) {
       const text = document.createElement("span");
       text.className = "pptx-element-text";
-      text.textContent = element.text || "";
+      renderPresentationRichText(text, element);
       text.style.padding = `${element.marginTop * presentationCanvasScale}px ${element.marginRight * presentationCanvasScale}px ${element.marginBottom * presentationCanvasScale}px ${element.marginLeft * presentationCanvasScale}px`;
       node.appendChild(text);
       node.addEventListener("dblclick", (event) => beginPresentationInlineEdit(event, element, text, node));
@@ -8429,13 +9072,6 @@ function renderPresentationElements() {
         image.alt = element.name || "Inserted image";
         image.draggable = false;
         node.appendChild(image);
-      }
-      if (element.type === "shape" && element.fillColor && (
-        element.isNew || presentationChangeMap.has(presentationElementKey(slide, element))
-      )) {
-        node.style.background = element.fillColor;
-        node.style.borderColor = `color-mix(in srgb, ${element.fillColor} 72%, #111827)`;
-        if (element.shapeType === "ellipse") node.style.borderRadius = "50%";
       }
       const label = document.createElement("span");
       label.className = "pptx-nontext-label";
@@ -8452,6 +9088,9 @@ function renderPresentationElements() {
 }
 
 function selectPresentationElement(element, { rerender = true } = {}) {
+  if (!element || !selectedPresentationElement || String(element.id) !== String(selectedPresentationElement.id)) {
+    presentationTextSelection = null;
+  }
   selectedPresentationElement = element || null;
   presentationSelectionScope = selectedPresentationElement ? "element" : "canvas";
   if (pptxDeleteElementButton) pptxDeleteElementButton.disabled = !selectedPresentationElement;
@@ -8459,41 +9098,121 @@ function selectPresentationElement(element, { rerender = true } = {}) {
   if (rerender) renderPresentationElements();
 }
 
+function updatePresentationOrderControls(element = selectedPresentationElement) {
+  const slide = currentPresentationSlide();
+  const ordered = slide
+    ? slide.elements
+      .filter((item) => !item.deleted)
+      .slice()
+      .sort((a, b) => (Number(a.zIndex) || 0) - (Number(b.zIndex) || 0))
+    : [];
+  const index = element ? ordered.indexOf(element) : -1;
+  const canMoveBackward = index > 0;
+  const canMoveForward = index >= 0 && index < ordered.length - 1;
+  if (pptxSendToBackButton) pptxSendToBackButton.disabled = !canMoveBackward;
+  if (pptxSendBackwardButton) pptxSendBackwardButton.disabled = !canMoveBackward;
+  if (pptxBringForwardButton) pptxBringForwardButton.disabled = !canMoveForward;
+  if (pptxBringToFrontButton) pptxBringToFrontButton.disabled = !canMoveForward;
+}
+
 function renderPresentationInspector() {
   const element = selectedPresentationElement;
-  pptxInspectorEmpty.hidden = Boolean(element);
-  pptxInspectorFields.hidden = !element;
-  pptxElementType.textContent = element ? `${element.type} · ${element.name}` : "No selection";
+  if (pptxInspectorEmpty) pptxInspectorEmpty.hidden = Boolean(element);
+  if (pptxInspectorFields) pptxInspectorFields.hidden = !element;
+  if (pptxContextToolbar) pptxContextToolbar.hidden = !element;
+  presentationScreen.classList.toggle("pptx-has-selection", Boolean(element));
+  if (pptxElementType) {
+    const label = !element
+      ? "No selection"
+      : (element.type === "text" || element.hasTextBody)
+        ? "Text"
+        : element.type === "image"
+          ? "Image"
+          : element.type === "shape"
+            ? "Shape"
+            : "Object";
+    pptxElementType.textContent = label;
+  }
+  updatePresentationOrderControls(element);
   if (!element) return;
   const isText = element.type === "text" || element.hasTextBody;
-  pptxTextInput.disabled = !isText;
-  pptxTextInput.value = isText ? (element.text || "") : "";
-  pptxXInput.value = (element.x / PPTX_EMU_PER_INCH).toFixed(2);
-  pptxYInput.value = (element.y / PPTX_EMU_PER_INCH).toFixed(2);
-  pptxWidthInput.value = (element.cx / PPTX_EMU_PER_INCH).toFixed(2);
-  pptxHeightInput.value = (element.cy / PPTX_EMU_PER_INCH).toFixed(2);
+  if (pptxTextContextControls) pptxTextContextControls.hidden = !isText;
+  if (pptxTextInput) {
+    pptxTextInput.disabled = !isText;
+    pptxTextInput.value = isText ? (element.text || "") : "";
+  }
+  if (pptxXInput) pptxXInput.value = (element.x / PPTX_EMU_PER_INCH).toFixed(2);
+  if (pptxYInput) pptxYInput.value = (element.y / PPTX_EMU_PER_INCH).toFixed(2);
+  if (pptxWidthInput) pptxWidthInput.value = (element.cx / PPTX_EMU_PER_INCH).toFixed(2);
+  if (pptxHeightInput) pptxHeightInput.value = (element.cy / PPTX_EMU_PER_INCH).toFixed(2);
   pptxFontSizeInput.disabled = !isText;
-  pptxFontSizeInput.value = Math.round(element.fontSize || 18);
+  pptxFontSizeInput.value = Math.round(presentationSelectionStyleValue("fontSize") || element.fontSize || 18);
   const canFill = element.type === "shape";
-  const selectedColor = isText ? element.color : element.fillColor;
+  const selectedColor = isText ? (presentationSelectionStyleValue("color") || element.color) : element.fillColor;
   pptxColorInput.disabled = !(isText || canFill);
   pptxColorInput.value = /^#[0-9a-f]{6}$/i.test(selectedColor || "") ? selectedColor : (isText ? "#1f2937" : "#5B9BD5");
+  const colorControl = pptxColorInput.closest(".pptx-color-control");
+  if (colorControl) {
+    colorControl.hidden = !(isText || canFill);
+    colorControl.style.setProperty("--pptx-color-swatch", pptxColorInput.value);
+  }
+  const canOutline = presentationElementCanHaveOutline(element);
+  if (pptxOutlineControls) pptxOutlineControls.hidden = !canOutline;
+  if (pptxLineColorInput) {
+    pptxLineColorInput.disabled = !canOutline;
+    pptxLineColorInput.value = /^#[0-9a-f]{6}$/i.test(element.lineColor || "")
+      ? element.lineColor
+      : "#1f2937";
+    const lineColorControl = pptxLineColorInput.closest(".pptx-line-color-control");
+    if (lineColorControl) lineColorControl.style.setProperty("--pptx-line-color-swatch", pptxLineColorInput.value);
+  }
+  if (pptxLineWidthInput) {
+    pptxLineWidthInput.disabled = !canOutline;
+    pptxLineWidthInput.value = String(Math.max(0, Number(element.lineWidth) || 0));
+  }
+  if (pptxLineStyleSelect) {
+    pptxLineStyleSelect.disabled = !canOutline;
+    pptxLineStyleSelect.value = ["solid", "dash", "dot", "dashDot"].includes(element.lineStyle)
+      ? element.lineStyle
+      : "solid";
+  }
   pptxFontFamilyInput.disabled = !isText;
-  pptxFontFamilyInput.value = element.fontFamily || "Aptos";
+  const selectedFontFamily = presentationSelectionStyleValue("fontFamily") || element.fontFamily || "Aptos";
+  Array.from(pptxFontFamilyInput.options || [])
+    .filter((option) => option.dataset.dynamicFont === "true" && option.value !== selectedFontFamily)
+    .forEach((option) => option.remove());
+  if (!Array.from(pptxFontFamilyInput.options || []).some((option) => option.value === selectedFontFamily)) {
+    const option = document.createElement("option");
+    option.value = selectedFontFamily;
+    option.textContent = selectedFontFamily;
+    option.dataset.dynamicFont = "true";
+    pptxFontFamilyInput.appendChild(option);
+  }
+  pptxFontFamilyInput.value = selectedFontFamily;
   pptxBoldButton.disabled = !isText;
   pptxItalicButton.disabled = !isText;
   pptxUnderlineButton.disabled = !isText;
-  pptxBoldButton.setAttribute("aria-pressed", element.bold ? "true" : "false");
-  pptxItalicButton.setAttribute("aria-pressed", element.italic ? "true" : "false");
-  pptxUnderlineButton.setAttribute("aria-pressed", element.underline ? "true" : "false");
+  pptxBoldButton.setAttribute("aria-pressed", presentationSelectionStyleValue("bold") ? "true" : "false");
+  pptxItalicButton.setAttribute("aria-pressed", presentationSelectionStyleValue("italic") ? "true" : "false");
+  pptxUnderlineButton.setAttribute("aria-pressed", presentationSelectionStyleValue("underline") ? "true" : "false");
   pptxAlignSelect.disabled = !isText;
-  pptxAlignSelect.value = ["l", "ctr", "r"].includes(element.align) ? element.align : "l";
+  pptxAlignSelect.value = ["l", "ctr", "r", "just"].includes(element.align) ? element.align : "l";
 }
 
 function markPresentationElementChanged(element) {
   const slide = currentPresentationSlide();
   if (!slide || !element) return;
-  presentationChangeMap.set(presentationElementKey(slide, element), {
+  const key = presentationElementKey(slide, element);
+  const base = presentationElementBaselines.get(key) || {};
+  const current = presentationElementTrackedState(element);
+  const changedProperties = element.isNew
+    ? PRESENTATION_TRACKED_ELEMENT_PROPERTIES.slice()
+    : element.deleted
+      ? ["deleted"]
+      : PRESENTATION_TRACKED_ELEMENT_PROPERTIES.filter((property) => (
+        !presentationValuesEqual(current[property], base[property])
+      ));
+  presentationChangeMap.set(key, {
     slidePath: slide.path,
     id: element.id,
     name: element.name,
@@ -8501,22 +9220,16 @@ function markPresentationElementChanged(element) {
     shapeType: element.shapeType,
     isNew: Boolean(element.isNew),
     deleted: Boolean(element.deleted),
-    text: element.text,
-    x: element.x,
-    y: element.y,
-    cx: element.cx,
-    cy: element.cy,
-    fontSize: element.fontSize,
-    fontFamily: element.fontFamily,
-    color: element.color,
-    fillColor: element.fillColor,
-    imageData: element.imageData,
-    imageFileName: element.imageFileName,
-    imageMediaType: element.imageMediaType,
+    ...current,
+    richTextRuns: clonePresentationValue(normalizedPresentationTextRuns(element)),
+    imageData: element.isNew ? element.imageData : undefined,
+    imageFileName: element.isNew ? element.imageFileName : undefined,
+    imageMediaType: element.isNew ? element.imageMediaType : undefined,
     bold: Boolean(element.bold),
     italic: Boolean(element.italic),
     underline: Boolean(element.underline),
-    align: element.align
+    base: clonePresentationValue(base),
+    changedProperties
   });
   presentationDirty = true;
   setPresentationStatus("Unsaved changes", "unsaved");
@@ -8524,19 +9237,186 @@ function markPresentationElementChanged(element) {
 
 function updateSelectedPresentationElement(property, value, { rerender = true } = {}) {
   if (!selectedPresentationElement) return;
+  const textStyleProperties = ["fontSize", "fontFamily", "color", "bold", "italic", "underline"];
+  if (textStyleProperties.includes(property) && formatSelectedPresentationTextRange(property, value)) return;
   if (selectedPresentationElement[property] === value) return;
   recordPresentationUndo();
   selectedPresentationElement[property] = value;
+  const isText = selectedPresentationElement.type === "text" || selectedPresentationElement.hasTextBody;
+  if (isText && property === "text") {
+    selectedPresentationElement.richTextRuns = [presentationTextRunFallback(selectedPresentationElement, String(value || ""))];
+  } else if (isText && textStyleProperties.includes(property)) {
+    selectedPresentationElement.richTextRuns = normalizedPresentationTextRuns(selectedPresentationElement)
+      .map((run) => ({ ...run, [property]: value }));
+  }
   markPresentationElementChanged(selectedPresentationElement);
   renderPresentationInspector();
   if (rerender) renderPresentationElements();
 }
 
+function updateSelectedPresentationOutline(changes, { activateIfNeeded = false } = {}) {
+  const element = selectedPresentationElement;
+  if (!presentationElementCanHaveOutline(element)) return;
+  const next = { ...changes };
+  if (Object.prototype.hasOwnProperty.call(next, "lineWidth")) {
+    next.lineWidth = Math.max(0, Math.min(20, Number(next.lineWidth) || 0));
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "lineStyle")
+    && !["solid", "dash", "dot", "dashDot"].includes(next.lineStyle)) {
+    next.lineStyle = "solid";
+  }
+  if (activateIfNeeded && !Object.prototype.hasOwnProperty.call(next, "lineWidth")
+    && Math.max(0, Number(element.lineWidth) || 0) === 0) {
+    next.lineWidth = 1;
+  }
+  const changed = Object.entries(next).some(([property, value]) => element[property] !== value);
+  if (!changed) return;
+  recordPresentationUndo();
+  Object.assign(element, next);
+  markPresentationElementChanged(element);
+  renderPresentationInspector();
+  renderPresentationElements();
+}
+
+function hidePresentationAlignmentGuides() {
+  [pptxVerticalGuide, pptxHorizontalGuide].forEach((guide) => {
+    if (!guide) return;
+    guide.classList.remove("visible");
+    guide.style.removeProperty("left");
+    guide.style.removeProperty("top");
+  });
+}
+
+function showPresentationAlignmentGuides({ x = null, y = null } = {}) {
+  if (pptxVerticalGuide) {
+    const visible = Number.isFinite(x);
+    pptxVerticalGuide.classList.toggle("visible", visible);
+    if (visible) pptxVerticalGuide.style.left = `${x * presentationCanvasScale}px`;
+  }
+  if (pptxHorizontalGuide) {
+    const visible = Number.isFinite(y);
+    pptxHorizontalGuide.classList.toggle("visible", visible);
+    if (visible) pptxHorizontalGuide.style.top = `${y * presentationCanvasScale}px`;
+  }
+}
+
+function presentationAlignmentCandidates(element, axis) {
+  if (!activePresentation) return [];
+  const isX = axis === "x";
+  const slideExtent = isX ? activePresentation.width : activePresentation.height;
+  const values = [0, slideExtent / 2, slideExtent];
+  const slide = currentPresentationSlide();
+  (slide?.elements || []).forEach((candidate) => {
+    if (
+      !candidate
+      || candidate.deleted
+      || String(candidate.id) === String(element.id)
+    ) return;
+    const start = Number(isX ? candidate.x : candidate.y);
+    const size = Number(isX ? candidate.cx : candidate.cy);
+    if (!Number.isFinite(start) || !Number.isFinite(size)) return;
+    values.push(start, start + (size / 2), start + size);
+  });
+  return values;
+}
+
+function nearestPresentationAlignment(points, candidates, threshold) {
+  let best = null;
+  points.forEach((point) => {
+    candidates.forEach((candidate) => {
+      const delta = candidate - point;
+      const distance = Math.abs(delta);
+      if (distance > threshold || (best && distance >= best.distance)) return;
+      best = { delta, distance, guide: candidate };
+    });
+  });
+  return best;
+}
+
+function snapPresentationElementGeometry(element, geometry, {
+  mode = "move",
+  direction = "",
+  disable = false
+} = {}) {
+  const next = { ...geometry };
+  if (disable || !activePresentation || !presentationCanvasScale) {
+    hidePresentationAlignmentGuides();
+    return next;
+  }
+  const threshold = 6 / presentationCanvasScale;
+  const xCandidates = presentationAlignmentCandidates(element, "x");
+  const yCandidates = presentationAlignmentCandidates(element, "y");
+  let xSnap = null;
+  let ySnap = null;
+
+  if (mode === "move") {
+    xSnap = nearestPresentationAlignment(
+      [next.x, next.x + (next.cx / 2), next.x + next.cx],
+      xCandidates,
+      threshold
+    );
+    ySnap = nearestPresentationAlignment(
+      [next.y, next.y + (next.cy / 2), next.y + next.cy],
+      yCandidates,
+      threshold
+    );
+    if (xSnap) next.x += xSnap.delta;
+    if (ySnap) next.y += ySnap.delta;
+  } else {
+    if (direction.includes("w")) {
+      xSnap = nearestPresentationAlignment([next.x], xCandidates, threshold);
+      if (xSnap) {
+        next.x += xSnap.delta;
+        next.cx -= xSnap.delta;
+      }
+    } else if (direction.includes("e")) {
+      xSnap = nearestPresentationAlignment([next.x + next.cx], xCandidates, threshold);
+      if (xSnap) next.cx += xSnap.delta;
+    }
+    if (direction.includes("n")) {
+      ySnap = nearestPresentationAlignment([next.y], yCandidates, threshold);
+      if (ySnap) {
+        next.y += ySnap.delta;
+        next.cy -= ySnap.delta;
+      }
+    } else if (direction.includes("s")) {
+      ySnap = nearestPresentationAlignment([next.y + next.cy], yCandidates, threshold);
+      if (ySnap) next.cy += ySnap.delta;
+    }
+  }
+
+  const minimum = PPTX_EMU_PER_INCH * 0.1;
+  next.cx = Math.max(minimum, next.cx);
+  next.cy = Math.max(minimum, next.cy);
+  next.x = Math.max(0, Math.min(activePresentation.width - next.cx, next.x));
+  next.y = Math.max(0, Math.min(activePresentation.height - next.cy, next.y));
+  showPresentationAlignmentGuides({
+    x: xSnap ? xSnap.guide : null,
+    y: ySnap ? ySnap.guide : null
+  });
+  return next;
+}
+
 function beginPresentationElementDrag(event, element, node) {
   if (event.button !== 0 || event.target.classList.contains("pptx-element-handle")) return;
   if (node.classList.contains("editing")) return;
+  const isEditableText = element.type === "text" || element.hasTextBody;
+  if (isEditableText && Number(event.detail) >= 2) {
+    const textNode = node.querySelector(".pptx-element-text");
+    if (textNode) {
+      beginPresentationInlineEdit(event, element, textNode, node);
+      return;
+    }
+  }
   event.preventDefault();
   event.stopPropagation();
+  hidePresentationAlignmentGuides();
+  if (node.setPointerCapture && Number.isFinite(event.pointerId)) {
+    try {
+      node.setPointerCapture(event.pointerId);
+    } catch (error) {
+    }
+  }
   selectPresentationElement(element, { rerender: false });
   pptxElementLayer.querySelectorAll(".pptx-element.selected").forEach((selectedNode) => {
     if (selectedNode !== node) selectedNode.classList.remove("selected");
@@ -8549,51 +9429,120 @@ function beginPresentationElementDrag(event, element, node) {
     historySnapshot: presentationHistorySnapshot(),
     startX: event.clientX,
     startY: event.clientY,
+    pointerId: event.pointerId,
     originalX: element.x,
     originalY: element.y,
     changed: false
   };
+  node.classList.add("dragging");
   window.addEventListener("pointermove", updatePresentationDrag);
-  window.addEventListener("pointerup", finishPresentationDrag, { once: true });
+  window.addEventListener("pointerup", finishPresentationDrag);
+  window.addEventListener("pointercancel", finishPresentationDrag);
 }
 
-function beginPresentationElementResize(event, element, node) {
+function beginPresentationElementResize(event, element, node, direction = "se") {
   event.preventDefault();
   event.stopPropagation();
+  hidePresentationAlignmentGuides();
+  if (node.setPointerCapture && Number.isFinite(event.pointerId)) {
+    try {
+      node.setPointerCapture(event.pointerId);
+    } catch (error) {
+    }
+  }
   presentationDragState = {
     mode: "resize",
+    direction,
     element,
     node,
     historySnapshot: presentationHistorySnapshot(),
     startX: event.clientX,
     startY: event.clientY,
+    pointerId: event.pointerId,
+    originalX: element.x,
+    originalY: element.y,
     originalCx: element.cx,
     originalCy: element.cy,
     changed: false
   };
+  node.classList.add("dragging");
   window.addEventListener("pointermove", updatePresentationDrag);
-  window.addEventListener("pointerup", finishPresentationDrag, { once: true });
+  window.addEventListener("pointerup", finishPresentationDrag);
+  window.addEventListener("pointercancel", finishPresentationDrag);
 }
 
 function updatePresentationDrag(event) {
   if (!presentationDragState || !activePresentation) return;
+  if (
+    Number.isFinite(presentationDragState.pointerId)
+    && Number.isFinite(event.pointerId)
+    && event.pointerId !== presentationDragState.pointerId
+  ) return;
   const deltaX = (event.clientX - presentationDragState.startX) / presentationCanvasScale;
   const deltaY = (event.clientY - presentationDragState.startY) / presentationCanvasScale;
   const element = presentationDragState.element;
   if (presentationDragState.mode === "move") {
-    const nextX = Math.max(0, Math.min(activePresentation.width - element.cx, presentationDragState.originalX + deltaX));
-    const nextY = Math.max(0, Math.min(activePresentation.height - element.cy, presentationDragState.originalY + deltaY));
+    let nextX = Math.max(0, Math.min(activePresentation.width - element.cx, presentationDragState.originalX + deltaX));
+    let nextY = Math.max(0, Math.min(activePresentation.height - element.cy, presentationDragState.originalY + deltaY));
+    const snapped = snapPresentationElementGeometry(element, {
+      x: nextX,
+      y: nextY,
+      cx: element.cx,
+      cy: element.cy
+    }, { mode: "move", disable: event.altKey });
+    nextX = snapped.x;
+    nextY = snapped.y;
     presentationDragState.changed = presentationDragState.changed
       || Math.abs(nextX - presentationDragState.originalX) > 1
       || Math.abs(nextY - presentationDragState.originalY) > 1;
     element.x = nextX;
     element.y = nextY;
   } else {
-    const nextCx = Math.max(PPTX_EMU_PER_INCH * 0.1, Math.min(activePresentation.width - element.x, presentationDragState.originalCx + deltaX));
-    const nextCy = Math.max(PPTX_EMU_PER_INCH * 0.1, Math.min(activePresentation.height - element.y, presentationDragState.originalCy + deltaY));
+    const minimum = PPTX_EMU_PER_INCH * 0.1;
+    const direction = presentationDragState.direction || "se";
+    let nextX = presentationDragState.originalX;
+    let nextY = presentationDragState.originalY;
+    let nextCx = presentationDragState.originalCx;
+    let nextCy = presentationDragState.originalCy;
+    if (direction.includes("e")) {
+      nextCx = Math.max(minimum, Math.min(
+        activePresentation.width - presentationDragState.originalX,
+        presentationDragState.originalCx + deltaX
+      ));
+    }
+    if (direction.includes("s")) {
+      nextCy = Math.max(minimum, Math.min(
+        activePresentation.height - presentationDragState.originalY,
+        presentationDragState.originalCy + deltaY
+      ));
+    }
+    if (direction.includes("w")) {
+      const maximumX = presentationDragState.originalX + presentationDragState.originalCx - minimum;
+      nextX = Math.max(0, Math.min(maximumX, presentationDragState.originalX + deltaX));
+      nextCx = presentationDragState.originalX + presentationDragState.originalCx - nextX;
+    }
+    if (direction.includes("n")) {
+      const maximumY = presentationDragState.originalY + presentationDragState.originalCy - minimum;
+      nextY = Math.max(0, Math.min(maximumY, presentationDragState.originalY + deltaY));
+      nextCy = presentationDragState.originalY + presentationDragState.originalCy - nextY;
+    }
+    const snapped = snapPresentationElementGeometry(element, {
+      x: nextX,
+      y: nextY,
+      cx: nextCx,
+      cy: nextCy
+    }, { mode: "resize", direction, disable: event.altKey });
+    nextX = snapped.x;
+    nextY = snapped.y;
+    nextCx = snapped.cx;
+    nextCy = snapped.cy;
     presentationDragState.changed = presentationDragState.changed
+      || Math.abs(nextX - presentationDragState.originalX) > 1
+      || Math.abs(nextY - presentationDragState.originalY) > 1
       || Math.abs(nextCx - presentationDragState.originalCx) > 1
       || Math.abs(nextCy - presentationDragState.originalCy) > 1;
+    element.x = nextX;
+    element.y = nextY;
     element.cx = nextCx;
     element.cy = nextCy;
   }
@@ -8601,9 +9550,27 @@ function updatePresentationDrag(event) {
   renderPresentationInspector();
 }
 
-function finishPresentationDrag() {
+function finishPresentationDrag(event) {
+  if (
+    presentationDragState
+    && Number.isFinite(presentationDragState.pointerId)
+    && Number.isFinite(event?.pointerId)
+    && event.pointerId !== presentationDragState.pointerId
+  ) return;
   window.removeEventListener("pointermove", updatePresentationDrag);
+  window.removeEventListener("pointerup", finishPresentationDrag);
+  window.removeEventListener("pointercancel", finishPresentationDrag);
+  hidePresentationAlignmentGuides();
   const changed = Boolean(presentationDragState && presentationDragState.element && presentationDragState.changed);
+  const dragNode = presentationDragState && presentationDragState.node;
+  const pointerId = presentationDragState && presentationDragState.pointerId;
+  dragNode?.classList.remove("dragging");
+  if (dragNode && dragNode.releasePointerCapture && Number.isFinite(pointerId)) {
+    try {
+      if (dragNode.hasPointerCapture(pointerId)) dragNode.releasePointerCapture(pointerId);
+    } catch (error) {
+    }
+  }
   if (changed) {
     pushPresentationUndoSnapshot(presentationDragState.historySnapshot);
     markPresentationElementChanged(presentationDragState.element);
@@ -8612,8 +9579,28 @@ function finishPresentationDrag() {
   if (changed) renderPresentationElements();
 }
 
+function insertPlainPresentationText(textNode, value) {
+  if (!textNode) return false;
+  const selection = window.getSelection();
+  let range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+  if (!range || !textNode.contains(range.commonAncestorContainer)) {
+    range = document.createRange();
+    range.selectNodeContents(textNode);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  const inserted = document.createTextNode(String(value || ""));
+  range.insertNode(inserted);
+  range.setStartAfter(inserted);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+}
+
 function beginPresentationInlineEdit(event, element, textNode, elementNode) {
   if (!(element.type === "text" || element.hasTextBody)) return;
+  if (elementNode.classList.contains("editing")) return;
   event.preventDefault();
   event.stopPropagation();
   selectPresentationElement(element, { rerender: false });
@@ -8622,26 +9609,76 @@ function beginPresentationInlineEdit(event, element, textNode, elementNode) {
   textNode.contentEditable = "true";
   textNode.focus();
   const selection = window.getSelection();
-  const range = document.createRange();
-  range.selectNodeContents(textNode);
+  let range = null;
+  if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY) && document.caretRangeFromPoint) {
+    const pointRange = document.caretRangeFromPoint(event.clientX, event.clientY);
+    if (pointRange && textNode.contains(pointRange.startContainer)) range = pointRange;
+  }
+  if (!range) {
+    range = document.createRange();
+    range.selectNodeContents(textNode);
+    range.collapse(false);
+  } else {
+    const textOffset = presentationTextOffset(textNode, range.startContainer, range.startOffset);
+    const wordBounds = presentationWordBoundsAtOffset(textNode.innerText, textOffset);
+    if (wordBounds) {
+      const start = presentationTextPointAtOffset(textNode, wordBounds.start);
+      const end = presentationTextPointAtOffset(textNode, wordBounds.end);
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset);
+    }
+  }
   selection.removeAllRanges();
   selection.addRange(range);
+  capturePresentationTextSelection();
   const originalText = element.text || "";
   const historySnapshot = presentationHistorySnapshot();
-  const finish = () => {
+  const syncEditableText = () => {
+    const nextText = textNode.innerText;
+    if (nextText === element.text) return false;
+    element.richTextRuns = presentationTextRunsWithUpdatedText(element, nextText);
+    element.text = nextText;
+    markPresentationElementChanged(element);
+    return true;
+  };
+  const finish = (blurEvent) => {
+    syncEditableText();
     textNode.contentEditable = "false";
     elementNode.classList.remove("editing");
-    const nextText = textNode.innerText;
-    if (nextText !== originalText) {
+    if (element.text !== originalText) {
       pushPresentationUndoSnapshot(historySnapshot);
-      element.text = nextText;
-      markPresentationElementChanged(element);
     }
+    const nextFocus = blurEvent && blurEvent.relatedTarget;
+    const preserveFormattingSelection = Boolean(
+      nextFocus
+      && pptxContextToolbar
+      && pptxContextToolbar.contains(nextFocus)
+    );
+    if (!preserveFormattingSelection) presentationTextSelection = null;
     renderPresentationInspector();
     renderPresentationElements();
   };
+  textNode.addEventListener("input", () => {
+    syncEditableText();
+    capturePresentationTextSelection();
+  });
   textNode.addEventListener("blur", finish, { once: true });
+  textNode.addEventListener("paste", (pasteEvent) => {
+    const plainText = pasteEvent.clipboardData?.getData("text/plain");
+    if (typeof plainText !== "string") return;
+    pasteEvent.preventDefault();
+    insertPlainPresentationText(textNode, plainText);
+    syncEditableText();
+    capturePresentationTextSelection();
+  });
   textNode.addEventListener("keydown", (keyEvent) => {
+    if (keyEvent.key === "Enter" && !keyEvent.metaKey && !keyEvent.ctrlKey) {
+      keyEvent.preventDefault();
+      insertPlainPresentationText(textNode, "\n");
+      syncEditableText();
+      capturePresentationTextSelection();
+      return;
+    }
     if (keyEvent.key === "Escape") {
       keyEvent.preventDefault();
       textNode.blur();
@@ -8651,6 +9688,67 @@ function beginPresentationInlineEdit(event, element, textNode, elementNode) {
       textNode.blur();
     }
   });
+}
+
+function focusPresentationElementText(element = selectedPresentationElement) {
+  if (!element || !(element.type === "text" || element.hasTextBody)) return false;
+  const elementNode = pptxElementLayer.querySelector(`[data-element-id="${CSS.escape(String(element.id))}"]`);
+  const textNode = elementNode && elementNode.querySelector(".pptx-element-text");
+  if (!elementNode || !textNode) return false;
+  beginPresentationInlineEdit({
+    preventDefault() {},
+    stopPropagation() {}
+  }, element, textNode, elementNode);
+  return true;
+}
+
+function nudgeSelectedPresentationElement(key, largeStep = false) {
+  if (!selectedPresentationElement || !activePresentation) return false;
+  const element = selectedPresentationElement;
+  const step = PPTX_EMU_PER_INCH * (largeStep ? 0.1 : 0.01);
+  let nextX = element.x;
+  let nextY = element.y;
+  if (key === "ArrowLeft") nextX -= step;
+  if (key === "ArrowRight") nextX += step;
+  if (key === "ArrowUp") nextY -= step;
+  if (key === "ArrowDown") nextY += step;
+  nextX = Math.max(0, Math.min(activePresentation.width - element.cx, nextX));
+  nextY = Math.max(0, Math.min(activePresentation.height - element.cy, nextY));
+  if (nextX === element.x && nextY === element.y) return false;
+  recordPresentationUndo();
+  element.x = nextX;
+  element.y = nextY;
+  markPresentationElementChanged(element);
+  renderPresentationElements();
+  renderPresentationInspector();
+  return true;
+}
+
+function duplicateSelectedPresentationElement() {
+  const source = selectedPresentationElement;
+  const slide = currentPresentationSlide();
+  if (!source || !slide || !activePresentation) return false;
+  const canDuplicate = source.type === "text"
+    || source.hasTextBody
+    || source.type === "shape"
+    || (source.type === "image" && source.imageData);
+  if (!canDuplicate) {
+    setPresentationStatus("This imported object can be moved and resized, but not duplicated yet.");
+    return false;
+  }
+  recordPresentationUndo();
+  const clone = JSON.parse(JSON.stringify(source));
+  clone.id = `new-copy-${Date.now()}`;
+  clone.name = `${source.name || "Object"} copy`;
+  clone.isNew = true;
+  clone.deleted = false;
+  clone.x = Math.min(activePresentation.width - clone.cx, Math.max(0, source.x + (PPTX_EMU_PER_INCH * 0.12)));
+  clone.y = Math.min(activePresentation.height - clone.cy, Math.max(0, source.y + (PPTX_EMU_PER_INCH * 0.12)));
+  clone.zIndex = slide.elements.reduce((highest, item) => Math.max(highest, Number(item.zIndex) || 0), 0) + 1;
+  slide.elements.push(clone);
+  markPresentationElementChanged(clone);
+  selectPresentationElement(clone);
+  return true;
 }
 
 function addPresentationTextBox() {
@@ -8664,6 +9762,15 @@ function addPresentationTextBox() {
     tagName: "p:sp",
     zIndex: slide.elements.length + 1,
     text: "New text",
+    richTextRuns: [{
+      text: "New text",
+      fontSize: 24,
+      fontFamily: "Aptos",
+      color: "#1f2937",
+      bold: false,
+      italic: false,
+      underline: false
+    }],
     hasTextBody: true,
     isNew: true,
     x: activePresentation.width * 0.12,
@@ -8682,11 +9789,15 @@ function addPresentationTextBox() {
     marginLeft: 91440,
     marginRight: 91440,
     marginTop: 45720,
-    marginBottom: 45720
+    marginBottom: 45720,
+    lineColor: "",
+    lineWidth: 0,
+    lineStyle: "solid"
   };
   slide.elements.push(element);
   markPresentationElementChanged(element);
   selectPresentationElement(element);
+  requestAnimationFrame(() => focusPresentationElementText(element));
 }
 
 function addPresentationShape(shapeType) {
@@ -8709,7 +9820,10 @@ function addPresentationShape(shapeType) {
     cx: activePresentation.width * 0.28,
     cy: activePresentation.height * 0.18,
     rotation: 0,
-    fillColor: normalizedShape === "ellipse" ? "#6BAED6" : "#5B9BD5"
+    fillColor: normalizedShape === "ellipse" ? "#6BAED6" : "#5B9BD5",
+    lineColor: "#2F5597",
+    lineWidth: 1,
+    lineStyle: "solid"
   };
   slide.elements.push(element);
   markPresentationElementChanged(element);
@@ -8812,13 +9926,14 @@ function handlePresentationMenu(menu) {
     const target = selectedPresentationElement || (slide && slide.elements.find((element) => element.type === "text" && !element.deleted));
     if (target) {
       selectPresentationElement(target);
-      if (!pptxTextInput.disabled) pptxTextInput.focus();
+      requestAnimationFrame(() => focusPresentationElementText(target));
     }
     return;
   }
   if (menu === "format" && selectedPresentationElement) {
-    pptxInspectorFields.scrollIntoView({ block: "nearest" });
-    if (!pptxTextInput.disabled) pptxTextInput.focus();
+    const isText = selectedPresentationElement.type === "text" || selectedPresentationElement.hasTextBody;
+    if (isText) pptxFontFamilyInput.focus();
+    else if (!pptxColorInput.disabled) pptxColorInput.click();
     return;
   }
   if (menu === "slide") {
@@ -8900,7 +10015,10 @@ function presentationTextPrimitive({
     marginLeft: 45720,
     marginRight: 45720,
     marginTop: 22860,
-    marginBottom: 22860
+    marginBottom: 22860,
+    lineColor: "",
+    lineWidth: 0,
+    lineStyle: "solid"
   };
 }
 
@@ -8919,7 +10037,10 @@ function presentationShapePrimitive({ id, name, x, y, cx, cy, fillColor, shapeTy
     cx,
     cy,
     rotation: 0,
-    fillColor
+    fillColor,
+    lineColor: "#2F5597",
+    lineWidth: 1,
+    lineStyle: "solid"
   };
 }
 
@@ -9066,6 +10187,303 @@ function imageDimensions(dataUrl) {
   });
 }
 
+function flashPresentationStatus(message, duration = 900) {
+  if (!pptxSaveStatus) return;
+  const restoreMessage = presentationDirty ? "Unsaved changes" : "Saved";
+  const restoreState = presentationDirty ? "unsaved" : "ok";
+  setPresentationStatus(message);
+  window.setTimeout(() => {
+    if (pptxSaveStatus && pptxSaveStatus.textContent === message) {
+      setPresentationStatus(restoreMessage, restoreState);
+    }
+  }, duration);
+}
+
+function presentationElementSupportsClipboard(element) {
+  return Boolean(element && (
+    element.type === "text"
+    || element.hasTextBody
+    || element.type === "shape"
+    || (element.type === "image" && element.imageData)
+  ));
+}
+
+function presentationElementSnapshotImage(element) {
+  if (
+    !element
+    || element.type !== "image"
+    || !activePresentation
+    || !pptxBackgroundCanvas
+    || !pptxBackgroundCanvas.width
+    || !pptxBackgroundCanvas.height
+  ) return "";
+  const scaleX = pptxBackgroundCanvas.width / activePresentation.width;
+  const scaleY = pptxBackgroundCanvas.height / activePresentation.height;
+  const sourceX = Math.max(0, Math.floor(Number(element.x || 0) * scaleX));
+  const sourceY = Math.max(0, Math.floor(Number(element.y || 0) * scaleY));
+  const sourceWidth = Math.max(1, Math.min(
+    pptxBackgroundCanvas.width - sourceX,
+    Math.ceil(Number(element.cx || 0) * scaleX)
+  ));
+  const sourceHeight = Math.max(1, Math.min(
+    pptxBackgroundCanvas.height - sourceY,
+    Math.ceil(Number(element.cy || 0) * scaleY)
+  ));
+  if (sourceWidth <= 0 || sourceHeight <= 0) return "";
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = sourceWidth;
+    canvas.height = sourceHeight;
+    const context = canvas.getContext("2d");
+    context.drawImage(
+      pptxBackgroundCanvas,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      sourceWidth,
+      sourceHeight
+    );
+    return canvas.toDataURL("image/png");
+  } catch (error) {
+    return "";
+  }
+}
+
+function presentationElementForClipboard(element) {
+  if (!element) return null;
+  const copy = clonePresentationValue(element);
+  if (copy.type === "image" && !copy.imageData) {
+    copy.imageData = presentationElementSnapshotImage(element);
+    copy.imageFileName = `${element.name || "Copied image"}.png`;
+    copy.imageMediaType = "image/png";
+  }
+  return presentationElementSupportsClipboard(copy) ? copy : null;
+}
+
+function presentationElementClipboardText(element) {
+  const text = String(element && element.text || "").trim();
+  return text || String(element && element.name || "OpenLeaf slide element");
+}
+
+function rememberSelectedPresentationElement({ clipboardWritten = false } = {}) {
+  const source = selectedPresentationElement;
+  const clipboardElement = presentationElementForClipboard(source);
+  if (!clipboardElement || !activeProject) return false;
+  presentationElementClipboard = {
+    version: 1,
+    projectId: activeProject.id,
+    copiedAt: Date.now(),
+    plainText: presentationElementClipboardText(source),
+    clipboardWritten,
+    element: clipboardElement
+  };
+  presentationElementPasteCount = 0;
+  return true;
+}
+
+async function copySelectedPresentationElementToClipboard() {
+  if (!rememberSelectedPresentationElement()) return false;
+  try {
+    if (window.localOverleaf && window.localOverleaf.writePresentationElementClipboard) {
+      await window.localOverleaf.writePresentationElementClipboard(presentationElementClipboard.plainText);
+    } else {
+      await navigator.clipboard.writeText(presentationElementClipboard.plainText);
+    }
+    presentationElementClipboard.clipboardWritten = true;
+  } catch (error) {
+    presentationElementClipboard.clipboardWritten = false;
+  }
+  flashPresentationStatus(`Copied ${selectedPresentationElement.name || "element"}`);
+  return true;
+}
+
+async function pastePresentationClipboardFromSystem() {
+  let clipboardValue = null;
+  try {
+    if (window.localOverleaf && window.localOverleaf.readPresentationClipboard) {
+      clipboardValue = await window.localOverleaf.readPresentationClipboard();
+    }
+  } catch (error) {
+    clipboardValue = null;
+  }
+
+  if (clipboardValue && clipboardValue.kind === "image" && clipboardValue.dataUrl) {
+    addPresentationImage({
+      dataUrl: clipboardValue.dataUrl,
+      fileName: "Clipboard image.png",
+      mediaType: clipboardValue.mediaType || "image/png",
+      width: clipboardValue.width || 1,
+      height: clipboardValue.height || 1
+    });
+    return true;
+  }
+
+  if (
+    clipboardValue
+    && clipboardValue.kind === "text"
+    && presentationElementClipboard
+    && clipboardValue.text === presentationElementClipboard.plainText
+  ) {
+    return pastePresentationElement(presentationElementClipboard);
+  }
+
+  if (presentationSelectionScope === "slide" && presentationSlideClipboard) {
+    return pastePresentationSlide();
+  }
+  return false;
+}
+
+function handlePresentationCopy(event) {
+  if (
+    !presentationScreen
+    || presentationScreen.hidden
+    || !activePresentation
+    || presentationViewIsActive()
+    || !selectedPresentationElement
+    || presentationShortcutTargetBlocksSlideActions(event.target)
+  ) return;
+  if (!rememberSelectedPresentationElement({ clipboardWritten: Boolean(event.clipboardData) })) return;
+  if (event.clipboardData) {
+    const payload = JSON.stringify(presentationElementClipboard);
+    event.clipboardData.setData("text/plain", presentationElementClipboard.plainText);
+    try {
+      event.clipboardData.setData(OPENLEAF_PRESENTATION_ELEMENT_MIME, payload);
+    } catch (error) {
+      presentationElementClipboard.clipboardWritten = false;
+    }
+  }
+  event.preventDefault();
+  flashPresentationStatus(`Copied ${selectedPresentationElement.name || "element"}`);
+}
+
+function presentationClipboardImageFile(event) {
+  const transfer = event && event.clipboardData;
+  if (!transfer) return null;
+  const item = Array.from(transfer.items || []).find((candidate) => (
+    candidate.kind === "file" && /^image\//i.test(candidate.type || "")
+  ));
+  const itemFile = item && item.getAsFile ? item.getAsFile() : null;
+  if (itemFile) return itemFile;
+  return Array.from(transfer.files || []).find((file) => /^image\//i.test(file.type || "")) || null;
+}
+
+function presentationClipboardDataImage(event) {
+  const transfer = event && event.clipboardData;
+  if (!transfer) return "";
+  const html = transfer.getData("text/html");
+  if (!html) return "";
+  try {
+    const documentNode = new DOMParser().parseFromString(html, "text/html");
+    const source = documentNode.querySelector("img")?.getAttribute("src") || "";
+    return /^data:image\//i.test(source) ? source : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function presentationElementPayloadFromPaste(event) {
+  const transfer = event && event.clipboardData;
+  if (transfer) {
+    const encoded = transfer.getData(OPENLEAF_PRESENTATION_ELEMENT_MIME);
+    if (encoded) {
+      try {
+        const payload = JSON.parse(encoded);
+        if (payload && presentationElementSupportsClipboard(payload.element)) return payload;
+      } catch (error) {
+      }
+    }
+  }
+  if (!presentationElementClipboard || !presentationElementSupportsClipboard(presentationElementClipboard.element)) {
+    return null;
+  }
+  if (!transfer || !presentationElementClipboard.clipboardWritten) return presentationElementClipboard;
+  const clipboardText = transfer.getData("text/plain");
+  return clipboardText === presentationElementClipboard.plainText ? presentationElementClipboard : null;
+}
+
+function pastePresentationElement(payload) {
+  const source = payload && payload.element;
+  const slide = currentPresentationSlide();
+  if (!presentationElementSupportsClipboard(source) || !slide || !activePresentation) return false;
+  recordPresentationUndo();
+  presentationElementPasteCount += 1;
+  const clone = clonePresentationValue(source);
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const offset = PPTX_EMU_PER_INCH * 0.12 * Math.min(6, presentationElementPasteCount);
+  clone.id = `new-paste-${stamp}`;
+  clone.name = `${source.name || "Object"} copy`;
+  clone.isNew = true;
+  clone.deleted = false;
+  clone.x = Math.min(
+    Math.max(0, activePresentation.width - clone.cx),
+    Math.max(0, Number(source.x || 0) + offset)
+  );
+  clone.y = Math.min(
+    Math.max(0, activePresentation.height - clone.cy),
+    Math.max(0, Number(source.y || 0) + offset)
+  );
+  clone.zIndex = slide.elements.reduce((highest, element) => (
+    Math.max(highest, Number(element.zIndex) || 0)
+  ), 0) + 1;
+  slide.elements.push(clone);
+  markPresentationElementChanged(clone);
+  selectPresentationElement(clone);
+  return true;
+}
+
+async function handlePresentationPaste(event) {
+  if (
+    !presentationScreen
+    || presentationScreen.hidden
+    || !activePresentation
+    || presentationViewIsActive()
+  ) return false;
+  if (Date.now() - presentationPasteShortcutAt < 500) {
+    event.preventDefault();
+    return false;
+  }
+
+  const imageFile = presentationClipboardImageFile(event);
+  if (imageFile) {
+    event.preventDefault();
+    await addPresentationImageFile(imageFile);
+    return true;
+  }
+
+  const dataImage = presentationClipboardDataImage(event);
+  if (dataImage) {
+    event.preventDefault();
+    const dimensions = await imageDimensions(dataImage);
+    addPresentationImage({
+      dataUrl: dataImage,
+      fileName: "Clipboard image.png",
+      mediaType: dataImage.slice(5, dataImage.indexOf(";")) || "image/png",
+      ...dimensions
+    });
+    return true;
+  }
+
+  if (presentationShortcutTargetBlocksSlideActions(event.target)) return false;
+  const elementPayload = presentationElementPayloadFromPaste(event);
+  if (elementPayload) {
+    event.preventDefault();
+    presentationElementClipboard = {
+      ...elementPayload,
+      element: clonePresentationValue(elementPayload.element)
+    };
+    return pastePresentationElement(presentationElementClipboard);
+  }
+
+  if (presentationSelectionScope === "slide" && presentationSlideClipboard) {
+    event.preventDefault();
+    return pastePresentationSlide();
+  }
+  return false;
+}
+
 async function addPresentationImageFile(file) {
   try {
     const dataUrl = await fileAsDataUrl(file);
@@ -9119,6 +10537,44 @@ function deleteSelectedPresentationElement() {
   renderPresentationInspector();
   renderPresentationElements();
   pptxDeleteElementButton.disabled = true;
+}
+
+function reorderSelectedPresentationElement(mode) {
+  const slide = currentPresentationSlide();
+  const element = selectedPresentationElement;
+  if (!slide || !element) return false;
+  const ordered = slide.elements
+    .filter((item) => !item.deleted)
+    .slice()
+    .sort((a, b) => (Number(a.zIndex) || 0) - (Number(b.zIndex) || 0));
+  const currentIndex = ordered.indexOf(element);
+  if (currentIndex < 0) return false;
+  let targetIndex = currentIndex;
+  if (mode === "back") targetIndex = 0;
+  if (mode === "backward") targetIndex = Math.max(0, currentIndex - 1);
+  if (mode === "forward") targetIndex = Math.min(ordered.length - 1, currentIndex + 1);
+  if (mode === "front") targetIndex = ordered.length - 1;
+  if (targetIndex === currentIndex) return false;
+
+  recordPresentationUndo();
+  ordered.splice(currentIndex, 1);
+  ordered.splice(targetIndex, 0, element);
+  ordered.forEach((item, index) => {
+    item.zIndex = index;
+    markPresentationElementChanged(item);
+  });
+  renderPresentationElements();
+  renderPresentationInspector();
+  flashPresentationStatus(
+    mode === "front"
+      ? "Brought to front"
+      : mode === "back"
+        ? "Sent to back"
+        : mode === "forward"
+          ? "Brought forward"
+          : "Sent backward"
+  );
+  return true;
 }
 
 function refreshPresentationSlideMetadata() {
@@ -9320,7 +10776,32 @@ function handlePresentationShortcut(event) {
   const key = String(event.key || "").toLowerCase();
 
   if (handlePresentationHistoryShortcut(event)) return true;
+  if (selectedPresentationElement && shortcut && ["b", "i", "u"].includes(key)) {
+    const isText = selectedPresentationElement.type === "text" || selectedPresentationElement.hasTextBody;
+    if (isText) {
+      event.preventDefault();
+      const property = key === "b" ? "bold" : key === "i" ? "italic" : "underline";
+      updateSelectedPresentationElement(property, !presentationSelectionStyleValue(property));
+      return true;
+    }
+  }
+  if (
+    selectedPresentationElement
+    && shortcut
+    && key === "c"
+    && !presentationShortcutTargetBlocksSlideActions(event.target)
+  ) {
+    event.preventDefault();
+    void copySelectedPresentationElementToClipboard();
+    return true;
+  }
   if (presentationShortcutTargetBlocksSlideActions(event.target)) return false;
+  if (shortcut && key === "v") {
+    event.preventDefault();
+    presentationPasteShortcutAt = Date.now();
+    void pastePresentationClipboardFromSystem();
+    return true;
+  }
   if (!event.altKey && (key === "+" || key === "=")) {
     event.preventDefault();
     stepPresentationZoom(1);
@@ -9331,9 +10812,52 @@ function handlePresentationShortcut(event) {
     stepPresentationZoom(-1);
     return true;
   }
+  if (shortcut && key === "s") {
+    event.preventDefault();
+    void saveActivePresentation();
+    return true;
+  }
   if (shortcut && key === "p") {
     event.preventDefault();
     window.print();
+    return true;
+  }
+  if (selectedPresentationElement && shortcut && key === "d") {
+    event.preventDefault();
+    duplicateSelectedPresentationElement();
+    return true;
+  }
+  if (
+    selectedPresentationElement
+    && !shortcut
+    && event.altKey
+    && (event.key === "ArrowUp" || event.key === "ArrowDown")
+  ) {
+    event.preventDefault();
+    reorderSelectedPresentationElement(
+      event.key === "ArrowUp"
+        ? (event.shiftKey ? "front" : "forward")
+        : (event.shiftKey ? "back" : "backward")
+    );
+    return true;
+  }
+  if (selectedPresentationElement && !shortcut && !event.altKey && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+    event.preventDefault();
+    nudgeSelectedPresentationElement(event.key, event.shiftKey);
+    return true;
+  }
+  if (selectedPresentationElement && !shortcut && event.key === "Enter") {
+    const isText = selectedPresentationElement.type === "text" || selectedPresentationElement.hasTextBody;
+    if (isText) {
+      event.preventDefault();
+      focusPresentationElementText(selectedPresentationElement);
+      return true;
+    }
+  }
+  if (selectedPresentationElement && !shortcut && event.key === "Escape") {
+    event.preventDefault();
+    selectPresentationElement(null);
+    pptxStageViewport.focus({ preventScroll: true });
     return true;
   }
   if (presentationSelectionScope === "slide" && shortcut && key === "c") {
@@ -9344,11 +10868,6 @@ function handlePresentationShortcut(event) {
   if (presentationSelectionScope === "slide" && shortcut && key === "x") {
     event.preventDefault();
     if (copyActivePresentationSlide()) void deleteActivePresentationSlide();
-    return true;
-  }
-  if (presentationSelectionScope === "slide" && shortcut && key === "v") {
-    event.preventDefault();
-    void pastePresentationSlide();
     return true;
   }
   if (presentationSelectionScope === "slide" && shortcut && key === "d") {
@@ -9404,10 +10923,12 @@ async function saveActivePresentation() {
   try {
     const result = await window.localOverleaf.savePresentationProject(
       activeProject.id,
-      Array.from(presentationChangeMap.values())
+      Array.from(presentationChangeMap.values()),
+      { baseRevision: activePresentation.revision || "" }
     );
     activeProject = result.project || activeProject;
     activePresentation = result.presentation;
+    rebuildPresentationElementBaselines();
     await loadPresentationPdf(result.pdf, result.thumbnailPdf);
     activePresentationSlideIndex = Math.min(slideIndex, activePresentation.slides.length - 1);
     selectedPresentationElement = null;
@@ -9420,9 +10941,14 @@ async function saveActivePresentation() {
     await renderPresentationSlideList();
     await renderPresentationSlide();
     renderPresentationInspector();
-    setPresentationStatus("Saved · backup created", "ok");
+    setPresentationStatus(
+      result.mergeStatus === "merged" ? "Saved · merged shared edits" : "Saved · backup created",
+      "ok"
+    );
+    setPresentationCollaborationStatus("Shared · synced", "synced");
   } catch (error) {
     setPresentationStatus("Save failed", "error");
+    setPresentationCollaborationStatus("Shared · conflict", "conflict");
     window.alert(formatError(error));
   } finally {
     pptxSaveButton.disabled = false;
@@ -9475,7 +11001,9 @@ async function showProjects({ discardChanges = false } = {}) {
   }
 
   clearTimeout(autoCompileTimer);
+  stopPdfSpeech({ resetCursor: true, updateStatus: false });
   stopExternalSourcePolling();
+  stopPresentationCollaborationPolling();
   updateProjectHeroGreeting({ rotate: true });
   projectScreen.hidden = false;
   editorScreen.hidden = true;
@@ -9580,10 +11108,24 @@ async function loadProjectFile(relativePath, { confirmUnsaved = true, preview = 
   }
 }
 
+function activeFileTreeContainer() {
+  if (presentationScreen && !presentationScreen.hidden && pptxFileTree) return pptxFileTree;
+  return fileTree;
+}
+
+function projectFileStatus(message, tone = "") {
+  if (presentationScreen && !presentationScreen.hidden) {
+    setPresentationStatus(message, tone);
+    return;
+  }
+  compileLog.textContent = message;
+}
+
 async function loadProjectFiles() {
   if (!activeProject) return;
 
-  fileTree.innerHTML = '<div class="file-message">Loading files...</div>';
+  const tree = activeFileTreeContainer();
+  if (tree) tree.innerHTML = '<div class="file-message">Loading files...</div>';
 
   try {
     const data = isRemoteProject()
@@ -9600,20 +11142,21 @@ async function loadProjectFiles() {
       if (entry) await loadProjectFile(entry.relativePath, { confirmUnsaved: false, preview: false });
     }
   } catch (error) {
-    fileTree.innerHTML = `<div class="file-message file-error">${escapeHtml(formatError(error))}</div>`;
+    if (tree) tree.innerHTML = `<div class="file-message file-error">${escapeHtml(formatError(error))}</div>`;
   }
 }
 
 function renderFileTree() {
-  if (!fileTree || !activeProject) return;
-  fileTree.innerHTML = "";
+  const tree = activeFileTreeContainer();
+  if (!tree || !activeProject) return;
+  tree.innerHTML = "";
 
   if (!projectFiles.length) {
-    fileTree.innerHTML = '<div class="file-message">No files found.</div>';
+    tree.innerHTML = '<div class="file-message">No files found.</div>';
     return;
   }
 
-  projectFiles.forEach((node) => fileTree.appendChild(renderFileNode(node, 0)));
+  projectFiles.forEach((node) => tree.appendChild(renderFileNode(node, 0)));
   updateFileOutline();
   updatePdfTitleFromSelection();
 }
@@ -9781,7 +11324,16 @@ function renderFileNode(node, depth) {
   button.type = "button";
   button.dataset.filePath = node.relativePath;
   button.style.setProperty("--depth-indent", depthIndent);
-  button.classList.toggle("active", Boolean(activeFile && activeFile.relativePath === node.relativePath));
+  const activePresentationEntry = Boolean(
+    activeProject
+    && activeProject.kind === "presentation"
+    && node.presentation
+    && node.relativePath === activeProject.texName
+  );
+  button.classList.toggle("active", Boolean(
+    (activeFile && activeFile.relativePath === node.relativePath)
+    || activePresentationEntry
+  ));
   button.classList.toggle("selected", isSelectedFileTreeNode(node));
   button.innerHTML = `
     ${fileIconMarkup(node)}
@@ -9824,6 +11376,49 @@ function folderIconName(node) {
 }
 
 async function selectProjectFile(node, { preview = true } = {}) {
+  const presentationProject = Boolean(activeProject && activeProject.kind === "presentation");
+  const presentationVisible = Boolean(presentationScreen && !presentationScreen.hidden);
+  const activePresentationEntry = presentationProject
+    && isPresentationFileNode(node)
+    && node.relativePath === activeProject.texName;
+
+  if (activePresentationEntry) {
+    if (presentationVisible) return;
+    if (openTextTabs.some((tab) => tab.dirty)) {
+      const confirmed = window.confirm("Return to the PowerPoint without saving the open text-file changes?");
+      if (!confirmed) return;
+    }
+    await openPresentationProject(activeProject);
+    return;
+  }
+
+  if (presentationVisible && isPresentationFileNode(node)) {
+    if (presentationDirty) {
+      const confirmed = window.confirm("Open another PowerPoint without saving the current changes?");
+      if (!confirmed) return;
+    }
+    try {
+      const filePath = decodeURIComponent(new URL(node.fileUrl).pathname);
+      const result = await window.localOverleaf.addProjectFromPath([filePath]);
+      projects = result.projects || projects;
+      if (result.project) await openPresentationProject(result.project);
+    } catch (error) {
+      projectFileStatus(formatError(error), "error");
+    }
+    return;
+  }
+
+  if (presentationVisible) {
+    if (presentationDirty) {
+      const confirmed = window.confirm("Open this file without saving the current PowerPoint changes?");
+      if (!confirmed) return;
+    }
+    resetTextTabs();
+    showEditorShell();
+    setFileSidebarVisible(true, { persist: false });
+    renderFileTree();
+  }
+
   if (isPreviewDocumentNode(node)) {
     if (isPresentationFileNode(node) && isRemoteProject()) {
       filePreview.hidden = false;
@@ -9944,7 +11539,8 @@ function createProjectFile(kind) {
 
   row.append(icon, input);
   const container = fileCreationContainer(parentPath);
-  const emptyMessage = container === fileTree ? fileTree.querySelector(".file-message") : null;
+  const tree = activeFileTreeContainer();
+  const emptyMessage = container === tree ? tree.querySelector(".file-message") : null;
   if (emptyMessage) emptyMessage.hidden = true;
   container.prepend(row);
   activeFileCreation = { kind, parentPath, row, input, emptyMessage, committing: false };
@@ -9970,14 +11566,15 @@ function createProjectFile(kind) {
 }
 
 function fileCreationContainer(parentPath) {
-  if (!parentPath) return fileTree;
-  const summary = Array.from(fileTree.querySelectorAll(".file-folder > summary[data-file-path]"))
+  const tree = activeFileTreeContainer();
+  if (!parentPath) return tree;
+  const summary = Array.from(tree.querySelectorAll(".file-folder > summary[data-file-path]"))
     .find((candidate) => candidate.dataset.filePath === parentPath);
   const details = summary && summary.parentElement;
-  if (!details) return fileTree;
+  if (!details) return tree;
   expandedFileFolders.add(parentPath);
   details.open = true;
-  return Array.from(details.children).find((child) => child.classList.contains("file-children")) || fileTree;
+  return Array.from(details.children).find((child) => child.classList.contains("file-children")) || tree;
 }
 
 function cancelProjectFileCreation() {
@@ -10017,10 +11614,10 @@ async function commitProjectFileCreation() {
     if (creation.kind === "file" && result.file && result.file.editable) {
       await loadProjectFile(result.file.relativePath, { preview: false });
     }
-    compileLog.textContent = `${creation.kind === "folder" ? "Created folder" : "Created file"} ${name}.`;
+    projectFileStatus(`${creation.kind === "folder" ? "Created folder" : "Created file"} ${name}.`, "ok");
     return true;
   } catch (error) {
-    compileLog.textContent = formatError(error);
+    projectFileStatus(formatError(error), "error");
     creation.committing = false;
     creation.input.disabled = false;
     creation.row.classList.add("invalid");
@@ -10058,8 +11655,9 @@ function isSelectedFileTreeNode(node) {
 function selectFileTreeNode(node) {
   if (!node || !node.relativePath) return;
   selectedFileTreeNode = { relativePath: node.relativePath, kind: node.kind };
-  fileTree.querySelectorAll(".selected").forEach((row) => row.classList.remove("selected"));
-  const selectedRow = Array.from(fileTree.querySelectorAll("[data-file-path]"))
+  const tree = activeFileTreeContainer();
+  tree.querySelectorAll(".selected").forEach((row) => row.classList.remove("selected"));
+  const selectedRow = Array.from(tree.querySelectorAll("[data-file-path]"))
     .find((candidate) => candidate.dataset.filePath === node.relativePath);
   if (selectedRow) selectedRow.classList.add("selected");
 }
@@ -10215,15 +11813,15 @@ async function runFileContextAction(action, node) {
       }
       if (action === "copy" || action === "copy-relative-path") {
         await navigator.clipboard.writeText(node.relativePath);
-        compileLog.textContent = `${node.relativePath} copied.`;
+        projectFileStatus(`${node.relativePath} copied.`, "ok");
         return;
       }
       if (action === "copy-name") {
         await navigator.clipboard.writeText(node.name || "");
-        compileLog.textContent = `${node.name || ""} copied.`;
+        projectFileStatus(`${node.name || ""} copied.`, "ok");
         return;
       }
-      compileLog.textContent = "That file action is local-only for now. Use the SSH terminal for remote rename, delete, copy, or reveal.";
+      projectFileStatus("That file action is local-only for now. Use the SSH terminal for remote rename, delete, copy, or reveal.");
       return;
     }
 
@@ -10235,7 +11833,7 @@ async function runFileContextAction(action, node) {
 
     if (action === "copy") {
       copiedProjectItem = node;
-      compileLog.textContent = `Copied ${node.relativePath}.`;
+      projectFileStatus(`Copied ${node.relativePath}.`, "ok");
       return;
     }
 
@@ -10245,7 +11843,7 @@ async function runFileContextAction(action, node) {
         sourceRelativePath: copiedProjectItem.relativePath
       });
       applyFileActionResult(result);
-      compileLog.textContent = `Pasted ${copiedProjectItem.name}.`;
+      projectFileStatus(`Pasted ${copiedProjectItem.name}.`, "ok");
       return;
     }
 
@@ -10260,15 +11858,15 @@ async function runFileContextAction(action, node) {
       const result = await window.localOverleaf.projectFileAction(activeProject.id, node.relativePath, "delete");
       removeTextTabsUnderPath(node.relativePath);
       applyFileActionResult(result);
-      compileLog.textContent = `Deleted ${node.relativePath}.`;
+      projectFileStatus(`Deleted ${node.relativePath}.`, "ok");
       return;
     }
 
     const result = await window.localOverleaf.projectFileAction(activeProject.id, node.relativePath, action);
     if (["duplicate"].includes(action)) applyFileActionResult(result);
-    if (action.startsWith("copy-")) compileLog.textContent = `${result.value || node.relativePath} copied.`;
+    if (action.startsWith("copy-")) projectFileStatus(`${result.value || node.relativePath} copied.`, "ok");
   } catch (error) {
-    compileLog.textContent = formatError(error);
+    projectFileStatus(formatError(error), "error");
   }
 }
 
@@ -10276,7 +11874,8 @@ function startFileRename(node) {
   if (!activeProject || !node || !node.relativePath) return;
   if (activeFileRenameInput) activeFileRenameInput.blur();
 
-  const row = Array.from(fileTree.querySelectorAll("[data-file-path]"))
+  const tree = activeFileTreeContainer();
+  const row = Array.from(tree.querySelectorAll("[data-file-path]"))
     .find((candidate) => candidate.dataset.filePath === node.relativePath);
   const label = row && row.querySelector(".file-name, .folder-name");
   if (!row || !label) return;
@@ -10314,7 +11913,7 @@ function startFileRename(node) {
     try {
       await renameProjectFileNode(node, nextName);
     } catch (error) {
-      compileLog.textContent = formatError(error);
+      projectFileStatus(formatError(error), "error");
       restore();
     } finally {
       if (activeFileRenameInput === input) activeFileRenameInput = null;
@@ -10388,7 +11987,7 @@ async function renameProjectFileNode(node, nextName) {
   applyFileActionResult(result);
   updateEditorFileTitle();
   updateActiveDocumentTitle();
-  compileLog.textContent = `Renamed ${node.name} to ${nextName}.`;
+  projectFileStatus(`Renamed ${node.name} to ${nextName}.`, "ok");
 }
 
 function applyFileActionResult(result) {
@@ -10410,28 +12009,29 @@ async function chooseProjectFiles() {
     const result = await window.localOverleaf.chooseProjectFiles(activeProject.id);
     projectFiles = result.files || projectFiles;
     renderFileTree();
-    compileLog.textContent = `Imported ${(result.imported || []).length} file(s).`;
+    projectFileStatus(`Imported ${(result.imported || []).length} file(s).`, "ok");
   } catch (error) {
-    compileLog.textContent = formatError(error);
+    projectFileStatus(formatError(error), "error");
   }
 }
 
 function wireFileDrop(target) {
+  const dropSurface = target.closest(".file-pane, .pptx-file-pane") || target;
   target.addEventListener("dragover", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    filePane.classList.add("drop-active");
+    dropSurface.classList.add("drop-active");
   });
 
   target.addEventListener("dragleave", (event) => {
     event.stopPropagation();
-    if (!filePane.contains(event.relatedTarget)) filePane.classList.remove("drop-active");
+    if (!dropSurface.contains(event.relatedTarget)) dropSurface.classList.remove("drop-active");
   });
 
   target.addEventListener("drop", async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    filePane.classList.remove("drop-active");
+    dropSurface.classList.remove("drop-active");
     if (!activeProject) return;
     if (isRemoteProject()) {
       compileLog.textContent = "Drag/drop import is local-only. Use scp, rsync, or git from the SSH terminal for remote files.";
@@ -10446,9 +12046,9 @@ function wireFileDrop(target) {
       const result = await window.localOverleaf.importProjectFiles(activeProject.id, usableFiles);
       projectFiles = result.files || projectFiles;
       renderFileTree();
-      compileLog.textContent = `Imported ${(result.imported || []).length} file(s).`;
+      projectFileStatus(`Imported ${(result.imported || []).length} file(s).`, "ok");
     } catch (error) {
-      compileLog.textContent = formatError(error);
+      projectFileStatus(formatError(error), "error");
     }
   });
 }
@@ -11717,12 +13317,70 @@ async function setPdf(options = {}) {
   return renderPdf(options);
 }
 
+function pdfSpeechDocumentFingerprint(pdfBuffer) {
+  const bytes = pdfBuffer instanceof Uint8Array ? pdfBuffer : new Uint8Array(pdfBuffer);
+  let hash = 2166136261;
+  const stride = Math.max(1, Math.floor(bytes.length / 4096));
+  for (let index = 0; index < bytes.length; index += stride) {
+    hash ^= bytes[index];
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${bytes.length}:${(hash >>> 0).toString(16)}`;
+}
+
+function clearPdfLazyRenderJobs() {
+  if (pdfLazyRenderObserver) pdfLazyRenderObserver.disconnect();
+  pdfLazyRenderObserver = null;
+  pdfLazyRenderQueue = [];
+  pdfLazyRenderActive = false;
+}
+
+function setupPdfLazyRenderJobs(jobs, token) {
+  if (!jobs.size || token !== pdfRenderToken) return;
+  pdfLazyRenderObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      const job = jobs.get(entry.target);
+      if (!job || entry.target.dataset.canvasRendered === "true") return;
+      pdfLazyRenderObserver.unobserve(entry.target);
+      pdfLazyRenderQueue.push({ job, token });
+    });
+    processPdfLazyRenderQueue();
+  }, { root: pdfViewer, rootMargin: "1000px 0px", threshold: 0.01 });
+  jobs.forEach((_job, pageShell) => pdfLazyRenderObserver.observe(pageShell));
+}
+
+async function processPdfLazyRenderQueue() {
+  if (pdfLazyRenderActive) return;
+  pdfLazyRenderActive = true;
+  try {
+    while (pdfLazyRenderQueue.length) {
+      const next = pdfLazyRenderQueue.shift();
+      if (!next || next.token !== pdfRenderToken) continue;
+      await next.job();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  } finally {
+    pdfLazyRenderActive = false;
+  }
+}
+
 async function renderPdf({ showLoading = true, preserveView = false, preserveLogOnError = false } = {}) {
   if (!activeProject || editorScreen.hidden || previewPane.classList.contains("python-output-active")) return false;
 
   const token = ++pdfRenderToken;
+  clearPdfLazyRenderJobs();
   const zoomForRender = pdfZoom;
   const pdfRelativePath = pdfRelativePathForRender();
+  const speechDocumentKey = `${activeProject.id || "project"}:${pdfRelativePath || "main.pdf"}`;
+  const sameSpeechDocument = pdfSpeechPlan.wordCount > 0 && pdfSpeechPlan.documentKey === speechDocumentKey;
+  let speechSessionReset = false;
+  let preserveSpeechSession = false;
+  let speechFingerprint = "";
+  if (!sameSpeechDocument) {
+    beginPdfSpeechAnalysis();
+    speechSessionReset = true;
+  }
   const hasExistingPages = Boolean(pdfViewer.querySelector(".pdf-page"));
   const preservedViewState = preserveView ? capturePdfViewState() : null;
   applyPdfRenderMode();
@@ -11745,7 +13403,14 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
 
     if (token !== pdfRenderToken) return;
 
-    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+    const pdfBytes = new Uint8Array(pdfBuffer);
+    speechFingerprint = pdfSpeechDocumentFingerprint(pdfBytes);
+    preserveSpeechSession = sameSpeechDocument && pdfSpeechPlan.fingerprint === speechFingerprint;
+    if (!preserveSpeechSession && !speechSessionReset) {
+      beginPdfSpeechAnalysis();
+      speechSessionReset = true;
+    }
+    const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
     const pdf = await loadingTask.promise;
     if (token !== pdfRenderToken) return;
 
@@ -11755,6 +13420,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
     pdfMeta.textContent = `${pdf.numPages} ${pdf.numPages === 1 ? "page" : "pages"}`;
     const nextPageTextLines = new Map();
     const renderedPageCanvases = new Map();
+    const lazyPageRenderJobs = new Map();
 
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       if (token !== pdfRenderToken) return;
@@ -11765,7 +13431,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
       const baseScale = Math.min(PDF_BASE_RENDER_SCALE, fitScale);
       const scale = Math.min(MAX_PDF_RENDER_SCALE, baseScale * zoomForRender);
       const viewport = page.getViewport({ scale });
-      const outputScale = pdfCanvasOutputScale("page");
+      const outputScale = pdfCanvasOutputScale("page", pdf.numPages);
 
       const pageShell = document.createElement("div");
       pageShell.className = "pdf-page";
@@ -11776,29 +13442,70 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
       pageShell.style.height = `${Math.floor(viewport.height)}px`;
 
       const canvas = document.createElement("canvas");
-      canvas.width = Math.floor(viewport.width * outputScale);
-      canvas.height = Math.floor(viewport.height * outputScale);
+      canvas.width = 1;
+      canvas.height = 1;
       canvas.dataset.renderedWidth = `${Math.floor(viewport.width)}`;
       canvas.dataset.renderedHeight = `${Math.floor(viewport.height)}`;
       canvas.style.width = `${Math.floor(viewport.width)}px`;
       canvas.style.height = `${Math.floor(viewport.height)}px`;
 
-      const context = canvas.getContext("2d");
-      context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-      preparePdfCanvasForRender(context, canvas);
-
       const textContent = await page.getTextContent();
-      nextPageTextLines.set(pageNumber, buildPdfTextLines(textContent, viewport, pdfjsLib));
+      nextPageTextLines.set(pageNumber, buildPdfTextLines(textContent, viewport, pdfjsLib, pageNumber));
       pageShell.addEventListener("click", (event) => jumpToSourceFromPdfClick(event, pageNumber));
-      const annotations = await page.getAnnotations({ intent: "display" });
-      const linkLayer = buildPdfLinkLayer(annotations, viewport);
 
       pageShell.appendChild(canvas);
-      if (linkLayer) pageShell.appendChild(linkLayer);
+      if (pageNumber <= 2) {
+        const textLayer = await buildPdfTextLayer(textContent, viewport, pdfjsLib, pageNumber);
+        const annotations = await page.getAnnotations({ intent: "display" });
+        const linkLayer = buildPdfLinkLayer(annotations, viewport);
+        pageShell.appendChild(textLayer);
+        if (linkLayer) pageShell.appendChild(linkLayer);
+        pageShell.dataset.textLayerRendered = "true";
+      } else {
+        pageShell.dataset.textLayerRendered = "false";
+      }
       fragment.appendChild(pageShell);
-      await page.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
-      applyPdfCanvasRenderMode(context, canvas);
-      renderedPageCanvases.set(pageNumber, canvas);
+      const renderPageCanvas = async (pageToRender) => {
+        if (token !== pdfRenderToken || pageShell.dataset.canvasRendered === "true") return;
+        pageShell.dataset.canvasRendered = "loading";
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        const context = canvas.getContext("2d");
+        context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+        preparePdfCanvasForRender(context, canvas);
+        await pageToRender.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
+        if (token !== pdfRenderToken) return;
+        applyPdfCanvasRenderMode(context, canvas);
+        pageShell.dataset.canvasRendered = "true";
+      };
+      if (pageNumber <= 2) {
+        await renderPageCanvas(page);
+        renderedPageCanvases.set(pageNumber, canvas);
+        page.cleanup();
+      } else {
+        page.cleanup();
+        lazyPageRenderJobs.set(pageShell, async () => {
+          if (token !== pdfRenderToken || pageShell.dataset.canvasRendered === "true") return;
+          const lazyPage = await pdf.getPage(pageNumber);
+          try {
+            const lazyTextContent = await lazyPage.getTextContent();
+            if (token !== pdfRenderToken) return;
+            const textLayer = await buildPdfTextLayer(lazyTextContent, viewport, pdfjsLib, pageNumber);
+            const annotations = await lazyPage.getAnnotations({ intent: "display" });
+            if (token !== pdfRenderToken) return;
+            const linkLayer = buildPdfLinkLayer(annotations, viewport);
+            pageShell.appendChild(textLayer);
+            if (linkLayer) pageShell.appendChild(linkLayer);
+            pageShell.dataset.textLayerRendered = "true";
+            await renderPageCanvas(lazyPage);
+          } finally {
+            lazyPage.cleanup();
+          }
+          const activeChunk = pdfSpeechPlan.chunks[pdfSpeechChunkIndex];
+          const activeWord = activeChunk && (activeChunk.words[pdfSpeechWordIndex] || activeChunk.words[0]);
+          if (activeWord && activeWord.pageNumber === pageNumber) highlightPdfSpeechWord(activeWord);
+        });
+      }
       if (progressiveRender) {
         // Show the first page immediately; stream the rest in so opening a
         // project feels instant instead of waiting on the full document.
@@ -11832,8 +13539,19 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
         pdfViewer.scrollTop = scrollTop;
       }
     }
+    // PDF.js keeps decoded fonts, image masks, and page operator resources after
+    // text extraction. Release those now; nearby lazy jobs can request them
+    // again when a page actually enters the viewport.
+    await pdf.cleanup();
     if (pdfZoom !== zoomForRender) applyPdfLiveZoom();
+    setupPdfLazyRenderJobs(lazyPageRenderJobs, token);
     updatePdfPageIndicator();
+    if (preserveSpeechSession) {
+      const activeChunk = pdfSpeechPlan.chunks[pdfSpeechChunkIndex];
+      if (activeChunk) highlightPdfSpeechWord(activeChunk.words[pdfSpeechWordIndex] || activeChunk.words[0]);
+    } else {
+      preparePdfSpeechPlan(nextPageTextLines, pdf.numPages, speechDocumentKey, speechFingerprint);
+    }
     await renderPdfThumbnails(pdf, pdfjsLib, token, renderedPageCanvases);
     return true;
   } catch (error) {
@@ -11845,6 +13563,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
         ? `<div class="pdf-loading pdf-error">Could not render ${escapeHtml(activePdfName())}. PowerPoint preview requires LibreOffice; see Log for details.</div>`
         : '<div class="pdf-loading pdf-error">Could not render PDF. Openleaf tried compiling the TeX entry; see Log for details.</div>';
     pdfMeta.textContent = isRemoteProject() ? (pdfRelativePath || "Remote PDF unavailable") : pdfMeta.textContent;
+    if (!sameSpeechDocument) resetPdfSpeechPlan("No readable PDF");
     if (!preserveLogOnError) compileLog.textContent = formatError(error);
     return false;
   }
@@ -11871,7 +13590,7 @@ async function renderPdfThumbnails(pdf, pdfjsLib, token, renderedPageCanvases = 
     const targetWidth = pdfThumbnailTargetWidth();
     const scale = targetWidth / baseViewport.width;
     const viewport = page.getViewport({ scale });
-    const outputScale = pdfCanvasOutputScale("thumbnail");
+    const outputScale = pdfCanvasOutputScale("thumbnail", pdf.numPages);
     const button = document.createElement("button");
     button.className = "pdf-thumbnail";
     button.type = "button";
@@ -11894,6 +13613,7 @@ async function renderPdfThumbnails(pdf, pdfjsLib, token, renderedPageCanvases = 
     pdfThumbnailList.appendChild(button);
     await page.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
     applyPdfPreviewCanvasRenderMode(context, canvas);
+    page.cleanup();
   }
   updatePdfPageIndicator();
 }
@@ -12015,10 +13735,11 @@ function pdfThumbnailTargetWidth() {
   return Math.round(clampNumber(sidebarWidth - 40, 72, 124, 100));
 }
 
-function pdfCanvasOutputScale(kind = "page") {
+function pdfCanvasOutputScale(kind = "page", pageCount = renderedPdfPageCount) {
   const deviceScale = window.devicePixelRatio || 1;
-  const minimum = kind === "thumbnail" ? 3 : 2.5;
-  const maximum = kind === "thumbnail" ? 4 : 3.25;
+  const longDocument = Number(pageCount) >= 12;
+  const minimum = kind === "thumbnail" ? 1.35 : (longDocument ? 1.35 : 1.75);
+  const maximum = kind === "thumbnail" ? 2 : (longDocument ? 1.6 : 2.25);
   return clampNumber(Math.max(deviceScale, minimum), 1, maximum, minimum);
 }
 
@@ -12286,18 +14007,655 @@ function loadPdfJs() {
   return pdfJsPromise;
 }
 
-function buildPdfTextLines(textContent, viewport, pdfjsLib) {
+// Local neural PDF reader powered by Kokoro/MLX.
+function beginPdfSpeechAnalysis() {
+  stopPdfSpeech({ resetCursor: true, updateStatus: false });
+  pdfSpeechFirstChunkReady = false;
+  pdfSpeechPreparedCount = 0;
+  pdfSpeechPreprocessActive = false;
+  pdfSpeechPlanRevision += 1;
+  pdfSpeechPlan = { chunks: [], wordCount: 0, pageCount: 0, documentKey: "", fingerprint: "" };
+  pdfSpeechChunkDurations = [];
+  updatePdfSpeechProgress();
+  if (pdfSpeechButton) pdfSpeechButton.disabled = true;
+  setPdfSpeechStatus("Analyzing PDF…", "analyzing");
+}
+
+function resetPdfSpeechPlan(message = "Waiting for PDF") {
+  stopPdfSpeech({ resetCursor: true, updateStatus: false });
+  pdfSpeechFirstChunkReady = false;
+  pdfSpeechPreparedCount = 0;
+  pdfSpeechPreprocessActive = false;
+  pdfSpeechPlanRevision += 1;
+  pdfSpeechPlan = { chunks: [], wordCount: 0, pageCount: 0, documentKey: "", fingerprint: "" };
+  pdfSpeechChunkDurations = [];
+  updatePdfSpeechProgress();
+  if (pdfSpeechButton) pdfSpeechButton.disabled = true;
+  setPdfSpeechStatus(message);
+}
+
+function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprint = "") {
+  const words = [];
+  Array.from(pageLines.entries())
+    .sort((left, right) => left[0] - right[0])
+    .forEach(([pageNumber, lines]) => {
+      lines.forEach((line) => {
+        (line.words || []).forEach((word) => {
+          const spokenText = normalizePdfSpeechToken(word.text);
+          if (spokenText) words.push({ ...word, pageNumber, spokenText });
+        });
+      });
+    });
+  pdfSpeechPlan = {
+    chunks: buildPdfSpeechChunks(words),
+    wordCount: words.length,
+    pageCount: Number(pageCount) || pageLines.size,
+    documentKey,
+    fingerprint
+  };
+  pdfSpeechChunkDurations = new Array(pdfSpeechPlan.chunks.length).fill(0);
+  pdfSpeechChunkIndex = 0;
+  pdfSpeechWordIndex = 0;
+  pdfSpeechFirstChunkReady = false;
+  pdfSpeechPreparedCount = 0;
+  pdfSpeechPreprocessActive = false;
+  pdfSpeechPlanRevision += 1;
+  clearPdfSpeechHighlight();
+  updatePdfSpeechProgress();
+  startPdfSpeechPreprocessing();
+}
+
+function normalizePdfSpeechToken(value) {
+  return String(value || "")
+    .replace(/\uFB00/g, "ff")
+    .replace(/\uFB01/g, "fi")
+    .replace(/\uFB02/g, "fl")
+    .replace(/[\u00AD]/g, "")
+    .trim();
+}
+
+function setPdfSpeechStatus(message, state = "idle") {
+  if (!pdfSpeechStatus) return;
+  pdfSpeechStatus.textContent = message;
+  pdfSpeechControls.dataset.state = state;
+}
+
+function pdfSpeechPlaybackRate() {
+  return clampNumber(Number(pdfSpeechRate && pdfSpeechRate.value), 0.5, 2, 1);
+}
+
+function updatePdfSpeechRateOutput() {
+  if (!pdfSpeechRateOutput) return;
+  pdfSpeechRateOutput.textContent = `${pdfSpeechPlaybackRate().toFixed(2).replace(/0$/, "")}×`;
+}
+
+function formatPdfSpeechTime(value) {
+  const seconds = Math.max(0, Math.floor(Number(value) || 0));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = String(seconds % 60).padStart(2, "0");
+  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${remainder}` : `${minutes}:${remainder}`;
+}
+
+function pdfSpeechDurationEstimate() {
+  let knownDuration = 0;
+  let knownWords = 0;
+  pdfSpeechChunkDurations.forEach((duration, index) => {
+    if (!(duration > 0)) return;
+    knownDuration += duration;
+    knownWords += pdfSpeechPlan.chunks[index] ? pdfSpeechPlan.chunks[index].words.length : 0;
+  });
+  if (!knownWords) return { duration: 0, estimated: true };
+  const complete = pdfSpeechChunkDurations.length > 0 && pdfSpeechChunkDurations.every((duration) => duration > 0);
+  return {
+    duration: complete ? knownDuration : knownDuration * (pdfSpeechPlan.wordCount / knownWords),
+    estimated: !complete
+  };
+}
+
+function updatePdfSpeechProgress() {
+  if (!pdfSpeechProgressCurrent || !pdfSpeechProgressTotal) return;
+  let elapsed = 0;
+  for (let index = 0; index < Math.min(pdfSpeechChunkIndex, pdfSpeechChunkDurations.length); index += 1) {
+    elapsed += Number(pdfSpeechChunkDurations[index]) || 0;
+  }
+  if (pdfSpeechAudio) elapsed += Number(pdfSpeechAudio.currentTime) || 0;
+  let completedWords = 0;
+  for (let index = 0; index < Math.min(pdfSpeechChunkIndex, pdfSpeechPlan.chunks.length); index += 1) {
+    completedWords += pdfSpeechPlan.chunks[index].words.length;
+  }
+  if (pdfSpeechChunkIndex < pdfSpeechPlan.chunks.length) completedWords += Math.max(0, pdfSpeechWordIndex);
+  if (pdfSpeechChunkIndex >= pdfSpeechPlan.chunks.length && pdfSpeechPlan.wordCount) completedWords = pdfSpeechPlan.wordCount;
+  const progress = pdfSpeechPlan.wordCount ? clampNumber(completedWords / pdfSpeechPlan.wordCount, 0, 1, 0) : 0;
+  const total = pdfSpeechDurationEstimate();
+  pdfSpeechProgressCurrent.textContent = formatPdfSpeechTime(elapsed);
+  pdfSpeechProgressTotal.textContent = `/ ${total.duration ? formatPdfSpeechTime(total.duration) : "--:--"}`;
+  if (pdfSpeechProgressDetail) {
+    const percentLabel = `${(progress * 100).toFixed(progress < 0.1 ? 1 : 0)}%`;
+    pdfSpeechProgressDetail.textContent = `${completedWords.toLocaleString()} of ${pdfSpeechPlan.wordCount.toLocaleString()} words · ${percentLabel}`;
+  }
+}
+
+async function setupPdfSpeech() {
+  if (!pdfSpeechControls || !pdfSpeechButton || !pdfSpeechRate || !pdfSpeechVoice) return;
+  const savedRate = Number(localStorage.getItem("openleafPdfSpeechRate"));
+  const savedVoice = localStorage.getItem("openleafPdfSpeechVoice");
+  pdfSpeechRate.value = String(clampNumber(savedRate, 0.5, 2, 1));
+  if (savedVoice && Array.from(pdfSpeechVoice.options).some((option) => option.value === savedVoice)) {
+    pdfSpeechVoice.value = savedVoice;
+  }
+  updatePdfSpeechRateOutput();
+  pdfSpeechButton.disabled = true;
+  setPdfSpeechStatus("Loading Kokoro…", "analyzing");
+  try {
+    pdfSpeechBackend = await window.localOverleaf.pdfSpeechStatus();
+  } catch (error) {
+    pdfSpeechBackend = { available: false, model: "", voice: "" };
+  }
+  if (!pdfSpeechBackend.available) {
+    setPdfSpeechStatus("Kokoro runtime unavailable", "error");
+  } else {
+    startPdfSpeechPreprocessing();
+  }
+  window.addEventListener("beforeunload", () => stopPdfSpeech({ resetCursor: true, updateStatus: false }));
+}
+
+function buildPdfSpeechChunks(words) {
+  const chunks = [];
+  let current = [];
+  let characterCount = 0;
+  const flush = () => {
+    if (!current.length) return;
+    chunks.push({
+      text: current.map((word) => word.spokenText).join(" "),
+      words: current
+    });
+    current = [];
+    characterCount = 0;
+  };
+  words.forEach((word) => {
+    const nextLength = characterCount + word.spokenText.length + (current.length ? 1 : 0);
+    if (current.length && nextLength > 180) flush();
+    current.push(word);
+    characterCount += word.spokenText.length + (current.length > 1 ? 1 : 0);
+    const sentenceEnd = /[.!?][\])}\"'’”]*$/.test(word.spokenText);
+    const softBreak = /[,;:][\])}\"'’”]*$/.test(word.spokenText) && current.length >= 24;
+    if (sentenceEnd || softBreak || current.length >= 34) flush();
+  });
+  flush();
+  return chunks;
+}
+
+function updatePdfSpeechReadyState() {
+  if (!pdfSpeechButton || !pdfSpeechPlan.wordCount) return;
+  const ready = pdfSpeechBackend.available && pdfSpeechFirstChunkReady;
+  pdfSpeechButton.disabled = pdfSpeechPlaying ? false : !ready;
+  const wordLabel = `${pdfSpeechPlan.wordCount.toLocaleString()} words`;
+  const totalChunks = pdfSpeechPlan.chunks.length;
+  const cacheProgress = totalChunks ? `${Math.min(pdfSpeechPreparedCount, totalChunks)}/${totalChunks}` : "0/0";
+  const stateLabel = !pdfSpeechBackend.available
+    ? "Kokoro unavailable"
+    : ready
+      ? `${pdfSpeechVoiceLabel()} ready · ${Math.min(3, totalChunks)} buffered`
+      : `Preparing ${cacheProgress}`;
+  setPdfSpeechStatus(`${stateLabel} · ${wordLabel}`, ready ? "ready" : (pdfSpeechBackend.available ? "analyzing" : "error"));
+  pdfSpeechButton.setAttribute("aria-label", ready ? "Read PDF aloud" : "Preparing local neural voice");
+  pdfSpeechControls.title = pdfSpeechBackend.available
+    ? `${wordLabel} pre-analyzed locally. ${pdfSpeechBackend.model} · ${pdfSpeechVoiceLabel()}.`
+    : "The private Kokoro/MLX runtime is unavailable.";
+}
+
+async function startPdfSpeechPreprocessing() {
+  updatePdfSpeechReadyState();
+  if (!pdfSpeechBackend.available || !pdfSpeechPlan.chunks.length || pdfSpeechPreprocessActive) return;
+  const revision = pdfSpeechPlanRevision;
+  const initialBufferSize = Math.min(3, pdfSpeechPlan.chunks.length);
+  pdfSpeechPreprocessActive = true;
+  try {
+    for (let index = 0; index < initialBufferSize; index += 1) {
+      if (revision !== pdfSpeechPlanRevision) return;
+      const result = await preparePdfSpeechAudio(index);
+      if (revision !== pdfSpeechPlanRevision) return;
+      pdfSpeechChunkDurations[index] = Number(result.duration) || 0;
+      pdfSpeechPreparedCount = index + 1;
+      if (pdfSpeechPreparedCount >= initialBufferSize) pdfSpeechFirstChunkReady = true;
+      if (!pdfSpeechPlaying && !pdfSpeechPaused) updatePdfSpeechReadyState();
+      updatePdfSpeechProgress();
+    }
+  } catch (error) {
+    if (revision !== pdfSpeechPlanRevision) return;
+    if (!pdfSpeechFirstChunkReady) {
+      pdfSpeechButton.disabled = true;
+      setPdfSpeechStatus(`Kokoro error · ${formatError(error)}`, "error");
+    }
+  } finally {
+    if (revision === pdfSpeechPlanRevision) pdfSpeechPreprocessActive = false;
+  }
+}
+
+async function queuePdfSpeechLookahead(startIndex) {
+  if (pdfSpeechPreprocessActive || !pdfSpeechPlaying) return;
+  const revision = pdfSpeechPlanRevision;
+  const endIndex = Math.min(pdfSpeechPlan.chunks.length, startIndex + 4);
+  pdfSpeechPreprocessActive = true;
+  try {
+    for (let index = Math.max(0, startIndex); index < endIndex; index += 1) {
+      if (revision !== pdfSpeechPlanRevision || !pdfSpeechPlaying) return;
+      const result = await preparePdfSpeechAudio(index);
+      if (revision !== pdfSpeechPlanRevision || !pdfSpeechPlaying) return;
+      pdfSpeechChunkDurations[index] = Number(result.duration) || 0;
+      pdfSpeechPreparedCount = pdfSpeechChunkDurations.filter((duration) => duration > 0).length;
+      updatePdfSpeechProgress();
+    }
+  } catch (_error) {
+    // Playback will surface a generation error if the next chunk is needed.
+  } finally {
+    if (revision === pdfSpeechPlanRevision) pdfSpeechPreprocessActive = false;
+  }
+}
+
+function handlePdfSpeechRateChange() {
+  updatePdfSpeechRateOutput();
+  localStorage.setItem("openleafPdfSpeechRate", String(pdfSpeechPlaybackRate()));
+  if (pdfSpeechAudio) pdfSpeechAudio.playbackRate = pdfSpeechPlaybackRate();
+  updatePdfSpeechProgress();
+}
+
+function handlePdfSpeechVoiceChange() {
+  const restart = pdfSpeechPlaying;
+  stopPdfSpeech({ resetCursor: false, updateStatus: false });
+  const selectedVoice = pdfSpeechVoiceId();
+  localStorage.setItem("openleafPdfSpeechVoice", selectedVoice);
+  restartPdfSpeechPreprocessing();
+  if (restart) {
+    pdfSpeechPlaying = true;
+    updatePdfSpeechButton();
+    speakCurrentPdfChunk();
+  } else {
+    updatePdfSpeechReadyState();
+  }
+}
+
+function restartPdfSpeechPreprocessing() {
+  pdfSpeechPlanRevision += 1;
+  pdfSpeechAudioCache.clear();
+  pdfSpeechFirstChunkReady = false;
+  pdfSpeechPreparedCount = 0;
+  pdfSpeechPreprocessActive = false;
+  pdfSpeechChunkDurations = new Array(pdfSpeechPlan.chunks.length).fill(0);
+  updatePdfSpeechProgress();
+  startPdfSpeechPreprocessing();
+}
+
+function pdfSpeechVoiceId() {
+  return pdfSpeechVoice ? String(pdfSpeechVoice.value || "af_bella") : "af_bella";
+}
+
+function pdfSpeechVoiceLabel() {
+  const selected = pdfSpeechVoice && pdfSpeechVoice.selectedOptions ? pdfSpeechVoice.selectedOptions[0] : null;
+  return selected ? selected.textContent.split("·")[0].trim() : "Bella";
+}
+
+function togglePdfSpeech() {
+  if (!pdfSpeechPlan.chunks.length || !pdfSpeechBackend.available) return;
+  if (pdfSpeechPlaying && pdfSpeechAudio) {
+    pdfSpeechAudio.pause();
+    cancelAnimationFrame(pdfSpeechAnimationFrame);
+    pdfSpeechPlaying = false;
+    pdfSpeechPaused = true;
+    updatePdfSpeechButton();
+    setPdfSpeechStatus("Paused", "paused");
+    return;
+  }
+  if (pdfSpeechPaused && pdfSpeechAudio) {
+    pdfSpeechAudio.play().then(() => {
+      pdfSpeechPlaying = true;
+      pdfSpeechPaused = false;
+      updatePdfSpeechButton();
+      setPdfSpeechStatus(`${pdfSpeechVoiceLabel()} reading`, "playing");
+      monitorPdfSpeechAudio();
+    }).catch(handlePdfSpeechPlaybackError);
+    return;
+  }
+  if (pdfSpeechChunkIndex >= pdfSpeechPlan.chunks.length) {
+    pdfSpeechChunkIndex = 0;
+    pdfSpeechWordIndex = 0;
+  }
+  pdfSpeechPlaying = true;
+  pdfSpeechPaused = false;
+  updatePdfSpeechButton();
+  speakCurrentPdfChunk();
+}
+
+async function speakCurrentPdfChunk() {
+  if (!pdfSpeechPlaying || pdfSpeechPaused) return;
+  const chunk = pdfSpeechPlan.chunks[pdfSpeechChunkIndex];
+  if (!chunk) {
+    finishPdfSpeech();
+    return;
+  }
+  const generation = ++pdfSpeechRequestGeneration;
+  const requestedVoice = pdfSpeechVoiceId();
+  setPdfSpeechStatus("Kokoro generating…", "analyzing");
+  try {
+    const result = await preparePdfSpeechAudio(pdfSpeechChunkIndex, requestedVoice);
+    if (generation !== pdfSpeechRequestGeneration || !pdfSpeechPlaying) return;
+    if (requestedVoice !== pdfSpeechVoiceId() || result.voice !== requestedVoice) {
+      speakCurrentPdfChunk();
+      return;
+    }
+    pdfSpeechChunkDurations[pdfSpeechChunkIndex] = Number(result.duration) || 0;
+    pdfSpeechFirstChunkReady = true;
+    if (pdfSpeechButton) pdfSpeechButton.disabled = false;
+    cancelPdfSpeechAudio({ invalidate: false });
+    pdfSpeechCurrentTimings = alignPdfSpeechTimings(chunk.words, result.timings, result.duration);
+    pdfSpeechAudio = new Audio(result.audioUrl);
+    pdfSpeechAudio.preload = "auto";
+    pdfSpeechAudio.playbackRate = pdfSpeechPlaybackRate();
+    pdfSpeechAudio.preservesPitch = true;
+    pdfSpeechAudio.addEventListener("ended", () => {
+      if (generation !== pdfSpeechRequestGeneration) return;
+      cancelAnimationFrame(pdfSpeechAnimationFrame);
+      pdfSpeechChunkIndex += 1;
+      pdfSpeechWordIndex = 0;
+      updatePdfSpeechProgress();
+      speakCurrentPdfChunk();
+    }, { once: true });
+    pdfSpeechAudio.addEventListener("error", handlePdfSpeechPlaybackError, { once: true });
+    const startingTiming = pdfSpeechCurrentTimings.find((timing) => timing.wordIndex === pdfSpeechWordIndex);
+    if (startingTiming && startingTiming.start > 0) {
+      if (pdfSpeechAudio.readyState < HTMLMediaElement.HAVE_METADATA) {
+        await new Promise((resolve, reject) => {
+          pdfSpeechAudio.addEventListener("loadedmetadata", resolve, { once: true });
+          pdfSpeechAudio.addEventListener("error", reject, { once: true });
+          pdfSpeechAudio.load();
+        });
+      }
+      if (generation !== pdfSpeechRequestGeneration || !pdfSpeechPlaying) return;
+      pdfSpeechAudio.currentTime = startingTiming.start;
+    }
+    await pdfSpeechAudio.play();
+    if (generation !== pdfSpeechRequestGeneration) return;
+    updatePdfSpeechButton();
+    setPdfSpeechStatus(`${pdfSpeechVoiceLabel()} reading`, "playing");
+    highlightPdfSpeechWord(chunk.words[pdfSpeechWordIndex] || chunk.words[0]);
+    monitorPdfSpeechAudio();
+    queuePdfSpeechLookahead(pdfSpeechChunkIndex + 1);
+  } catch (error) {
+    if (generation !== pdfSpeechRequestGeneration) return;
+    handlePdfSpeechPlaybackError(error);
+  }
+}
+
+function seekPdfSpeechToWord(domKey) {
+  if (!domKey || !pdfSpeechPlan.chunks.length || !pdfSpeechBackend.available) return;
+  let targetChunkIndex = -1;
+  let targetWordIndex = -1;
+  pdfSpeechPlan.chunks.some((chunk, chunkIndex) => {
+    const wordIndex = chunk.words.findIndex((word) => word.domKey === domKey);
+    if (wordIndex < 0) return false;
+    targetChunkIndex = chunkIndex;
+    targetWordIndex = wordIndex;
+    return true;
+  });
+  if (targetChunkIndex < 0 || targetWordIndex < 0) return;
+
+  cancelPdfSpeechAudio();
+  pdfSpeechChunkIndex = targetChunkIndex;
+  pdfSpeechWordIndex = targetWordIndex;
+  pdfSpeechPlaying = true;
+  pdfSpeechPaused = false;
+  updatePdfSpeechButton();
+  updatePdfSpeechProgress();
+  highlightPdfSpeechWord(pdfSpeechPlan.chunks[targetChunkIndex].words[targetWordIndex]);
+  speakCurrentPdfChunk();
+}
+
+function preparePdfSpeechAudio(chunkIndex, voiceId = pdfSpeechVoiceId()) {
+  const chunk = pdfSpeechPlan.chunks[chunkIndex];
+  if (!chunk) return Promise.reject(new Error("No speech chunk."));
+  const key = `${voiceId}:${chunk.text}`;
+  if (pdfSpeechAudioCache.has(key)) return pdfSpeechAudioCache.get(key);
+  const request = window.localOverleaf.synthesizePdfSpeech(chunk.text, 1, voiceId);
+  pdfSpeechAudioCache.set(key, request);
+  while (pdfSpeechAudioCache.size > 3) {
+    pdfSpeechAudioCache.delete(pdfSpeechAudioCache.keys().next().value);
+  }
+  request.catch(() => pdfSpeechAudioCache.delete(key));
+  return request;
+}
+
+function normalizePdfSpeechAlignment(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function alignPdfSpeechTimings(words, rawTimings, duration) {
+  const modelTokens = (rawTimings || [])
+    .map((timing) => ({ ...timing, normalized: normalizePdfSpeechAlignment(timing.text) }))
+    .filter((timing) => timing.normalized);
+  const aligned = new Array(words.length).fill(null);
+  let modelText = "";
+  modelTokens.forEach((token) => {
+    token.characterStart = modelText.length;
+    modelText += token.normalized;
+    token.characterEnd = modelText.length;
+  });
+  let characterCursor = 0;
+  words.forEach((word, wordIndex) => {
+    const target = normalizePdfSpeechAlignment(word.spokenText);
+    if (!target) return;
+    const matchStart = modelText.indexOf(target, characterCursor);
+    if (matchStart < 0 || matchStart - characterCursor > 48) return;
+    const matchEnd = matchStart + target.length;
+    const overlapping = modelTokens.filter((token) => token.characterEnd > matchStart && token.characterStart < matchEnd);
+    if (!overlapping.length) return;
+    aligned[wordIndex] = {
+      start: Number(overlapping[0].start) || 0,
+      end: Number(overlapping[overlapping.length - 1].end) || 0,
+      wordIndex
+    };
+    characterCursor = matchEnd;
+  });
+
+  let index = 0;
+  while (index < aligned.length) {
+    if (aligned[index]) {
+      index += 1;
+      continue;
+    }
+    const gapStart = index;
+    while (index < aligned.length && !aligned[index]) index += 1;
+    const gapEnd = index;
+    const leftAnchor = gapStart > 0 ? aligned[gapStart - 1] : null;
+    const rightAnchor = gapEnd < aligned.length ? aligned[gapEnd] : null;
+    const timeStart = leftAnchor ? leftAnchor.end : 0;
+    const timeEnd = rightAnchor ? rightAnchor.start : duration;
+    const weights = words.slice(gapStart, gapEnd).map((word) => Math.max(1, normalizePdfSpeechAlignment(word.spokenText).length));
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+    let weightCursor = 0;
+    weights.forEach((weight, offset) => {
+      const wordIndex = gapStart + offset;
+      aligned[wordIndex] = {
+        start: timeStart + (weightCursor / totalWeight) * Math.max(0, timeEnd - timeStart),
+        end: timeStart + ((weightCursor + weight) / totalWeight) * Math.max(0, timeEnd - timeStart),
+        wordIndex
+      };
+      weightCursor += weight;
+    });
+  }
+  return aligned.sort((left, right) => left.start - right.start);
+}
+
+function monitorPdfSpeechAudio() {
+  cancelAnimationFrame(pdfSpeechAnimationFrame);
+  const update = () => {
+    if (!pdfSpeechAudio || !pdfSpeechPlaying || pdfSpeechAudio.paused) return;
+    const time = pdfSpeechAudio.currentTime;
+    let timing = pdfSpeechCurrentTimings[0];
+    pdfSpeechCurrentTimings.forEach((candidate) => {
+      if (candidate.start <= time) timing = candidate;
+    });
+    const chunk = pdfSpeechPlan.chunks[pdfSpeechChunkIndex];
+    if (timing && chunk && timing.wordIndex !== pdfSpeechWordIndex) {
+      pdfSpeechWordIndex = timing.wordIndex;
+      highlightPdfSpeechWord(chunk.words[pdfSpeechWordIndex]);
+    }
+    updatePdfSpeechProgress();
+    pdfSpeechAnimationFrame = requestAnimationFrame(update);
+  };
+  pdfSpeechAnimationFrame = requestAnimationFrame(update);
+}
+
+function cancelPdfSpeechAudio({ invalidate = true } = {}) {
+  cancelAnimationFrame(pdfSpeechAnimationFrame);
+  pdfSpeechAnimationFrame = 0;
+  if (invalidate) pdfSpeechRequestGeneration += 1;
+  if (pdfSpeechAudio) {
+    pdfSpeechAudio.pause();
+    pdfSpeechAudio.removeAttribute("src");
+    pdfSpeechAudio.load();
+  }
+  pdfSpeechAudio = null;
+  pdfSpeechCurrentTimings = [];
+  updatePdfSpeechProgress();
+}
+
+function handlePdfSpeechPlaybackError(error) {
+  stopPdfSpeech({ resetCursor: false, updateStatus: false });
+  setPdfSpeechStatus(`Kokoro error · ${formatError(error)}`, "error");
+}
+
+function stopPdfSpeech({ resetCursor = false, updateStatus = true } = {}) {
+  cancelPdfSpeechAudio();
+  pdfSpeechPlaying = false;
+  pdfSpeechPaused = false;
+  if (resetCursor) {
+    pdfSpeechChunkIndex = 0;
+    pdfSpeechWordIndex = 0;
+    clearPdfSpeechHighlight();
+  }
+  updatePdfSpeechButton();
+  if (updateStatus) updatePdfSpeechReadyState();
+}
+
+function finishPdfSpeech() {
+  cancelPdfSpeechAudio();
+  pdfSpeechPlaying = false;
+  pdfSpeechPaused = false;
+  pdfSpeechChunkIndex = pdfSpeechPlan.chunks.length;
+  pdfSpeechWordIndex = 0;
+  clearPdfSpeechHighlight();
+  updatePdfSpeechButton();
+  updatePdfSpeechProgress();
+  setPdfSpeechStatus("Finished · press play to restart", "ready");
+}
+
+function updatePdfSpeechButton() {
+  if (!pdfSpeechButton) return;
+  pdfSpeechButton.setAttribute("aria-pressed", String(pdfSpeechPlaying));
+  pdfSpeechButton.setAttribute("aria-label", pdfSpeechPlaying ? "Pause PDF reading" : (pdfSpeechPaused ? "Resume PDF reading" : "Read PDF aloud"));
+  pdfSpeechButton.title = pdfSpeechPlaying ? `Pause ${pdfSpeechVoiceLabel()}` : (pdfSpeechPaused ? `Resume ${pdfSpeechVoiceLabel()}` : `Read with local ${pdfSpeechVoiceLabel()}`);
+}
+
+function highlightPdfSpeechWord(word) {
+  if (!word) return;
+  clearPdfSpeechHighlight();
+  const pageShell = pdfViewer.querySelector(`.pdf-page[data-page="${word.pageNumber}"]`);
+  if (!pageShell) return;
+  const exactWord = word.domKey
+    ? pageShell.querySelector(`[data-pdf-speech-key="${CSS.escape(word.domKey)}"]`)
+    : null;
+  if (exactWord) {
+    exactWord.classList.add("is-speaking");
+    scrollPdfSpeechWordIntoView(exactWord, pageShell);
+    return;
+  }
+
+  const layer = document.createElement("div");
+  layer.className = "pdf-speech-highlight-layer";
+  layer.style.width = `${Number(pageShell.dataset.renderedWidth) || pageShell.clientWidth}px`;
+  layer.style.height = `${Number(pageShell.dataset.renderedHeight) || pageShell.clientHeight}px`;
+  const ratio = renderedPdfZoom ? pdfZoom / renderedPdfZoom : 1;
+  if (ratio !== 1) layer.style.transform = `scale(${ratio})`;
+  const highlight = document.createElement("span");
+  highlight.className = "pdf-speech-highlight";
+  highlight.style.left = `${Math.max(0, word.x - 2)}px`;
+  highlight.style.top = `${Math.max(0, word.top - 1)}px`;
+  highlight.style.width = `${Math.max(8, word.width + 4)}px`;
+  highlight.style.height = `${Math.max(9, word.height + 2)}px`;
+  layer.appendChild(highlight);
+  pageShell.appendChild(layer);
+  scrollPdfSpeechWordIntoView(highlight, pageShell);
+}
+
+function scrollPdfSpeechWordIntoView(element, pageShell) {
+  const viewerBounds = pdfViewer.getBoundingClientRect();
+  const wordBounds = element.getBoundingClientRect();
+  if (wordBounds.top < viewerBounds.top + 42 || wordBounds.bottom > viewerBounds.bottom - 72) {
+    pageShell.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  }
+}
+
+function clearPdfSpeechHighlight() {
+  if (!pdfViewer) return;
+  pdfViewer.querySelectorAll(".pdf-speech-word.is-speaking").forEach((element) => element.classList.remove("is-speaking"));
+  pdfViewer.querySelectorAll(".pdf-speech-highlight-layer").forEach((element) => element.remove());
+}
+
+async function buildPdfTextLayer(textContent, viewport, pdfjsLib, pageNumber) {
+  const layer = document.createElement("div");
+  layer.className = "pdf-text-layer";
+  layer.setAttribute("aria-hidden", "true");
+  layer.style.setProperty("--scale-factor", String(viewport.scale || 1));
+  const textLayer = new pdfjsLib.TextLayer({ textContentSource: textContent, container: layer, viewport });
+  await textLayer.render();
+  textLayer.textDivs.forEach((textDiv, itemIndex) => {
+    const source = String(textLayer.textContentItemsStr[itemIndex] || textDiv.textContent || "");
+    const matches = Array.from(source.matchAll(/\S+/g));
+    if (!matches.length) return;
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    matches.forEach((match, matchIndex) => {
+      const start = match.index || 0;
+      if (start > cursor) fragment.appendChild(document.createTextNode(source.slice(cursor, start)));
+      const word = document.createElement("span");
+      word.className = "pdf-speech-word";
+      word.dataset.pdfSpeechKey = `${pageNumber}:${itemIndex}:${matchIndex}`;
+      word.textContent = match[0];
+      word.title = `Read from “${match[0]}”`;
+      word.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        seekPdfSpeechToWord(word.dataset.pdfSpeechKey);
+      });
+      fragment.appendChild(word);
+      cursor = start + match[0].length;
+    });
+    if (cursor < source.length) fragment.appendChild(document.createTextNode(source.slice(cursor)));
+    textDiv.replaceChildren(fragment);
+  });
+  return layer;
+}
+
+function buildPdfTextLines(textContent, viewport, pdfjsLib, pageNumber) {
   const lineBuckets = [];
   const tolerance = 5;
   const viewportScale = Number(viewport.scale) || 1;
+  let textItemIndex = -1;
 
   (textContent.items || []).forEach((item) => {
+    if (typeof item.str !== "string") return;
+    textItemIndex += 1;
     const text = String(item.str || "").trim();
     if (!text) return;
 
     const transform = pdfjsLib.Util.transform(viewport.transform, item.transform);
     const x = transform[4];
     const y = transform[5];
+    const height = Math.max(Math.hypot(transform[2], transform[3]), Math.abs(transform[0]), 8);
     const width = Math.max(
       Math.abs(Number(item.width) || 0) * viewportScale,
       Math.abs(Number(transform[0]) || 0) * text.length * 0.45,
@@ -12310,7 +14668,7 @@ function buildPdfTextLines(textContent, viewport, pdfjsLib) {
       lineBuckets.push(bucket);
     }
 
-    bucket.items.push({ x, width, text });
+    bucket.items.push({ x, y, width, height, text, itemIndex: textItemIndex, pageNumber });
   });
 
   return lineBuckets
@@ -12337,14 +14695,17 @@ function splitPdfItemWords(item) {
   const matches = Array.from(item.text.matchAll(/\S+/g));
   const characterWidth = item.width / Math.max(item.text.length, 1);
 
-  return matches.map((match) => {
+  return matches.map((match, matchIndex) => {
     const text = match[0];
     const index = match.index || 0;
     return {
       text,
       normalized: normalizeSearchText(text).split(" ")[0] || "",
+      domKey: `${item.pageNumber}:${item.itemIndex}:${matchIndex}`,
       x: item.x + index * characterWidth,
-      width: Math.max(text.length * characterWidth, 6)
+      top: item.y - item.height,
+      width: Math.max(text.length * characterWidth, 6),
+      height: item.height * 1.12
     };
   });
 }

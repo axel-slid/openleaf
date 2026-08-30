@@ -18,6 +18,15 @@
 - Manual and debounced automatic compilation.
 - Compiler selection across `tectonic`, `latexmk`, and `pdflatex`.
 - Embedded PDF preview, system PDF opening, zoom, download, and compile log.
+- Offline PDF voice reader that pre-analyzes rendered text into a bounded,
+  on-disk audio cache, follows playback word-by-word on the page, and supports
+  five local voices plus uninterrupted live 0.5–2× speed control, fullscreen
+  continuity, and elapsed/total progress. Play stays visible while a
+  three-chunk safety buffer is prepared; low-priority look-ahead only runs
+  during playback so the reader does not occupy the machine in the background.
+  The reader stays a compact integrated bottom pill; voice and speed controls
+  live together in their own Voice settings section. Clicking any PDF word
+  seeks playback directly to that word.
 - Included-file compilation resolves the correct project entry document.
 
 ## PowerPoint
