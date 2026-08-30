@@ -13552,6 +13552,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
     setupPdfLazyRenderJobs(lazyPageRenderJobs, token);
     updatePdfPageIndicator();
     if (preserveSpeechSession) {
+      refreshPdfSpeechGeometry(nextPageTextLines);
       const activeChunk = pdfSpeechPlan.chunks[pdfSpeechChunkIndex];
       if ((pdfSpeechPlaying || pdfSpeechPaused) && activeChunk) {
         highlightPdfSpeechWord(activeChunk.words[pdfSpeechWordIndex] || activeChunk.words[0]);
@@ -14109,6 +14110,38 @@ function rebuildPdfSpeechWordMetadata() {
     });
   });
   pdfSpeechWordMetadata = metadata;
+  bindPdfSpeechWordMetadata();
+}
+
+function refreshPdfSpeechGeometry(pageLines) {
+  const geometryByKey = new Map();
+  Array.from(pageLines.values()).forEach((lines) => {
+    lines.forEach((line) => {
+      (line.words || []).forEach((word) => geometryByKey.set(word.domKey, word));
+    });
+  });
+
+  pdfSpeechPlan.chunks.forEach((chunk) => {
+    chunk.words.forEach((word) => {
+      const geometry = geometryByKey.get(word.domKey);
+      if (!geometry) return;
+      word.x = geometry.x;
+      word.top = geometry.top;
+      word.width = geometry.width;
+      word.height = geometry.height;
+      word.corners = geometry.corners || null;
+      const metadata = pdfSpeechWordMetadata.get(word.domKey);
+      if (!metadata) return;
+      pdfSpeechWordMetadata.set(word.domKey, {
+        ...metadata,
+        x: word.x,
+        top: word.top,
+        width: word.width,
+        height: word.height,
+        corners: word.corners
+      });
+    });
+  });
   bindPdfSpeechWordMetadata();
 }
 
