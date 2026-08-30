@@ -838,7 +838,12 @@ function projectReadingFiles(project, rootPath) {
     });
   };
   visit(rootPath);
-  return readings.sort((left, right) => left.relativePath.localeCompare(right.relativePath, undefined, { numeric: true, sensitivity: "base" }));
+  return readings.sort((left, right) => {
+    const leftCompletePacket = /complete assigned readings|complete reading packet/i.test(left.name);
+    const rightCompletePacket = /complete assigned readings|complete reading packet/i.test(right.name);
+    if (leftCompletePacket !== rightCompletePacket) return leftCompletePacket ? -1 : 1;
+    return left.relativePath.localeCompare(right.relativePath, undefined, { numeric: true, sensitivity: "base" });
+  });
 }
 
 function agentsPathFor(project) {
