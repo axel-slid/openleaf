@@ -2541,6 +2541,7 @@ let pdfSpeechPreparedCount = 0;
 let pdfSpeechPreprocessActive = false;
 let pdfSpeechChunkDurations = [];
 let pdfSpeechWordMetadata = new Map();
+let pdfWordMeasureContext = null;
 let pdfDarkMode = false;
 let pdfRenderMode = "adaptive";
 let selectedPdfRelativePath = "";
@@ -14101,6 +14102,7 @@ function rebuildPdfSpeechWordMetadata() {
         top: word.top,
         width: word.width,
         height: word.height,
+        corners: word.corners || null,
         start: null,
         end: null
       });
@@ -14546,8 +14548,10 @@ function handlePdfSpeechWordClick(event) {
   if (!pageShell || !pdfViewer.contains(pageShell)) return;
   const x = event.clientX;
   const y = event.clientY;
-  const matches = Array.from(pageShell.querySelectorAll(".pdf-speech-word[data-pdf-speech-key]"))
-    .map((element) => ({ element, bounds: element.getBoundingClientRect() }))
+  const pageNumber = Number(pageShell.dataset.page);
+  const matches = Array.from(pdfSpeechWordMetadata.values())
+    .filter((metadata) => metadata.pageNumber === pageNumber)
+    .map((metadata) => ({ metadata, bounds: pdfSpeechWordClientBounds(pageShell, metadata) }))
     .filter(({ bounds }) => x >= bounds.left - 2 && x <= bounds.right + 2 && y >= bounds.top - 2 && y <= bounds.bottom + 2);
   if (!matches.length) return;
   const hit = matches.reduce((best, candidate) => {
@@ -14559,15 +14563,46 @@ function handlePdfSpeechWordClick(event) {
   if (!hit) return;
   event.preventDefault();
   event.stopImmediatePropagation();
-  const element = hit.element;
+  const metadata = hit.metadata;
   seekPdfSpeechToWord({
-    domKey: element.dataset.pdfSpeechKey,
-    pageNumber: Number(pageShell.dataset.page),
-    pageWordIndex: Number(element.dataset.pdfSpeechPageWordIndex),
-    chunkIndex: Number(element.dataset.pdfSpeechChunkIndex),
-    wordIndex: Number(element.dataset.pdfSpeechWordIndex),
-    text: element.textContent
+    domKey: metadata.domKey,
+    pageNumber: metadata.pageNumber,
+    pageWordIndex: metadata.pageWordIndex,
+    chunkIndex: metadata.chunkIndex,
+    wordIndex: metadata.wordIndex,
+    text: metadata.text
   });
+}
+
+function pdfSpeechWordClientBounds(pageShell, word) {
+  const canvas = pageShell.querySelector("canvas");
+  const canvasBounds = (canvas || pageShell).getBoundingClientRect();
+  const renderedWidth = Number(pageShell.dataset.renderedWidth) || Math.max(1, pageShell.offsetWidth);
+  const renderedHeight = Number(pageShell.dataset.renderedHeight) || Math.max(1, pageShell.offsetHeight);
+  const scaleX = canvasBounds.width / Math.max(1, renderedWidth);
+  const scaleY = canvasBounds.height / Math.max(1, renderedHeight);
+  const corners = Array.isArray(word.corners) && word.corners.length === 4
+    ? word.corners
+    : [
+        { x: word.x, y: word.top },
+        { x: word.x + word.width, y: word.top },
+        { x: word.x + word.width, y: word.top + word.height },
+        { x: word.x, y: word.top + word.height }
+      ];
+  const points = corners.map((point) => ({
+    x: canvasBounds.left + point.x * scaleX,
+    y: canvasBounds.top + point.y * scaleY
+  }));
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  return {
+    left: Math.min(...xs),
+    top: Math.min(...ys),
+    right: Math.max(...xs),
+    bottom: Math.max(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys)
+  };
 }
 
 function preparePdfSpeechAudio(chunkIndex, voiceId = pdfSpeechVoiceId()) {
@@ -14724,15 +14759,6 @@ function highlightPdfSpeechWord(word) {
   clearPdfSpeechHighlight();
   const pageShell = pdfViewer.querySelector(`.pdf-page[data-page="${word.pageNumber}"]`);
   if (!pageShell) return;
-  const exactWord = word.domKey
-    ? pageShell.querySelector(`[data-pdf-speech-key="${CSS.escape(word.domKey)}"]`)
-    : null;
-  if (exactWord) {
-    exactWord.classList.add("is-speaking");
-    scrollPdfSpeechWordIntoView(exactWord, pageShell);
-    return;
-  }
-
   const layer = document.createElement("div");
   layer.className = "pdf-speech-highlight-layer";
   layer.style.width = `${Number(pageShell.dataset.renderedWidth) || pageShell.clientWidth}px`;
@@ -14803,32 +14829,23 @@ async function buildPdfTextLayer(textContent, viewport, pdfjsLib, pageNumber) {
 function buildPdfTextLines(textContent, viewport, pdfjsLib, pageNumber) {
   const lineBuckets = [];
   const tolerance = 5;
-  const viewportScale = Number(viewport.scale) || 1;
   let textItemIndex = -1;
 
   (textContent.items || []).forEach((item) => {
     if (typeof item.str !== "string") return;
     textItemIndex += 1;
-    const text = String(item.str || "").trim();
-    if (!text) return;
+    const text = String(item.str || "");
+    if (!text.trim()) return;
 
-    const transform = pdfjsLib.Util.transform(viewport.transform, item.transform);
-    const x = transform[4];
-    const y = transform[5];
-    const height = Math.max(Math.hypot(transform[2], transform[3]), Math.abs(transform[0]), 8);
-    const width = Math.max(
-      Math.abs(Number(item.width) || 0) * viewportScale,
-      Math.abs(Number(transform[0]) || 0) * text.length * 0.45,
-      text.length * 3
-    );
-    let bucket = lineBuckets.find((line) => Math.abs(line.y - y) <= tolerance);
+    const geometry = pdfTextItemGeometry(item, textContent.styles || {}, viewport, pdfjsLib);
+    let bucket = lineBuckets.find((line) => Math.abs(line.y - geometry.top) <= tolerance);
 
     if (!bucket) {
-      bucket = { y, items: [] };
+      bucket = { y: geometry.top, items: [] };
       lineBuckets.push(bucket);
     }
 
-    bucket.items.push({ x, y, width, height, text, itemIndex: textItemIndex, pageNumber });
+    bucket.items.push({ ...geometry, text, itemIndex: textItemIndex, pageNumber });
   });
 
   return lineBuckets
@@ -14851,23 +14868,85 @@ function buildPdfTextLines(textContent, viewport, pdfjsLib, pageNumber) {
     .sort((a, b) => a.y - b.y);
 }
 
+function pdfTextItemGeometry(item, styles, viewport, pdfjsLib) {
+  const transform = pdfjsLib.Util.transform(viewport.transform, item.transform);
+  const style = styles[item.fontName] || {};
+  let angle = Math.atan2(transform[1], transform[0]);
+  if (style.vertical) angle += Math.PI / 2;
+  const fontHeight = Math.max(1, Math.hypot(transform[2], transform[3]));
+  const ascentRatio = Number.isFinite(style.ascent)
+    ? style.ascent
+    : Number.isFinite(style.descent)
+      ? 1 + style.descent
+      : 0.8;
+  const fontAscent = fontHeight * ascentRatio;
+  const left = angle === 0
+    ? transform[4]
+    : transform[4] + fontAscent * Math.sin(angle);
+  const top = angle === 0
+    ? transform[5] - fontAscent
+    : transform[5] - fontAscent * Math.cos(angle);
+  const declaredAdvance = Math.abs(Number(style.vertical ? item.height : item.width) || 0) * (Number(viewport.scale) || 1);
+  const fallbackAdvance = Math.max(1, Math.hypot(transform[0], transform[1]) * Math.max(1, String(item.str || "").length) * 0.5);
+  return {
+    x: left,
+    top,
+    width: declaredAdvance || fallbackAdvance,
+    height: fontHeight,
+    angle,
+    fontFamily: style.fontFamily || "sans-serif",
+    direction: item.dir || "ltr"
+  };
+}
+
 function splitPdfItemWords(item) {
   const matches = Array.from(item.text.matchAll(/\S+/g));
-  const characterWidth = item.width / Math.max(item.text.length, 1);
+  const context = pdfWordMeasureContext || (pdfWordMeasureContext = document.createElement("canvas").getContext("2d"));
+  context.font = `${Math.max(1, item.height)}px ${item.fontFamily || "sans-serif"}`;
+  const totalMeasuredWidth = context.measureText(item.text).width;
+  const measurementScale = totalMeasuredWidth > 0 ? item.width / totalMeasuredWidth : item.width / Math.max(item.text.length, 1);
 
   return matches.map((match, matchIndex) => {
     const text = match[0];
-    const index = match.index || 0;
+    const startIndex = match.index || 0;
+    const endIndex = startIndex + text.length;
+    const measuredStart = context.measureText(item.text.slice(0, startIndex)).width * measurementScale;
+    const measuredEnd = context.measureText(item.text.slice(0, endIndex)).width * measurementScale;
+    const advanceStart = item.direction === "rtl" ? item.width - measuredEnd : measuredStart;
+    const advanceEnd = item.direction === "rtl" ? item.width - measuredStart : measuredEnd;
+    const corners = pdfWordBoxCorners(item, advanceStart, advanceEnd);
+    const xs = corners.map((point) => point.x);
+    const ys = corners.map((point) => point.y);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    const right = Math.max(...xs);
+    const bottom = Math.max(...ys);
     return {
       text,
       normalized: normalizeSearchText(text).split(" ")[0] || "",
       domKey: `${item.pageNumber}:${item.itemIndex}:${matchIndex}`,
-      x: item.x + index * characterWidth,
-      top: item.y - item.height,
-      width: Math.max(text.length * characterWidth, 6),
-      height: item.height * 1.12
+      x: left,
+      top,
+      width: Math.max(right - left, 2),
+      height: Math.max(bottom - top, 2),
+      corners
     };
   });
+}
+
+function pdfWordBoxCorners(item, advanceStart, advanceEnd) {
+  const cosine = Math.cos(item.angle || 0);
+  const sine = Math.sin(item.angle || 0);
+  const point = (advance, down) => ({
+    x: item.x + advance * cosine - down * sine,
+    y: item.top + advance * sine + down * cosine
+  });
+  return [
+    point(advanceStart, 0),
+    point(advanceEnd, 0),
+    point(advanceEnd, item.height),
+    point(advanceStart, item.height)
+  ];
 }
 
 function jumpToSourceFromPdfClick(event, pageNumber) {
