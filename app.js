@@ -201,6 +201,11 @@ const pdfCinematicTitle = document.getElementById("pdfCinematicTitle");
 const pdfCinematicNarration = document.getElementById("pdfCinematicNarration");
 const pdfCinematicStatus = document.getElementById("pdfCinematicStatus");
 const pdfCinematicProgressBar = document.getElementById("pdfCinematicProgressBar");
+const pdfCinematicPlaybackButton = document.getElementById("pdfCinematicPlaybackButton");
+const pdfCinematicBackdropButtons = Array.from(document.querySelectorAll("[data-cinematic-artwork]"));
+const pdfCinematicBackdropIntensity = document.getElementById("pdfCinematicBackdropIntensity");
+const pdfCinematicTextSize = document.getElementById("pdfCinematicTextSize");
+const pdfCinematicFollowButton = document.getElementById("pdfCinematicFollowButton");
 const historyPanel = document.getElementById("historyPanel");
 const closeHistoryButton = document.getElementById("closeHistoryButton");
 const historyPanelBody = document.getElementById("historyPanelBody");
@@ -2550,6 +2555,7 @@ let pdfSpeechFirstChunkReady = false;
 let pdfSpeechPlanRevision = 0;
 let pdfSpeechPreparedCount = 0;
 let pdfSpeechPreprocessActive = false;
+let pdfSpeechBackgroundPreloadActive = false;
 let pdfSpeechChunkDurations = [];
 let pdfSpeechWordMetadata = new Map();
 let pdfWordMeasureContext = null;
@@ -2560,6 +2566,19 @@ let pdfWordDefinitionRequest = 0;
 let extraFeaturesEnabled = false;
 let pdfCinematicAudio = null;
 let pdfCinematicGeneration = 0;
+let pdfCinematicChunkIndex = 0;
+let pdfCinematicWordIndex = 0;
+let pdfCinematicCurrentTimings = [];
+let pdfCinematicAnimationFrame = 0;
+let pdfCinematicPlaying = false;
+let pdfCinematicPaused = false;
+let pdfCinematicFollowText = true;
+let pdfCinematicActiveWord = null;
+const PDF_CINEMATIC_ARTWORKS = [
+  "assets/cinematic/monet-bridge-water-lilies.webp",
+  "assets/cinematic/van-gogh-starry-night.webp",
+  "assets/cinematic/heart-of-andes.webp"
+];
 let pdfPronunciationDictionaryTimer = null;
 let pdfDarkMode = false;
 let pdfRenderMode = "adaptive";
@@ -5913,6 +5932,18 @@ function wireEvents() {
   if (pdfReaderButton) pdfReaderButton.addEventListener("click", togglePdfReaderMode);
   if (pdfCinematicButton) pdfCinematicButton.addEventListener("click", openPdfCinematicMode);
   if (pdfCinematicCloseButton) pdfCinematicCloseButton.addEventListener("click", closePdfCinematicMode);
+  if (pdfCinematicPlaybackButton) pdfCinematicPlaybackButton.addEventListener("click", togglePdfCinematicPlayback);
+  pdfCinematicBackdropButtons.forEach((button) => button.addEventListener("click", () => {
+    setPdfCinematicArtwork(Number(button.dataset.cinematicArtwork));
+  }));
+  if (pdfCinematicBackdropIntensity) pdfCinematicBackdropIntensity.addEventListener("input", applyPdfCinematicAppearance);
+  if (pdfCinematicTextSize) pdfCinematicTextSize.addEventListener("input", applyPdfCinematicAppearance);
+  if (pdfCinematicFollowButton) pdfCinematicFollowButton.addEventListener("click", () => {
+    pdfCinematicFollowText = !pdfCinematicFollowText;
+    pdfCinematicFollowButton.classList.toggle("active", pdfCinematicFollowText);
+    pdfCinematicFollowButton.setAttribute("aria-pressed", String(pdfCinematicFollowText));
+    if (pdfCinematicFollowText && pdfCinematicActiveWord) scrollPdfCinematicWordIntoView(pdfCinematicActiveWord, true);
+  });
   if (pdfSpeechButton) pdfSpeechButton.addEventListener("click", togglePdfSpeech);
   if (pdfSpeechRate) pdfSpeechRate.addEventListener("input", handlePdfSpeechRateChange);
   if (pdfSpeechVoice) pdfSpeechVoice.addEventListener("change", handlePdfSpeechVoiceChange);
@@ -5961,7 +5992,7 @@ function wireEvents() {
     const target = event.target instanceof Element ? event.target : null;
     const isTextEntry = Boolean(target && target.closest("input, textarea, select, [contenteditable='true'], .CodeMirror"));
     if (event.code === "Space" && !event.metaKey && !event.ctrlKey && !event.altKey && !isTextEntry) {
-      if (pdfCinematicAudio && pdfCinematicStage && !pdfCinematicStage.hidden) {
+      if (pdfCinematicStage && !pdfCinematicStage.hidden) {
         event.preventDefault();
         togglePdfCinematicPlayback();
         return;
@@ -8017,7 +8048,7 @@ function renderProjectGrid() {
     card.innerHTML = `
       <button class="project-card-open" type="button" aria-label="Open ${escapeHtml(displayName)}">
         <span class="project-preview" aria-hidden="true">
-          <span class="project-preview-message">${project.pdfExists ? "Open to refresh preview" : "PDF preview unavailable"}</span>
+          <span class="project-preview-message">${escapeHtml((displayName[0] || "P").toUpperCase())}</span>
         </span>
         <span class="project-card-copy">
           <span class="project-card-title-row">
@@ -8099,17 +8130,31 @@ function collectionIdentifier(prefix = "folder") {
 }
 
 function ensureDemogReadingCollection() {
-  const demog = projects.find((project) => /demog\s*c?126|c126.*demog/i.test(`${project.name} ${project.displayName} ${project.folderName} ${project.texPath}`));
+  const demogProjects = projects.filter((project) => /demog\s*c?126|c126.*demog/i.test(`${project.name} ${project.displayName} ${project.folderName} ${project.texPath}`));
+  const demog = demogProjects.sort((left, right) => (
+    (Array.isArray(right.readingFiles) ? right.readingFiles.length : 0)
+      - (Array.isArray(left.readingFiles) ? left.readingFiles.length : 0)
+  ))[0];
   if (!demog) return;
-  const alreadyGrouped = projectCollections.some((collection) => (
-    collection.divisions.some((division) => division.projectIds.includes(demog.id))
-  ));
-  if (alreadyGrouped) return;
-  projectCollections.unshift({
-    id: collectionIdentifier("subject"),
-    name: "DEMOG C126",
-    divisions: [{ id: collectionIdentifier("division"), name: "Readings", projectIds: [demog.id] }]
+  let collection = projectCollections.find((item) => /demog\s*c?126|c126.*demog/i.test(item.name));
+  if (!collection) {
+    collection = {
+      id: collectionIdentifier("subject"),
+      name: "DEMOG C126",
+      divisions: [{ id: collectionIdentifier("division"), name: "Readings", projectIds: [] }]
+    };
+    projectCollections.unshift(collection);
+  }
+  let readings = collection.divisions.find((division) => /^readings$/i.test(division.name));
+  if (!readings) {
+    readings = { id: collectionIdentifier("division"), name: "Readings", projectIds: [] };
+    collection.divisions.unshift(readings);
+  }
+  const demogIds = new Set(demogProjects.map((project) => project.id));
+  collection.divisions.forEach((division) => {
+    division.projectIds = division.projectIds.filter((id) => !demogIds.has(id));
   });
+  readings.projectIds.unshift(demog.id);
   saveProjectCollections();
 }
 
@@ -8208,6 +8253,8 @@ function wireProjectCardDrag(card, projectId) {
 function renderProjectCollectionCard(collection) {
   const memberIds = collection.divisions.flatMap((division) => division.projectIds);
   const members = memberIds.map((id) => projects.find((project) => project.id === id)).filter(Boolean);
+  const readingCount = members.reduce((count, project) => count + (Array.isArray(project.readingFiles) ? project.readingFiles.length : 0), 0);
+  const itemCount = readingCount || members.length;
   const card = document.createElement("article");
   card.className = "project-collection-card";
   card.role = "button";
@@ -8220,7 +8267,7 @@ function renderProjectCollectionCard(collection) {
     <span class="project-collection-preview" aria-hidden="true">${tiles}</span>
     <span class="project-collection-copy">
       <strong>${escapeHtml(collection.name)}</strong>
-      <small>${members.length} ${members.length === 1 ? "project" : "projects"} · ${collection.divisions.length} ${collection.divisions.length === 1 ? "division" : "divisions"}</small>
+      <small>${itemCount} ${readingCount ? (itemCount === 1 ? "reading" : "readings") : (itemCount === 1 ? "project" : "projects")} · ${collection.divisions.length} ${collection.divisions.length === 1 ? "division" : "divisions"}</small>
     </span>
   `;
   card.addEventListener("click", () => openProjectCollection(collection.id));
@@ -8308,37 +8355,61 @@ function renderOpenProjectCollection(collection, overlay) {
   const container = overlay.querySelector(".project-collection-divisions");
   container.replaceChildren();
   collection.divisions.forEach((division) => {
+    const entries = division.projectIds
+      .map((id) => projects.find((project) => project.id === id))
+      .filter(Boolean)
+      .flatMap((project) => Array.isArray(project.readingFiles) && project.readingFiles.length
+        ? project.readingFiles.map((reading) => ({ project, reading }))
+        : [{ project, reading: null }]);
     const section = document.createElement("section");
     section.className = "project-division";
     section.dataset.divisionId = division.id;
-    section.innerHTML = `<header><strong>${escapeHtml(division.name)}</strong><small>${division.projectIds.length}</small></header><div class="project-division-grid"></div>`;
+    section.innerHTML = `<header><strong>${escapeHtml(division.name)}</strong><small>${entries.length}</small></header><div class="project-division-grid"></div>`;
     const grid = section.querySelector(".project-division-grid");
-    division.projectIds.map((id) => projects.find((project) => project.id === id)).filter(Boolean).forEach((project) => {
+    entries.forEach(({ project, reading }) => {
+      const title = reading ? reading.name : projectDisplaySortName(project);
       const card = document.createElement("article");
       card.className = "project-division-card";
+      card.classList.toggle("reading-card", Boolean(reading));
       card.draggable = false;
       card.dataset.projectId = project.id;
+      if (reading) card.dataset.pdfRelativePath = reading.relativePath;
       card.innerHTML = `
         <span class="project-division-preview">${project.previewImageUrl ? `<img src="${escapeHtml(project.previewImageUrl)}" alt="">` : "PDF"}</span>
-        <strong>${escapeHtml(projectDisplaySortName(project))}</strong>
-        <button type="button" aria-label="Move ${escapeHtml(projectDisplaySortName(project))} to Home">×</button>
+        <span class="project-division-card-copy">
+          <strong>${escapeHtml(title)}</strong>
+          ${reading ? `<small>${escapeHtml(reading.category || "Reading")}</small>` : ""}
+        </span>
+        ${reading ? "" : `<button type="button" aria-label="Move ${escapeHtml(title)} to Home">×</button>`}
       `;
       card.addEventListener("click", (event) => {
         if (event.target.closest("button")) return;
         closeProjectCollection();
-        openProject(project.id);
+        openProject(project.id, { pdfRelativePath: reading ? reading.relativePath : "" });
       });
-      card.querySelector("button").addEventListener("click", () => {
-        removeProjectFromCollections(project.id);
-        saveProjectCollections();
-        renderOpenProjectCollection(collection, overlay);
-      });
+      const removeButton = card.querySelector("button");
+      if (removeButton) removeButton.addEventListener("click", () => {
+          removeProjectFromCollections(project.id);
+          saveProjectCollections();
+          renderOpenProjectCollection(collection, overlay);
+        });
+      if (reading) {
+        card.tabIndex = 0;
+        card.setAttribute("role", "button");
+        card.setAttribute("aria-label", `Open ${title}`);
+        card.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          closeProjectCollection();
+          openProject(project.id, { pdfRelativePath: reading.relativePath });
+        });
+      }
       card.addEventListener("dragstart", (event) => {
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("application/x-openleaf-project", project.id);
       });
       card.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0 || event.target.closest("button, input")) return;
+        if (reading || event.button !== 0 || event.target.closest("button, input")) return;
         card.draggable = true;
       });
       card.addEventListener("dragend", () => { card.draggable = false; });
@@ -8559,7 +8630,7 @@ async function renderProjectPreview(card, project) {
     }
     if (!card.isConnected) return;
   }
-  preview.innerHTML = `<span class="project-preview-message">${project.pdfExists ? "Open to refresh preview" : "PDF preview unavailable"}</span>`;
+  preview.innerHTML = `<span class="project-preview-message">${escapeHtml(((project.displayName || project.name || "P")[0] || "P").toUpperCase())}</span>`;
 }
 
 function cacheActiveProjectPreview(sourceCanvas) {
@@ -11487,7 +11558,7 @@ async function saveActivePresentation() {
   }
 }
 
-async function openProject(projectId) {
+async function openProject(projectId, { pdfRelativePath = "" } = {}) {
   resetTextTabs();
   cancelProjectFileCreation();
   selectedFileTreeNode = null;
@@ -11505,7 +11576,7 @@ async function openProject(projectId) {
   setFileSidebarVisible(false, { persist: false });
   setTerminalCollapsed(true, { persist: false });
   setCompileLogCollapsed(true, { persist: false });
-  await loadManuscript(projectId);
+  await loadManuscript(projectId, { pdfRelativePath });
   await loadProjectFiles();
   if (typeof loadNotesForActiveProject === "function") loadNotesForActiveProject();
   startExternalSourcePolling();
@@ -11548,7 +11619,7 @@ async function showProjects({ discardChanges = false } = {}) {
   return true;
 }
 
-async function loadManuscript(projectId = activeProject && activeProject.id) {
+async function loadManuscript(projectId = activeProject && activeProject.id, { pdfRelativePath = "" } = {}) {
   if (!projectId) return;
 
   setBusy(true);
@@ -11560,7 +11631,7 @@ async function loadManuscript(projectId = activeProject && activeProject.id) {
     const data = await window.localOverleaf.load(projectId);
     activeProject = data.project;
     resetTextTabs();
-    selectedPdfRelativePath = "";
+    selectedPdfRelativePath = pdfRelativePath;
     clearRemoteCompiledPdf();
     setActiveLoadedTextFile(data.file, data.tex);
     editor.setValue(data.tex);
@@ -13058,11 +13129,8 @@ function pdfCinematicArtworkUrl(pageShell) {
 
 async function openPdfCinematicMode() {
   if (!extraFeaturesEnabled || !pdfCinematicStage) return;
-  const readingPageShell = currentPdfPageShell();
-  if (!readingPageShell) return;
-  const pageNumber = Number(readingPageShell.dataset.page) || 1;
-  const scene = pdfCinematicReadingScene(pageNumber);
-  const generation = ++pdfCinematicGeneration;
+  if (!pdfSpeechPlan.chunks.length || !pdfSpeechPlan.wordCount) return;
+  ++pdfCinematicGeneration;
 
   if (pdfSpeechPlaying) {
     if (pdfSpeechAudio) pdfSpeechAudio.pause();
@@ -13073,64 +13141,251 @@ async function openPdfCinematicMode() {
     setPdfSpeechStatus("Paused", "paused");
   }
   closePdfCinematicAudio();
-  pdfCinematicKicker.textContent = `Page ${pageNumber} · reading`;
-  pdfCinematicTitle.textContent = scene.title;
-  pdfCinematicNarration.textContent = scene.narration;
-  pdfCinematicStatus.textContent = "Preparing the passage…";
+  pdfCinematicChunkIndex = 0;
+  pdfCinematicWordIndex = 0;
+  pdfCinematicCurrentTimings = [];
+  pdfCinematicPlaying = true;
+  pdfCinematicPaused = false;
+  pdfCinematicFollowText = true;
+  pdfCinematicKicker.textContent = `${pdfSpeechPlan.pageCount} pages · ${pdfSpeechPlan.wordCount.toLocaleString()} words`;
+  pdfCinematicTitle.textContent = activePdfName();
+  renderPdfCinematicTranscript();
+  pdfCinematicStatus.textContent = `Preparing ${pdfSpeechVoiceLabel()}…`;
   pdfCinematicProgressBar.style.transform = "scaleX(0)";
   pdfCinematicStage.hidden = false;
   document.body.classList.add("pdf-cinematic-open");
   pdfCinematicStage.classList.add("is-visible", "is-preparing");
-  const cinematicArtwork = [
-    "assets/cinematic/monet-bridge-water-lilies.webp",
-    "assets/cinematic/van-gogh-starry-night.webp",
-    "assets/cinematic/heart-of-andes.webp"
-  ];
-  pdfCinematicArtwork.src = cinematicArtwork[(Math.max(1, pageNumber) - 1) % cinematicArtwork.length];
-  pdfCinematicCloseButton.focus();
+  if (pdfCinematicFollowButton) {
+    pdfCinematicFollowButton.classList.add("active");
+    pdfCinematicFollowButton.setAttribute("aria-pressed", "true");
+  }
+  const savedArtwork = clampNumber(Number(localStorage.getItem("openleafPdfCinematicArtwork")), 0, PDF_CINEMATIC_ARTWORKS.length - 1, 0);
+  if (pdfCinematicBackdropIntensity) pdfCinematicBackdropIntensity.value = localStorage.getItem("openleafPdfCinematicBackdropIntensity") || "0.78";
+  if (pdfCinematicTextSize) pdfCinematicTextSize.value = localStorage.getItem("openleafPdfCinematicTextSize") || "1";
+  setPdfCinematicArtwork(savedArtwork);
+  applyPdfCinematicAppearance();
+  updatePdfCinematicPlaybackButton();
+  pdfCinematicPlaybackButton?.focus();
+  await playPdfCinematicChunk();
+}
 
+function togglePdfCinematicPlayback() {
+  if (!pdfCinematicStage || pdfCinematicStage.hidden) return;
+  if (!pdfCinematicAudio) {
+    if (pdfCinematicChunkIndex >= pdfSpeechPlan.chunks.length) {
+      pdfCinematicChunkIndex = 0;
+      pdfCinematicWordIndex = 0;
+      resetPdfCinematicTranscriptProgress();
+    }
+    pdfCinematicPlaying = true;
+    pdfCinematicPaused = false;
+    updatePdfCinematicPlaybackButton();
+    void playPdfCinematicChunk();
+    return;
+  }
+  if (pdfCinematicAudio.paused) {
+    pdfCinematicAudio.play().then(() => {
+      pdfCinematicPlaying = true;
+      pdfCinematicPaused = false;
+      pdfCinematicStage.classList.add("is-narrating");
+      updatePdfCinematicPlaybackButton();
+      monitorPdfCinematicAudio();
+    }).catch(() => {});
+  } else {
+    pdfCinematicAudio.pause();
+    pdfCinematicPlaying = false;
+    pdfCinematicPaused = true;
+    cancelAnimationFrame(pdfCinematicAnimationFrame);
+    pdfCinematicStage.classList.remove("is-narrating");
+    pdfCinematicStatus.textContent = "Paused · press Space to continue";
+    updatePdfCinematicPlaybackButton();
+  }
+}
+
+function renderPdfCinematicTranscript() {
+  if (!pdfCinematicNarration) return;
+  pdfCinematicNarration.innerHTML = pdfSpeechPlan.chunks.map((chunk, chunkIndex) => {
+    const words = chunk.words.reduce((html, word, wordIndex) => {
+      const previous = chunk.words[wordIndex - 1];
+      const separator = wordIndex > 0 && !(previous && previous.joinsNext) ? " " : "";
+      return `${html}${separator}<span data-cinematic-chunk="${chunkIndex}" data-cinematic-word="${wordIndex}">${escapeHtml(word.text || word.spokenText)}</span>`;
+    }, "");
+    return `<p data-cinematic-paragraph="${chunkIndex}">${words}</p>`;
+  }).join("");
+  pdfCinematicNarration.scrollTop = 0;
+  pdfCinematicActiveWord = null;
+}
+
+function resetPdfCinematicTranscriptProgress() {
+  if (!pdfCinematicNarration) return;
+  pdfCinematicNarration.querySelectorAll(".is-active, .is-read").forEach((element) => element.classList.remove("is-active", "is-read"));
+  pdfCinematicNarration.scrollTop = 0;
+  pdfCinematicActiveWord = null;
+  pdfCinematicProgressBar.style.transform = "scaleX(0)";
+}
+
+function setPdfCinematicArtwork(index) {
+  const artworkIndex = clampNumber(Number(index), 0, PDF_CINEMATIC_ARTWORKS.length - 1, 0);
+  if (pdfCinematicArtwork) pdfCinematicArtwork.src = PDF_CINEMATIC_ARTWORKS[artworkIndex];
+  pdfCinematicBackdropButtons.forEach((button) => {
+    const active = Number(button.dataset.cinematicArtwork) === artworkIndex;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  localStorage.setItem("openleafPdfCinematicArtwork", String(artworkIndex));
+}
+
+function applyPdfCinematicAppearance() {
+  if (!pdfCinematicStage) return;
+  const intensity = clampNumber(Number(pdfCinematicBackdropIntensity && pdfCinematicBackdropIntensity.value), 0.25, 1, 0.78);
+  const textSize = clampNumber(Number(pdfCinematicTextSize && pdfCinematicTextSize.value), 0.8, 1.4, 1);
+  pdfCinematicStage.style.setProperty("--cinematic-art-opacity", String(intensity));
+  pdfCinematicStage.style.setProperty("--cinematic-text-scale", String(textSize));
+  localStorage.setItem("openleafPdfCinematicBackdropIntensity", String(intensity));
+  localStorage.setItem("openleafPdfCinematicTextSize", String(textSize));
+}
+
+function scrollPdfCinematicWordIntoView(wordElement, force = false) {
+  if (!pdfCinematicFollowText || !pdfCinematicNarration || !wordElement) return;
+  const viewport = pdfCinematicNarration.getBoundingClientRect();
+  const bounds = wordElement.getBoundingClientRect();
+  const outsideFocusBand = bounds.top < viewport.top + viewport.height * 0.28
+    || bounds.bottom > viewport.bottom - viewport.height * 0.28;
+  if (force || outsideFocusBand) wordElement.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+}
+
+function highlightPdfCinematicWord(chunkIndex, wordIndex) {
+  if (!pdfCinematicNarration) return;
+  const next = pdfCinematicNarration.querySelector(`[data-cinematic-chunk="${chunkIndex}"][data-cinematic-word="${wordIndex}"]`);
+  if (!next || next === pdfCinematicActiveWord) return;
+  if (pdfCinematicActiveWord) {
+    pdfCinematicActiveWord.classList.remove("is-active");
+    pdfCinematicActiveWord.classList.add("is-read");
+  }
+  next.classList.add("is-active");
+  pdfCinematicActiveWord = next;
+  scrollPdfCinematicWordIntoView(next);
+}
+
+function pdfCinematicCompletedWords() {
+  let count = 0;
+  for (let index = 0; index < Math.min(pdfCinematicChunkIndex, pdfSpeechPlan.chunks.length); index += 1) {
+    count += pdfSpeechPlan.chunks[index].words.length;
+  }
+  return count + Math.max(0, pdfCinematicWordIndex);
+}
+
+function updatePdfCinematicProgress() {
+  const completedWords = pdfCinematicCompletedWords();
+  const progress = pdfSpeechPlan.wordCount
+    ? clampNumber(completedWords / pdfSpeechPlan.wordCount, 0, 1, 0)
+    : 0;
+  pdfCinematicProgressBar.style.transform = `scaleX(${progress})`;
+  let rawElapsed = 0;
+  for (let index = 0; index < Math.min(pdfCinematicChunkIndex, pdfSpeechChunkDurations.length); index += 1) {
+    rawElapsed += Number(pdfSpeechChunkDurations[index]) || 0;
+  }
+  rawElapsed += Number(pdfCinematicAudio && pdfCinematicAudio.currentTime) || 0;
+  const rate = pdfSpeechPlaybackRate();
+  const total = pdfSpeechDurationEstimate().duration / rate;
+  pdfCinematicStatus.textContent = `${pdfSpeechVoiceLabel()} · ${formatPdfSpeechTime(rawElapsed / rate)} / ${total ? formatPdfSpeechTime(total) : "--:--"} · ${Math.round(progress * 100)}%`;
+}
+
+function updatePdfCinematicPlaybackButton() {
+  if (!pdfCinematicPlaybackButton) return;
+  const playing = pdfCinematicPlaying && !pdfCinematicPaused;
+  pdfCinematicPlaybackButton.classList.toggle("is-playing", playing);
+  pdfCinematicPlaybackButton.setAttribute("aria-label", playing ? "Pause cinematic reading" : "Resume cinematic reading");
+  pdfCinematicPlaybackButton.setAttribute("aria-pressed", String(playing));
+}
+
+function monitorPdfCinematicAudio() {
+  cancelAnimationFrame(pdfCinematicAnimationFrame);
+  const update = () => {
+    if (!pdfCinematicAudio || !pdfCinematicPlaying || pdfCinematicAudio.paused) return;
+    const time = Number(pdfCinematicAudio.currentTime) || 0;
+    let timing = pdfCinematicCurrentTimings[0];
+    pdfCinematicCurrentTimings.forEach((candidate) => {
+      if (candidate.start <= time) timing = candidate;
+    });
+    if (timing && timing.wordIndex !== pdfCinematicWordIndex) {
+      pdfCinematicWordIndex = timing.wordIndex;
+      highlightPdfCinematicWord(pdfCinematicChunkIndex, pdfCinematicWordIndex);
+    }
+    updatePdfCinematicProgress();
+    pdfCinematicAnimationFrame = requestAnimationFrame(update);
+  };
+  pdfCinematicAnimationFrame = requestAnimationFrame(update);
+}
+
+async function playPdfCinematicChunk() {
+  if (!pdfCinematicPlaying || pdfCinematicPaused || !pdfCinematicStage || pdfCinematicStage.hidden) return;
+  const chunk = pdfSpeechPlan.chunks[pdfCinematicChunkIndex];
+  if (!chunk) {
+    closePdfCinematicAudio();
+    pdfCinematicPlaying = false;
+    pdfCinematicPaused = false;
+    pdfCinematicChunkIndex = pdfSpeechPlan.chunks.length;
+    pdfCinematicWordIndex = 0;
+    pdfCinematicStage.classList.remove("is-preparing", "is-narrating");
+    pdfCinematicProgressBar.style.transform = "scaleX(1)";
+    pdfCinematicStatus.textContent = `Finished · ${pdfSpeechPlan.wordCount.toLocaleString()} words`;
+    updatePdfCinematicPlaybackButton();
+    return;
+  }
+  const generation = pdfCinematicGeneration;
+  pdfCinematicStage.classList.add("is-preparing");
+  pdfCinematicStatus.textContent = `Preparing passage ${pdfCinematicChunkIndex + 1} of ${pdfSpeechPlan.chunks.length}…`;
   try {
-    const result = await window.localOverleaf.synthesizePdfSpeech(applyPdfPronunciationRules(scene.narration), 0.92, pdfSpeechVoiceId());
-    if (generation !== pdfCinematicGeneration || pdfCinematicStage.hidden) return;
+    const result = await preparePdfSpeechAudio(pdfCinematicChunkIndex);
+    if (generation !== pdfCinematicGeneration || pdfCinematicStage.hidden || !pdfCinematicPlaying) return;
+    pdfSpeechChunkDurations[pdfCinematicChunkIndex] = Number(result.duration) || 0;
+    pdfCinematicCurrentTimings = alignPdfSpeechTimings(chunk.words, result.timings, result.duration);
+    recordPdfSpeechChunkMetadata(pdfCinematicChunkIndex, pdfCinematicCurrentTimings, result.voice);
+    closePdfCinematicAudio();
     pdfCinematicAudio = new Audio(result.audioUrl);
     pdfCinematicAudio.preload = "auto";
+    pdfCinematicAudio.playbackRate = pdfSpeechPlaybackRate();
     pdfCinematicAudio.preservesPitch = true;
-    pdfCinematicAudio.addEventListener("timeupdate", () => {
-      if (!pdfCinematicAudio || !pdfCinematicAudio.duration) return;
-      pdfCinematicProgressBar.style.transform = `scaleX(${clampNumber(pdfCinematicAudio.currentTime / pdfCinematicAudio.duration, 0, 1, 0)})`;
-    });
     pdfCinematicAudio.addEventListener("ended", () => {
-      pdfCinematicStage.classList.remove("is-narrating");
-      pdfCinematicStatus.textContent = "Scene complete";
-      pdfCinematicProgressBar.style.transform = "scaleX(1)";
+      if (generation !== pdfCinematicGeneration) return;
+      cancelAnimationFrame(pdfCinematicAnimationFrame);
+      const paragraph = pdfCinematicNarration && pdfCinematicNarration.querySelector(`[data-cinematic-paragraph="${pdfCinematicChunkIndex}"]`);
+      if (paragraph) paragraph.classList.add("is-read");
+      pdfCinematicChunkIndex += 1;
+      pdfCinematicWordIndex = 0;
+      void playPdfCinematicChunk();
     }, { once: true });
+    pdfCinematicAudio.addEventListener("error", () => {
+      if (generation !== pdfCinematicGeneration) return;
+      pdfCinematicPlaying = false;
+      pdfCinematicPaused = true;
+      pdfCinematicStage.classList.remove("is-preparing", "is-narrating");
+      pdfCinematicStatus.textContent = "Narration paused because this passage could not be loaded.";
+      updatePdfCinematicPlaybackButton();
+    }, { once: true });
+    highlightPdfCinematicWord(pdfCinematicChunkIndex, pdfCinematicWordIndex);
     await pdfCinematicAudio.play();
     if (generation !== pdfCinematicGeneration) return;
     pdfCinematicStage.classList.remove("is-preparing");
     pdfCinematicStage.classList.add("is-narrating");
-    pdfCinematicStatus.textContent = `${pdfSpeechVoiceLabel()} · reading page ${pageNumber}`;
+    updatePdfCinematicPlaybackButton();
+    updatePdfCinematicProgress();
+    monitorPdfCinematicAudio();
+    void preparePdfSpeechAudio(pdfCinematicChunkIndex + 1).catch(() => {});
   } catch (error) {
     if (generation !== pdfCinematicGeneration) return;
+    pdfCinematicPlaying = false;
+    pdfCinematicPaused = true;
     pdfCinematicStage.classList.remove("is-preparing", "is-narrating");
     pdfCinematicStatus.textContent = `Narration unavailable · ${formatError(error)}`;
-  }
-}
-
-function togglePdfCinematicPlayback() {
-  if (!pdfCinematicAudio) return;
-  if (pdfCinematicAudio.paused) {
-    pdfCinematicAudio.play().then(() => {
-      pdfCinematicStage.classList.add("is-narrating");
-      pdfCinematicStatus.textContent = `${pdfSpeechVoiceLabel()} · reading`;
-    }).catch(() => {});
-  } else {
-    pdfCinematicAudio.pause();
-    pdfCinematicStage.classList.remove("is-narrating");
-    pdfCinematicStatus.textContent = "Paused · press Space to continue";
+    updatePdfCinematicPlaybackButton();
   }
 }
 
 function closePdfCinematicAudio() {
+  cancelAnimationFrame(pdfCinematicAnimationFrame);
+  pdfCinematicAnimationFrame = 0;
   if (!pdfCinematicAudio) return;
   pdfCinematicAudio.pause();
   pdfCinematicAudio.removeAttribute("src");
@@ -13142,10 +13397,14 @@ function closePdfCinematicMode() {
   if (!pdfCinematicStage) return;
   pdfCinematicGeneration += 1;
   closePdfCinematicAudio();
+  pdfCinematicPlaying = false;
+  pdfCinematicPaused = false;
+  pdfCinematicCurrentTimings = [];
+  pdfCinematicActiveWord = null;
   pdfCinematicStage.classList.remove("is-visible", "is-preparing", "is-narrating");
   pdfCinematicStage.hidden = true;
-  if (pdfCinematicArtwork) pdfCinematicArtwork.removeAttribute("src");
   document.body.classList.remove("pdf-cinematic-open");
+  updatePdfCinematicPlaybackButton();
   if (pdfCinematicButton && !pdfCinematicButton.hidden) pdfCinematicButton.focus();
 }
 
@@ -14766,6 +15025,7 @@ function beginPdfSpeechAnalysis() {
   pdfSpeechFirstChunkReady = false;
   pdfSpeechPreparedCount = 0;
   pdfSpeechPreprocessActive = false;
+  pdfSpeechBackgroundPreloadActive = false;
   pdfSpeechPlanRevision += 1;
   pdfSpeechPlan = { chunks: [], wordCount: 0, pageCount: 0, documentKey: "", fingerprint: "" };
   pdfSpeechChunkDurations = [];
@@ -14781,6 +15041,7 @@ function resetPdfSpeechPlan(message = "Waiting for PDF") {
   pdfSpeechFirstChunkReady = false;
   pdfSpeechPreparedCount = 0;
   pdfSpeechPreprocessActive = false;
+  pdfSpeechBackgroundPreloadActive = false;
   pdfSpeechPlanRevision += 1;
   pdfSpeechPlan = { chunks: [], wordCount: 0, pageCount: 0, documentKey: "", fingerprint: "" };
   pdfSpeechChunkDurations = [];
@@ -14799,7 +15060,15 @@ function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprin
       let previousLineWord = null;
       lines.forEach((line, lineIndex) => {
         if (isPdfSpeechNonContentLine(line, lineIndex, lines.length)) return;
-        const lineWords = (line.words || []).map((word) => {
+        let sourceWords = line.words || [];
+        if (lineIndex <= 2 && /\breading\s+\d+\b/i.test(String(line.text || ""))) {
+          const readingIndex = sourceWords.findIndex((word) => /^reading$/i.test(normalizePdfSpeechToken(word.text)));
+          const numberIndex = readingIndex >= 0
+            ? sourceWords.findIndex((word, index) => index > readingIndex && /^\d+$/i.test(normalizePdfSpeechToken(word.text)))
+            : -1;
+          if (numberIndex >= 0) sourceWords = sourceWords.slice(numberIndex + 1);
+        }
+        const lineWords = sourceWords.map((word) => {
           const spokenText = normalizePdfSpeechToken(word.text);
           if (!spokenText) return null;
           const pageWordIndex = pageWordIndexes.get(pageNumber) || 0;
@@ -14833,6 +15102,7 @@ function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprin
   pdfSpeechFirstChunkReady = false;
   pdfSpeechPreparedCount = 0;
   pdfSpeechPreprocessActive = false;
+  pdfSpeechBackgroundPreloadActive = false;
   pdfSpeechPlanRevision += 1;
   clearPdfSpeechHighlight();
   updatePdfSpeechProgress();
@@ -15107,7 +15377,7 @@ function updatePdfSpeechReadyState() {
   const stateLabel = !pdfSpeechBackend.available
     ? "Kokoro unavailable"
     : ready
-      ? `${pdfSpeechVoiceLabel()} ready · ${Math.min(3, totalChunks)} buffered`
+      ? `${pdfSpeechVoiceLabel()} ready · ${pdfSpeechPreparedCount >= totalChunks ? "fully preloaded" : `${cacheProgress} preloaded`}`
       : `Preparing ${cacheProgress}`;
   setPdfSpeechStatus(`${stateLabel} · ${wordLabel}`, ready ? "ready" : (pdfSpeechBackend.available ? "analyzing" : "error"));
   pdfSpeechButton.setAttribute("aria-label", ready ? "Read PDF aloud" : "Preparing local neural voice");
@@ -15141,7 +15411,47 @@ async function startPdfSpeechPreprocessing() {
       setPdfSpeechStatus(`Kokoro error · ${formatError(error)}`, "error");
     }
   } finally {
-    if (revision === pdfSpeechPlanRevision) pdfSpeechPreprocessActive = false;
+    if (revision === pdfSpeechPlanRevision) {
+      pdfSpeechPreprocessActive = false;
+      void preloadRemainingPdfSpeechChunks(revision, initialBufferSize);
+    }
+  }
+}
+
+async function waitForPdfSpeechPreloadIdle() {
+  await new Promise((resolve) => {
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(resolve, { timeout: 1200 });
+    } else {
+      setTimeout(resolve, 80);
+    }
+  });
+}
+
+async function preloadRemainingPdfSpeechChunks(revision, startIndex) {
+  if (pdfSpeechBackgroundPreloadActive || revision !== pdfSpeechPlanRevision) return;
+  pdfSpeechBackgroundPreloadActive = true;
+  try {
+    for (let index = Math.max(0, startIndex); index < pdfSpeechPlan.chunks.length; index += 1) {
+      if (revision !== pdfSpeechPlanRevision) return;
+      if (pdfSpeechChunkDurations[index] > 0) continue;
+      await waitForPdfSpeechPreloadIdle();
+      if (revision !== pdfSpeechPlanRevision) return;
+      const result = await preparePdfSpeechAudio(index);
+      if (revision !== pdfSpeechPlanRevision) return;
+      pdfSpeechChunkDurations[index] = Number(result.duration) || 0;
+      recordPdfSpeechChunkMetadata(index, alignPdfSpeechTimings(pdfSpeechPlan.chunks[index].words, result.timings, result.duration), result.voice);
+      pdfSpeechPreparedCount = pdfSpeechChunkDurations.filter((duration) => duration > 0).length;
+      updatePdfSpeechProgress();
+      if (!pdfSpeechPlaying && !pdfSpeechPaused) updatePdfSpeechReadyState();
+    }
+  } catch (_error) {
+    // Playback can regenerate an individual passage if background preloading is interrupted.
+  } finally {
+    if (revision === pdfSpeechPlanRevision) {
+      pdfSpeechBackgroundPreloadActive = false;
+      if (!pdfSpeechPlaying && !pdfSpeechPaused) updatePdfSpeechReadyState();
+    }
   }
 }
 
@@ -15171,11 +15481,14 @@ function handlePdfSpeechRateChange() {
   updatePdfSpeechRateOutput();
   localStorage.setItem("openleafPdfSpeechRate", String(pdfSpeechPlaybackRate()));
   if (pdfSpeechAudio) pdfSpeechAudio.playbackRate = pdfSpeechPlaybackRate();
+  if (pdfCinematicAudio) pdfCinematicAudio.playbackRate = pdfSpeechPlaybackRate();
   updatePdfSpeechProgress();
+  if (pdfCinematicStage && !pdfCinematicStage.hidden) updatePdfCinematicProgress();
 }
 
 function handlePdfSpeechVoiceChange() {
   const restart = pdfSpeechPlaying;
+  const restartCinematic = Boolean(pdfCinematicStage && !pdfCinematicStage.hidden && (pdfCinematicPlaying || pdfCinematicPaused));
   stopPdfSpeech({ resetCursor: false, updateStatus: false });
   const selectedVoice = pdfSpeechVoiceId();
   localStorage.setItem("openleafPdfSpeechVoice", selectedVoice);
@@ -15186,6 +15499,14 @@ function handlePdfSpeechVoiceChange() {
     speakCurrentPdfChunk();
   } else {
     updatePdfSpeechReadyState();
+  }
+  if (restartCinematic) {
+    pdfCinematicGeneration += 1;
+    closePdfCinematicAudio();
+    pdfCinematicPlaying = true;
+    pdfCinematicPaused = false;
+    updatePdfCinematicPlaybackButton();
+    void playPdfCinematicChunk();
   }
 }
 
@@ -15220,6 +15541,7 @@ function restartPdfSpeechPreprocessing() {
   pdfSpeechFirstChunkReady = false;
   pdfSpeechPreparedCount = 0;
   pdfSpeechPreprocessActive = false;
+  pdfSpeechBackgroundPreloadActive = false;
   pdfSpeechChunkDurations = new Array(pdfSpeechPlan.chunks.length).fill(0);
   rebuildPdfSpeechWordMetadata();
   updatePdfSpeechProgress();

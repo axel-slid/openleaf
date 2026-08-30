@@ -792,6 +792,40 @@ function projectKind(project) {
   return project && isEditablePresentationFile(project.texPath || "") ? "presentation" : "latex";
 }
 
+function projectReadingFiles(project, rootPath) {
+  const identity = `${project && project.name || ""} ${project && project.texPath || ""} ${rootPath || ""}`;
+  if (!/demog\s*c?126|c126.*demog/i.test(identity) || !rootPath || !fs.existsSync(rootPath)) return [];
+  const readings = [];
+  const visit = (directory, depth = 0) => {
+    if (depth > 4) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(directory, { withFileTypes: true });
+    } catch (_error) {
+      return;
+    }
+    entries.forEach((entry) => {
+      if (entry.name.startsWith(".")) return;
+      const absolutePath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(absolutePath, depth + 1);
+        return;
+      }
+      if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== ".pdf") return;
+      const relativePath = path.relative(rootPath, absolutePath).split(path.sep).join("/");
+      const parts = relativePath.split("/");
+      readings.push({
+        name: path.basename(entry.name, path.extname(entry.name)),
+        fileName: entry.name,
+        relativePath,
+        category: parts.length > 1 ? parts[0].replace(/^\d+\s*/, "") : "Readings"
+      });
+    });
+  };
+  visit(rootPath);
+  return readings.sort((left, right) => left.relativePath.localeCompare(right.relativePath, undefined, { numeric: true, sensitivity: "base" }));
+}
+
 function agentsPathFor(project) {
   return path.join(projectRootFor(project), "AGENTS.md");
 }
@@ -829,6 +863,7 @@ function decorateProject(project) {
     pdfName: path.basename(pdfPath),
     texExists,
     pdfExists,
+    readingFiles: projectReadingFiles(project, rootPath),
     previewImageUrl,
     modifiedAt
   };

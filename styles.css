@@ -994,8 +994,10 @@ p {
 }
 
 .project-preview-message {
-  color: var(--muted);
-  font-size: 12px;
+  color: color-mix(in srgb, var(--accent) 68%, var(--text));
+  font-family: var(--display-font, var(--sans));
+  font-size: 30px;
+  font-weight: 760;
   line-height: 1.35;
   padding: 14px;
   text-align: center;
@@ -12974,6 +12976,8 @@ body[data-theme="dark"] .pdf-speech-highlight {
 }
 
 .pdf-cinematic-stage {
+  --cinematic-art-opacity: 0.78;
+  --cinematic-text-scale: 1;
   background: #07070b;
   color: #fff;
   inset: 0;
@@ -12993,8 +12997,10 @@ body[data-theme="dark"] .pdf-speech-highlight {
   height: 112%;
   inset: -6%;
   object-fit: cover;
+  opacity: var(--cinematic-art-opacity);
   position: absolute;
   transform: scale(1.035) translate3d(-0.8%, 0.5%, 0);
+  transition: opacity 220ms ease, filter 220ms ease;
   width: 112%;
   will-change: transform;
 }
@@ -13030,6 +13036,96 @@ body[data-theme="dark"] .pdf-speech-highlight {
   right: clamp(24px, 4vw, 64px);
   top: clamp(24px, 4vw, 54px);
   z-index: 2;
+}
+
+.pdf-cinematic-toolbar {
+  align-items: center;
+  background: rgba(5, 7, 12, 0.52);
+  backdrop-filter: blur(20px) saturate(135%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  display: flex;
+  gap: 10px;
+  padding: 6px;
+}
+
+.pdf-cinematic-backgrounds {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  padding-left: 3px;
+}
+
+.pdf-cinematic-backgrounds button {
+  appearance: none;
+  background-position: center;
+  background-size: cover;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 999px;
+  height: 24px;
+  opacity: 0.64;
+  padding: 0;
+  transition: opacity 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  width: 24px;
+}
+
+.pdf-cinematic-backgrounds button:nth-child(1) { background-image: url("assets/cinematic/monet-bridge-water-lilies.webp"); }
+.pdf-cinematic-backgrounds button:nth-child(2) { background-image: url("assets/cinematic/van-gogh-starry-night.webp"); }
+.pdf-cinematic-backgrounds button:nth-child(3) { background-image: url("assets/cinematic/heart-of-andes.webp"); }
+
+.pdf-cinematic-backgrounds button:hover,
+.pdf-cinematic-backgrounds button.active {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 80%, white);
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.pdf-cinematic-range {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.72);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 720;
+  gap: 7px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.pdf-cinematic-range input[type="range"] {
+  appearance: none;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 86%, white), rgba(255, 255, 255, 0.2));
+  border-radius: 999px;
+  height: 3px;
+  margin: 0;
+  width: 62px;
+}
+
+.pdf-cinematic-range input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  background: #fff;
+  border: 0;
+  border-radius: 2px;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.42);
+  height: 12px;
+  width: 4px;
+}
+
+.pdf-cinematic-tool-button {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 10px;
+  font-weight: 760;
+  height: 30px;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.pdf-cinematic-tool-button:hover,
+.pdf-cinematic-tool-button.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
 .pdf-cinematic-brand {
@@ -13073,11 +13169,15 @@ body[data-theme="dark"] .pdf-speech-highlight {
 }
 
 .pdf-cinematic-copy {
-  bottom: 28px;
+  bottom: 26px;
+  display: flex;
+  flex-direction: column;
   left: 50%;
-  max-width: calc(100vw - 48px);
+  max-width: min(980px, calc(100vw - 48px));
   position: absolute;
+  top: clamp(96px, 12vh, 132px);
   transform: translateX(-50%);
+  width: 100%;
   z-index: 2;
 }
 
@@ -13100,12 +13200,44 @@ body[data-theme="dark"] .pdf-speech-highlight {
   max-width: 900px;
 }
 
-.pdf-cinematic-copy p {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: clamp(14px, 1.5vw, 20px);
-  line-height: 1.55;
-  margin: 0;
-  max-width: 720px;
+.pdf-cinematic-transcript {
+  flex: 1 1 auto;
+  mask-image: linear-gradient(180deg, transparent 0, #000 8%, #000 88%, transparent 100%);
+  min-height: 0;
+  outline: 0;
+  overflow-y: auto;
+  padding: 9vh clamp(12px, 3vw, 42px) 13vh;
+  scrollbar-color: rgba(255, 255, 255, 0.26) transparent;
+  scrollbar-width: thin;
+}
+
+.pdf-cinematic-transcript p {
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--display-font, var(--sans));
+  font-size: calc(clamp(20px, 2.35vw, 35px) * var(--cinematic-text-scale));
+  font-weight: 520;
+  letter-spacing: -0.018em;
+  line-height: 1.62;
+  margin: 0 0 1.4em;
+  max-width: none;
+  text-wrap: pretty;
+}
+
+.pdf-cinematic-transcript span {
+  border-radius: 0.24em;
+  box-decoration-break: clone;
+  transition: color 180ms ease, background 180ms ease, opacity 180ms ease, box-shadow 180ms ease;
+}
+
+.pdf-cinematic-transcript span.is-read {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pdf-cinematic-transcript span.is-active {
+  background: color-mix(in srgb, var(--accent) 58%, transparent);
+  box-shadow: 0 0 0 0.16em color-mix(in srgb, var(--accent) 58%, transparent), 0 0 32px color-mix(in srgb, var(--accent) 42%, transparent);
+  color: #fff;
+  opacity: 1;
 }
 
 .pdf-cinematic-audio-state {
@@ -13119,10 +13251,43 @@ body[data-theme="dark"] .pdf-speech-highlight {
   font-weight: 650;
   gap: 12px;
   letter-spacing: 0.06em;
-  margin-top: 0;
+  flex: 0 0 auto;
+  margin: 0 auto;
   padding: 9px 14px;
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
   text-transform: uppercase;
+}
+
+.pdf-cinematic-playback {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent) 78%, white);
+  border: 0;
+  border-radius: 999px;
+  color: #0a0b0e;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+
+.pdf-cinematic-playback svg {
+  fill: none;
+  height: 15px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 15px;
+}
+
+.pdf-cinematic-playback .pdf-cinematic-pause-icon,
+.pdf-cinematic-playback.is-playing .pdf-cinematic-play-icon {
+  display: none;
+}
+
+.pdf-cinematic-playback.is-playing .pdf-cinematic-pause-icon {
+  display: block;
 }
 
 .pdf-cinematic-wave {
@@ -13182,6 +13347,33 @@ body.pdf-cinematic-open {
   .pdf-cinematic-artwork,
   .pdf-cinematic-stage.is-narrating .pdf-cinematic-wave i {
     animation: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .pdf-cinematic-brand,
+  .pdf-cinematic-range span,
+  .pdf-cinematic-tool-button {
+    display: none;
+  }
+
+  .pdf-cinematic-header {
+    left: 16px;
+    right: 16px;
+    top: 18px;
+  }
+
+  .pdf-cinematic-toolbar {
+    margin-left: auto;
+  }
+
+  .pdf-cinematic-copy {
+    max-width: calc(100vw - 24px);
+    top: 76px;
+  }
+
+  .pdf-cinematic-transcript {
+    padding-inline: 10px;
   }
 }
 
@@ -15271,6 +15463,42 @@ body[data-contrast="high"] .pptx-element.selected {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-division-card-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.project-division-card-copy strong {
+  color: var(--text);
+  display: -webkit-box;
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.project-division-card-copy small {
+  color: var(--muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-division-card.reading-card {
+  grid-template-columns: 42px minmax(0, 1fr);
+  min-height: 78px;
+}
+
+.project-division-card.reading-card:hover,
+.project-division-card.reading-card:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 12%, transparent);
+  outline: 0;
 }
 
 .project-division-card > button {

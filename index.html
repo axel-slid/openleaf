@@ -1532,16 +1532,36 @@ tectonic main.tex</code></pre>
     <div class="pdf-cinematic-ambient" aria-hidden="true"></div>
     <div class="pdf-cinematic-vignette" aria-hidden="true"></div>
     <header class="pdf-cinematic-header">
-      <span class="pdf-cinematic-brand visually-hidden"><i></i> Openleaf Cinematic</span>
-      <button id="pdfCinematicCloseButton" class="pdf-cinematic-close" type="button" aria-label="Close Cinematic Mode" title="Close Cinematic Mode">
-        <svg class="icon icon-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
-      </button>
+      <span class="pdf-cinematic-brand"><i></i> Openleaf Cinematic</span>
+      <div class="pdf-cinematic-toolbar" aria-label="Cinematic appearance">
+        <div class="pdf-cinematic-backgrounds" role="group" aria-label="Background artwork">
+          <button type="button" data-cinematic-artwork="0" aria-label="Use Monet artwork" title="Monet"></button>
+          <button type="button" data-cinematic-artwork="1" aria-label="Use Van Gogh artwork" title="Van Gogh"></button>
+          <button type="button" data-cinematic-artwork="2" aria-label="Use landscape artwork" title="The Heart of the Andes"></button>
+        </div>
+        <label class="pdf-cinematic-range" title="Background intensity">
+          <span>Art</span>
+          <input id="pdfCinematicBackdropIntensity" type="range" min="0.25" max="1" step="0.05" value="0.78" aria-label="Background intensity">
+        </label>
+        <label class="pdf-cinematic-range" title="Reading text size">
+          <span>Text</span>
+          <input id="pdfCinematicTextSize" type="range" min="0.8" max="1.4" step="0.05" value="1" aria-label="Reading text size">
+        </label>
+        <button id="pdfCinematicFollowButton" class="pdf-cinematic-tool-button active" type="button" aria-pressed="true" title="Keep the spoken text centered">Follow</button>
+        <button id="pdfCinematicCloseButton" class="pdf-cinematic-close" type="button" aria-label="Close Cinematic Mode" title="Close Cinematic Mode">
+          <svg class="icon icon-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </button>
+      </div>
     </header>
     <div class="pdf-cinematic-copy">
-      <span id="pdfCinematicKicker" class="pdf-cinematic-kicker visually-hidden">Visual narration</span>
+      <span id="pdfCinematicKicker" class="pdf-cinematic-kicker">Full document</span>
       <h2 id="pdfCinematicTitle" class="visually-hidden">Preparing the scene…</h2>
-      <p id="pdfCinematicNarration">Preparing the passage…</p>
+      <div id="pdfCinematicNarration" class="pdf-cinematic-transcript" tabindex="0">Preparing the document…</div>
       <div class="pdf-cinematic-audio-state">
+        <button id="pdfCinematicPlaybackButton" class="pdf-cinematic-playback" type="button" aria-label="Pause cinematic reading" title="Play or pause">
+          <svg class="pdf-cinematic-pause-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 5v10M13.5 5v10"></path></svg>
+          <svg class="pdf-cinematic-play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 5 8 5-8 5Z"></path></svg>
+        </button>
         <span class="pdf-cinematic-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
         <span id="pdfCinematicStatus" role="status" aria-live="polite">Preparing local narration…</span>
       </div>
