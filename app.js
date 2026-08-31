@@ -15276,20 +15276,15 @@ function resetPdfSpeechPlan(message = "Waiting for PDF") {
 function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprint = "") {
   const words = [];
   const pageWordIndexes = new Map();
+  const recurringNonContent = pdfSpeechRecurringNonContent(pageLines);
   Array.from(pageLines.entries())
     .sort((left, right) => left[0] - right[0])
     .forEach(([pageNumber, lines]) => {
       let previousLineWord = null;
+      const pageMetrics = pdfSpeechPageMetrics(lines);
       lines.forEach((line, lineIndex) => {
-        if (isPdfSpeechNonContentLine(line, lineIndex, lines.length)) return;
-        let sourceWords = line.words || [];
-        if (lineIndex <= 2 && /\breading\s+\d+\b/i.test(String(line.text || ""))) {
-          const readingIndex = sourceWords.findIndex((word) => /^reading$/i.test(normalizePdfSpeechToken(word.text)));
-          const numberIndex = readingIndex >= 0
-            ? sourceWords.findIndex((word, index) => index > readingIndex && /^\d+$/i.test(normalizePdfSpeechToken(word.text)))
-            : -1;
-          if (numberIndex >= 0) sourceWords = sourceWords.slice(numberIndex + 1);
-        }
+        if (isPdfSpeechNonContentLine(line, lineIndex, lines.length, { pageMetrics, recurringNonContent })) return;
+        const sourceWords = line.words || [];
         const lineWords = sourceWords.map((word) => {
           const spokenText = normalizePdfSpeechToken(word.text);
           if (!spokenText) return null;
@@ -15331,12 +15326,91 @@ function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprin
   startPdfSpeechPreprocessing();
 }
 
-function isPdfSpeechNonContentLine(line, lineIndex, lineCount) {
+function isPdfSpeechNonContentLine(line, lineIndex, lineCount, options = {}) {
   const text = String(line && line.text || "").trim();
-  if (/^reading\s+\d+$/i.test(text)) return true;
-  if (!/^(?:page\s+)?(?:\d{1,4}|[ivxlcdm]{1,8})$/i.test(text)) return false;
   const wordCount = Array.isArray(line && line.words) ? line.words.length : 0;
-  return wordCount <= 2 && (lineIndex <= 1 || lineIndex >= lineCount - 2 || /^page\s+/i.test(text));
+  if (!text || !wordCount) return true;
+
+  const normalized = normalizePdfSpeechLineKey(text);
+  if (
+    options.recurringNonContent instanceof Set
+    && options.recurringNonContent.has(normalized)
+    && (lineIndex <= 2 || lineIndex >= lineCount - 3 || wordCount <= 12)
+  ) return true;
+
+  if (/^(?:page\s+)?(?:\d{1,4}|[ivxlcdm]{1,8})$/i.test(text)) {
+    return wordCount <= 2 && (lineIndex <= 1 || lineIndex >= lineCount - 2 || /^page\s+/i.test(text));
+  }
+
+  if (/\breading\s+(?:\d+|[ivxlcdm]+)\b/i.test(text) && lineIndex <= 3) return true;
+  if (/^(?:chapter|part|section|appendix)\s+(?:\d+|[ivxlcdm]+|[a-z])\b/i.test(text)) return true;
+  if (/^(?:by|written\s+by|authors?|edited\s+by|prepared\s+by)\b/i.test(text)) return true;
+  if (/^(?:abstract|introduction|conclusion|discussion|references|bibliography|acknowledg(?:e)?ments?|contents)\s*[:.]?$/i.test(text)) return true;
+  if (/^(?:fig(?:ure)?|table|chart|photo(?:graph)?|image|illustration|map|plate|scheme|box)\s*(?:[a-z]?\d+|[ivxlcdm]+)?\s*(?:[.:)\-–—]|$)/i.test(text)) return true;
+  if (/^(?:source|sources|credit|credits|photo\s+credit|image\s+credit|note|notes)\s*[:.]/i.test(text)) return true;
+  if (/\b(?:source|sources|credit|credits|photo\s+credit|image\s+credit)\s*:/i.test(text)) return true;
+  if (/\b(?:photo(?:graph)?|image|illustration)\s+(?:by|courtesy\s+of|credit)\b/i.test(text)) return true;
+  if (/\b(?:shutterstock|getty\s+images|alamy|istock|wikimedia\s+commons|all\s+rights\s+reserved|copyright)\b|©/i.test(text)) return true;
+  if (/^(?:https?:\/\/|www\.|doi\s*:)/i.test(text)) return true;
+
+  const pageMetrics = options.pageMetrics || {};
+  const bodyHeight = Number(pageMetrics.bodyHeight) || 0;
+  const lineHeight = Number(line && line.height) || 0;
+  const headingSized = bodyHeight > 0 && lineHeight >= bodyHeight * 1.16;
+  const smallPrint = bodyHeight > 0 && lineHeight <= bodyHeight * 0.79;
+  if (headingSized && wordCount <= 24) return true;
+  if (smallPrint && wordCount <= 38) return true;
+
+  const tokens = text.split(/\s+/).filter(Boolean);
+  const numericTokens = tokens.filter((token) => /\d/.test(token)).length;
+  const alphabeticTokens = tokens.filter((token) => /[\p{L}\p{M}]{2,}/u.test(token)).length;
+  if (tokens.length >= 3 && numericTokens / tokens.length >= 0.46 && alphabeticTokens <= numericTokens + 1) return true;
+  if (numericTokens >= 2 && alphabeticTokens <= 3 && /[%±=<>]|\b(?:ci|sd|se|n\s*=)\b/i.test(text)) return true;
+  return false;
+}
+
+function normalizePdfSpeechLineKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\b(?:page\s*)?\d+\b/g, "#")
+    .replace(/[^\p{L}\p{M}\p{N}#]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function pdfSpeechRecurringNonContent(pageLines) {
+  const pageOccurrences = new Map();
+  Array.from(pageLines.entries()).forEach(([pageNumber, lines]) => {
+    const seen = new Set();
+    lines.forEach((line) => {
+      const text = String(line && line.text || "").trim();
+      const wordCount = Array.isArray(line && line.words) ? line.words.length : 0;
+      if (!text || text.length > 140 || wordCount > 16) return;
+      const key = normalizePdfSpeechLineKey(text);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      if (!pageOccurrences.has(key)) pageOccurrences.set(key, new Set());
+      pageOccurrences.get(key).add(pageNumber);
+    });
+  });
+  const threshold = pageLines.size <= 2 ? 2 : 3;
+  return new Set(Array.from(pageOccurrences.entries())
+    .filter(([, pages]) => pages.size >= threshold)
+    .map(([key]) => key));
+}
+
+function pdfSpeechPageMetrics(lines) {
+  const heights = (lines || [])
+    .filter((line) => Array.isArray(line.words) && line.words.length >= 2)
+    .map((line) => Number(line.height) || 0)
+    .filter((height) => height > 0)
+    .sort((left, right) => left - right);
+  if (!heights.length) return { bodyHeight: 0 };
+  const middle = Math.floor(heights.length / 2);
+  const bodyHeight = heights.length % 2
+    ? heights[middle]
+    : (heights[middle - 1] + heights[middle]) / 2;
+  return { bodyHeight };
 }
 
 function rebuildPdfSpeechWordMetadata() {
@@ -16553,6 +16627,9 @@ function buildPdfTextLines(textContent, viewport, pdfjsLib, pageNumber) {
         y: line.y,
         items,
         words: items.flatMap((item) => item.words),
+        height: Math.max(...items.map((item) => Number(item.height) || 0), 0),
+        x: Math.min(...items.map((item) => Number(item.x) || 0)),
+        right: Math.max(...items.map((item) => (Number(item.x) || 0) + (Number(item.width) || 0)), 0),
         text: items
           .map((item) => item.text)
           .join(" ")
