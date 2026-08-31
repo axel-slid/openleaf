@@ -196,7 +196,6 @@ const pdfCinematicButton = document.getElementById("pdfCinematicButton");
 const pdfCinematicStage = document.getElementById("pdfCinematicStage");
 const pdfCinematicArtwork = document.getElementById("pdfCinematicArtwork");
 const pdfCinematicCloseButton = document.getElementById("pdfCinematicCloseButton");
-const pdfCinematicKicker = document.getElementById("pdfCinematicKicker");
 const pdfCinematicTitle = document.getElementById("pdfCinematicTitle");
 const pdfCinematicNarration = document.getElementById("pdfCinematicNarration");
 const pdfCinematicStatus = document.getElementById("pdfCinematicStatus");
@@ -8037,7 +8036,20 @@ function renderProjectGrid() {
   projectGrid.innerHTML = "";
   projectEmpty.hidden = visibleProjects.length + visibleCollections.length > 0;
 
-  visibleCollections.forEach((collection) => projectGrid.appendChild(renderProjectCollectionCard(collection)));
+  const subjectsSection = createProjectHomeSection(
+    "Subjects",
+    "Collections organized into readings, notes, assignments, and other divisions.",
+    "subjects"
+  );
+  const projectsSection = createProjectHomeSection(
+    "Projects",
+    "Documents and presentations that are not inside a subject.",
+    "projects"
+  );
+  if (visibleCollections.length) projectGrid.appendChild(subjectsSection.section);
+  if (visibleProjects.length) projectGrid.appendChild(projectsSection.section);
+
+  visibleCollections.forEach((collection) => subjectsSection.grid.appendChild(renderProjectCollectionCard(collection)));
 
   visibleProjects.forEach((project) => {
     const card = document.createElement("article");
@@ -8089,9 +8101,25 @@ function renderProjectGrid() {
       event.stopPropagation();
       toggleProjectFavorite(project);
     });
-    projectGrid.appendChild(card);
+    projectsSection.grid.appendChild(card);
     scheduleProjectPreview(card, project, previewGeneration);
   });
+}
+
+function createProjectHomeSection(title, description, kind) {
+  const section = document.createElement("section");
+  section.className = `project-home-section project-home-${kind}`;
+  section.setAttribute("aria-labelledby", `project-home-${kind}-title`);
+  section.innerHTML = `
+    <header class="project-home-section-header">
+      <div>
+        <h2 id="project-home-${kind}-title">${escapeHtml(title)}</h2>
+        <p>${escapeHtml(description)}</p>
+      </div>
+    </header>
+    <div class="project-home-section-grid"></div>
+  `;
+  return { section, grid: section.querySelector(".project-home-section-grid") };
 }
 
 function scheduleProjectPreview(card, project, generation) {
@@ -8256,10 +8284,10 @@ function renderProjectCollectionCard(collection) {
   const members = memberIds.map((id) => projects.find((project) => project.id === id)).filter(Boolean);
   const readingCount = members.reduce((count, project) => count + (Array.isArray(project.readingFiles) ? project.readingFiles.length : 0), 0);
   const itemCount = readingCount || members.length;
-  const card = document.createElement("article");
+  const card = document.createElement("button");
+  card.type = "button";
   card.className = "project-collection-card";
-  card.role = "button";
-  card.tabIndex = 0;
+  card.setAttribute("aria-label", `Open ${collection.name}`);
   card.dataset.collectionId = collection.id;
   const tiles = members.slice(0, 4).map((project) => project.previewImageUrl
     ? `<img src="${escapeHtml(project.previewImageUrl)}" alt="">`
@@ -8274,11 +8302,6 @@ function renderProjectCollectionCard(collection) {
     </span>
   `;
   card.addEventListener("click", () => openProjectCollection(collection.id));
-  card.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    openProjectCollection(collection.id);
-  });
   card.addEventListener("dragover", (event) => {
     if (!Array.from(event.dataTransfer.types || []).includes("application/x-openleaf-project")) return;
     event.preventDefault();
@@ -13193,7 +13216,6 @@ async function openPdfCinematicMode() {
   pdfCinematicPlaying = true;
   pdfCinematicPaused = false;
   pdfCinematicFollowText = true;
-  pdfCinematicKicker.textContent = `${pdfSpeechPlan.pageCount} pages · ${pdfSpeechPlan.wordCount.toLocaleString()} words`;
   pdfCinematicTitle.textContent = activePdfName();
   renderPdfCinematicTranscript();
   pdfCinematicStatus.textContent = `Preparing ${pdfSpeechVoiceLabel()}…`;
@@ -14901,12 +14923,18 @@ async function openPdfLink(url) {
 function applyDarkPdfCanvas(context, canvas) {
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
+  const imageBoxes = detectPdfImageBoxes(data, canvas.width, canvas.height);
   const basePaper = cssColorToRgb(themeColor("--pdf-dark-paper", "#111827"), { r: 17, g: 24, b: 39 });
   const baseText = cssColorToRgb(themeColor("--text", "#f8fafc"), { r: 248, g: 250, b: 252 });
   const paper = basePaper;
   const text = mixRgb(baseText, { r: 255, g: 255, b: 255 }, 0.18);
 
   for (let index = 0; index < data.length; index += 4) {
+    const pixel = index / 4;
+    const x = pixel % canvas.width;
+    const y = Math.floor(pixel / canvas.width);
+    if (pointInBoxes(x, y, imageBoxes)) continue;
+
     const alpha = data[index + 3] / 255;
     let r = data[index];
     let g = data[index + 1];
@@ -14937,6 +14965,152 @@ function applyDarkPdfCanvas(context, canvas) {
   }
 
   context.putImageData(imageData, 0, 0);
+}
+
+function detectPdfImageBoxes(data, width, height) {
+  const cellSize = 24;
+  const cols = Math.ceil(width / cellSize);
+  const rows = Math.ceil(height / cellSize);
+  const cells = new Uint8Array(cols * rows);
+  const sampleStep = 3;
+
+  for (let cellY = 0; cellY < rows; cellY += 1) {
+    for (let cellX = 0; cellX < cols; cellX += 1) {
+      const left = cellX * cellSize;
+      const top = cellY * cellSize;
+      const right = Math.min(width, left + cellSize);
+      const bottom = Math.min(height, top + cellSize);
+      let samples = 0;
+      let nonPaper = 0;
+      let midtones = 0;
+      let colorful = 0;
+      let edges = 0;
+      let minimum = 255;
+      let maximum = 0;
+
+      for (let y = top; y < bottom; y += sampleStep) {
+        let previousLuminance = null;
+        for (let x = left; x < right; x += sampleStep) {
+          const index = (y * width + x) * 4;
+          const r = data[index];
+          const g = data[index + 1];
+          const b = data[index + 2];
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          const saturation = max === 0 ? 0 : (max - min) / max;
+          samples += 1;
+          if (luminance < 246) nonPaper += 1;
+          if (luminance > 22 && luminance < 236) midtones += 1;
+          if (saturation > 0.16 && max - min > 18) colorful += 1;
+          if (previousLuminance !== null && Math.abs(luminance - previousLuminance) > 11) edges += 1;
+          previousLuminance = luminance;
+          minimum = Math.min(minimum, luminance);
+          maximum = Math.max(maximum, luminance);
+        }
+      }
+
+      const occupancy = nonPaper / Math.max(1, samples);
+      const midtoneRatio = midtones / Math.max(1, samples);
+      const colorRatio = colorful / Math.max(1, samples);
+      const edgeRatio = edges / Math.max(1, samples);
+      const photographic = occupancy > 0.34
+        && maximum - minimum > 38
+        && (midtoneRatio > 0.24 || edgeRatio > 0.12);
+      const illustrated = occupancy > 0.24 && colorRatio > 0.12 && maximum - minimum > 28;
+      if (photographic || illustrated) cells[cellY * cols + cellX] = 1;
+    }
+  }
+
+  const joined = cells.slice();
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < cols; x += 1) {
+      const index = y * cols + x;
+      if (cells[index]) continue;
+      let neighbors = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (!dx && !dy) continue;
+          const nextX = x + dx;
+          const nextY = y + dy;
+          if (nextX < 0 || nextY < 0 || nextX >= cols || nextY >= rows) continue;
+          neighbors += cells[nextY * cols + nextX] ? 1 : 0;
+        }
+      }
+      if (neighbors >= 3) joined[index] = 1;
+    }
+  }
+
+  // Dilate only for connectivity. Bounds below are still calculated from the
+  // original textured cells, so nearby parts of one photograph join without
+  // adding a pale halo outside the actual image.
+  let connected = joined;
+  for (let iteration = 0; iteration < 4; iteration += 1) {
+    const expanded = connected.slice();
+    for (let y = 0; y < rows; y += 1) {
+      for (let x = 0; x < cols; x += 1) {
+        if (!connected[y * cols + x]) continue;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nextX = x + dx;
+            const nextY = y + dy;
+            if (nextX < 0 || nextY < 0 || nextX >= cols || nextY >= rows) continue;
+            expanded[nextY * cols + nextX] = 1;
+          }
+        }
+      }
+    }
+    connected = expanded;
+  }
+
+  const boxes = [];
+  const visited = new Uint8Array(connected.length);
+  const stack = [];
+  for (let cell = 0; cell < connected.length; cell += 1) {
+    if (!connected[cell] || visited[cell]) continue;
+    let minX = cols;
+    let minY = rows;
+    let maxX = 0;
+    let maxY = 0;
+    let count = 0;
+    stack.push(cell);
+    visited[cell] = 1;
+    while (stack.length) {
+      const current = stack.pop();
+      const x = current % cols;
+      const y = Math.floor(current / cols);
+      if (joined[current]) {
+        count += 1;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (!dx && !dy) continue;
+          const nextX = x + dx;
+          const nextY = y + dy;
+          if (nextX < 0 || nextY < 0 || nextX >= cols || nextY >= rows) continue;
+          const next = nextY * cols + nextX;
+          if (!connected[next] || visited[next]) continue;
+          visited[next] = 1;
+          stack.push(next);
+        }
+      }
+    }
+    const boxWidth = (maxX - minX + 1) * cellSize;
+    const boxHeight = (maxY - minY + 1) * cellSize;
+    if (count < 6 || boxWidth < 60 || boxHeight < 60) continue;
+    const pad = cellSize;
+    boxes.push({
+      left: Math.max(0, minX * cellSize - pad),
+      top: Math.max(0, minY * cellSize - pad),
+      right: Math.min(width, (maxX + 1) * cellSize + pad),
+      bottom: Math.min(height, (maxY + 1) * cellSize + pad)
+    });
+  }
+  return boxes;
 }
 
 function mixRgb(from, to, amount) {

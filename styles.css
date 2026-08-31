@@ -777,11 +777,56 @@ p {
 
 .project-grid {
   display: grid;
+  gap: 32px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.project-grid.rows-view {
+  grid-template-columns: 1fr;
+}
+
+.project-home-section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.project-home-section + .project-home-section {
+  border-top: 1px solid var(--border);
+  padding-top: 28px;
+}
+
+.project-home-section-header {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+}
+
+.project-home-section-header h2 {
+  color: var(--text);
+  font: 760 20px/1.2 var(--display-font, var(--sans));
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.project-home-section-header p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 5px 0 0;
+}
+
+.project-home-section-grid {
+  display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
 }
 
-.project-grid.rows-view {
+.project-grid.rows-view .project-home-section,
+.project-grid.rows-view .project-home-section-grid {
+  width: 100%;
+}
+
+.project-grid.rows-view .project-home-section-grid {
   grid-template-columns: 1fr;
 }
 
@@ -13038,7 +13083,8 @@ body[data-theme="dark"] .pdf-speech-highlight {
 }
 
 .pdf-viewer.pdf-dark-render .pdf-cached-page-image {
-  filter: var(--pdf-dark-filter);
+  background: #ffffff;
+  filter: none;
 }
 
 .project-cache-placeholder {
@@ -15292,6 +15338,7 @@ body[data-contrast="high"] .pptx-element.selected {
 
 /* Home subject folders use an Apple-style drag-to-group interaction. */
 .project-collection-card {
+  appearance: none;
   align-items: center;
   background: color-mix(in srgb, var(--panel) 90%, transparent);
   border: 1px solid var(--border);
@@ -15303,7 +15350,9 @@ body[data-contrast="high"] .pptx-element.selected {
   grid-template-columns: 128px minmax(0, 1fr);
   height: 180px;
   padding: 16px;
+  text-align: left;
   transition: transform 170ms ease, box-shadow 170ms ease, border-color 170ms ease;
+  width: 100%;
 }
 
 .project-collection-card:hover {
