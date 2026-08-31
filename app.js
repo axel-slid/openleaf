@@ -8720,6 +8720,9 @@ function cachePdfViewPreview(sourceCanvas, relativePath, fingerprint) {
 }
 
 function showCachedPdfViewPreview(previewImageUrl, token) {
+  // Cached previews contain the original light PDF pixels. Showing one while
+  // adaptive dark rendering is in progress causes a bright white page flash.
+  if (pdfDarkMode && pdfRenderMode === "adaptive") return;
   if (!previewImageUrl || token !== pdfRenderToken || pdfViewer.querySelector(".pdf-page:not(.pdf-page-cached)")) return;
   const page = document.createElement("div");
   page.className = "pdf-page pdf-page-cached";
@@ -14545,6 +14548,9 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
       const renderPageCanvas = async (pageToRender) => {
         if (token !== pdfRenderToken || pageShell.dataset.canvasRendered === "true") return;
         pageShell.dataset.canvasRendered = "loading";
+        const imageBoxes = pdfDarkMode && pdfRenderMode === "adaptive"
+          ? await pdfImageBoxesForPage(pageToRender, viewport, pdfjsLib, outputScale)
+          : [];
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
         const context = canvas.getContext("2d");
@@ -14556,7 +14562,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
           cacheActiveProjectPreview(canvas);
           cachePdfViewPreview(canvas, pdfRelativePath, speechFingerprint);
         }
-        applyPdfCanvasRenderMode(context, canvas);
+        applyPdfCanvasRenderMode(context, canvas, imageBoxes);
         pageShell.dataset.canvasRendered = "true";
       };
       if (pageNumber <= 2) {
@@ -14840,12 +14846,78 @@ function preparePdfCanvasForRender(context, canvas) {
   context.restore();
 }
 
-function applyPdfCanvasRenderMode(context, canvas) {
+async function pdfImageBoxesForPage(page, viewport, pdfjsLib, outputScale = 1) {
+  try {
+    const operatorList = await page.getOperatorList();
+    const ops = pdfjsLib.OPS || {};
+    const imageOps = new Set([
+      ops.paintImageXObject,
+      ops.paintInlineImageXObject
+    ].filter(Number.isFinite));
+    const stack = [];
+    const canvasWidth = viewport.width * outputScale;
+    const canvasHeight = viewport.height * outputScale;
+    let matrix = Array.from(viewport.transform || [1, 0, 0, 1, 0, 0]);
+
+    const multiply = (left, right) => [
+      left[0] * right[0] + left[2] * right[1],
+      left[1] * right[0] + left[3] * right[1],
+      left[0] * right[2] + left[2] * right[3],
+      left[1] * right[2] + left[3] * right[3],
+      left[0] * right[4] + left[2] * right[5] + left[4],
+      left[1] * right[4] + left[3] * right[5] + left[5]
+    ];
+    const transformPoint = (transform, x, y) => ({
+      x: transform[0] * x + transform[2] * y + transform[4],
+      y: transform[1] * x + transform[3] * y + transform[5]
+    });
+    const boxes = [];
+
+    operatorList.fnArray.forEach((operator, index) => {
+      if (operator === ops.save) {
+        stack.push([...matrix]);
+        return;
+      }
+      if (operator === ops.restore) {
+        matrix = stack.pop() || matrix;
+        return;
+      }
+      if (operator === ops.transform) {
+        const next = Array.from(operatorList.argsArray[index] || []).slice(0, 6).map(Number);
+        if (next.length === 6 && next.every(Number.isFinite)) matrix = multiply(matrix, next);
+        return;
+      }
+      if (!imageOps.has(operator)) return;
+
+      const corners = [
+        transformPoint(matrix, 0, 0),
+        transformPoint(matrix, 1, 0),
+        transformPoint(matrix, 0, 1),
+        transformPoint(matrix, 1, 1)
+      ];
+      const xs = corners.map((point) => point.x * outputScale);
+      const ys = corners.map((point) => point.y * outputScale);
+      const box = {
+        left: Math.max(0, Math.min(...xs)),
+        top: Math.max(0, Math.min(...ys)),
+        right: Math.min(canvasWidth, Math.max(...xs)),
+        bottom: Math.min(canvasHeight, Math.max(...ys))
+      };
+      if (box.right - box.left >= 12 && box.bottom - box.top >= 12) boxes.push(box);
+    });
+
+    return boxes;
+  } catch (error) {
+    return [];
+  }
+}
+
+function applyPdfCanvasRenderMode(context, canvas, imageBoxes = []) {
   canvas.classList.remove("pdf-canvas-dark-adaptive", "pdf-canvas-dark-filter");
   if (!pdfDarkMode) return;
 
   if (pdfRenderMode === "adaptive") {
-    applyDarkPdfCanvas(context, canvas);
+    applyDarkPdfCanvas(context, canvas, imageBoxes);
     canvas.classList.add("pdf-canvas-dark-adaptive");
     return;
   }
@@ -14920,10 +14992,9 @@ async function openPdfLink(url) {
   }
 }
 
-function applyDarkPdfCanvas(context, canvas) {
+function applyDarkPdfCanvas(context, canvas, imageBoxes = []) {
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
-  const imageBoxes = detectPdfImageBoxes(data, canvas.width, canvas.height);
   const basePaper = cssColorToRgb(themeColor("--pdf-dark-paper", "#111827"), { r: 17, g: 24, b: 39 });
   const baseText = cssColorToRgb(themeColor("--text", "#f8fafc"), { r: 248, g: 250, b: 252 });
   const paper = basePaper;
