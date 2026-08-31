@@ -15079,7 +15079,7 @@ function detectPdfImageBoxes(data, width, height) {
       const current = stack.pop();
       const x = current % cols;
       const y = Math.floor(current / cols);
-      if (joined[current]) {
+      if (cells[current]) {
         count += 1;
         minX = Math.min(minX, x);
         minY = Math.min(minY, y);
@@ -15102,7 +15102,7 @@ function detectPdfImageBoxes(data, width, height) {
     const boxWidth = (maxX - minX + 1) * cellSize;
     const boxHeight = (maxY - minY + 1) * cellSize;
     if (count < 6 || boxWidth < 60 || boxHeight < 60) continue;
-    const pad = cellSize;
+    const pad = cellSize / 2;
     boxes.push({
       left: Math.max(0, minX * cellSize - pad),
       top: Math.max(0, minY * cellSize - pad),
