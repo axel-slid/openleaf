@@ -15014,9 +15014,10 @@ function detectPdfImageBoxes(data, width, height) {
       const midtoneRatio = midtones / Math.max(1, samples);
       const colorRatio = colorful / Math.max(1, samples);
       const edgeRatio = edges / Math.max(1, samples);
-      const photographic = occupancy > 0.34
-        && maximum - minimum > 38
-        && (midtoneRatio > 0.24 || edgeRatio > 0.12);
+      const photographic = occupancy > 0.36
+        && maximum - minimum > 42
+        && midtoneRatio > 0.28
+        && (edgeRatio > 0.04 || midtoneRatio > 0.5);
       const illustrated = occupancy > 0.24 && colorRatio > 0.12 && maximum - minimum > 28;
       if (photographic || illustrated) cells[cellY * cols + cellX] = 1;
     }
@@ -15041,33 +15042,15 @@ function detectPdfImageBoxes(data, width, height) {
     }
   }
 
-  // Dilate only for connectivity. Bounds below are still calculated from the
-  // original textured cells, so nearby parts of one photograph join without
-  // adding a pale halo outside the actual image.
-  let connected = joined;
-  for (let iteration = 0; iteration < 4; iteration += 1) {
-    const expanded = connected.slice();
-    for (let y = 0; y < rows; y += 1) {
-      for (let x = 0; x < cols; x += 1) {
-        if (!connected[y * cols + x]) continue;
-        for (let dy = -1; dy <= 1; dy += 1) {
-          for (let dx = -1; dx <= 1; dx += 1) {
-            const nextX = x + dx;
-            const nextY = y + dy;
-            if (nextX < 0 || nextY < 0 || nextX >= cols || nextY >= rows) continue;
-            expanded[nextY * cols + nextX] = 1;
-          }
-        }
-      }
-    }
-    connected = expanded;
-  }
-
-  const boxes = [];
-  const visited = new Uint8Array(connected.length);
+  // Find actual 2D textured regions before joining anything. Text lines are
+  // long, shallow components; photographs and figures occupy substantial area
+  // in both dimensions. Filtering here prevents titles and captions from being
+  // absorbed into a nearby image rectangle.
+  const candidates = [];
+  const visited = new Uint8Array(joined.length);
   const stack = [];
-  for (let cell = 0; cell < connected.length; cell += 1) {
-    if (!connected[cell] || visited[cell]) continue;
+  for (let cell = 0; cell < joined.length; cell += 1) {
+    if (!joined[cell] || visited[cell]) continue;
     let minX = cols;
     let minY = rows;
     let maxX = 0;
@@ -15093,7 +15076,7 @@ function detectPdfImageBoxes(data, width, height) {
           const nextY = y + dy;
           if (nextX < 0 || nextY < 0 || nextX >= cols || nextY >= rows) continue;
           const next = nextY * cols + nextX;
-          if (!connected[next] || visited[next]) continue;
+          if (!joined[next] || visited[next]) continue;
           visited[next] = 1;
           stack.push(next);
         }
@@ -15101,16 +15084,60 @@ function detectPdfImageBoxes(data, width, height) {
     }
     const boxWidth = (maxX - minX + 1) * cellSize;
     const boxHeight = (maxY - minY + 1) * cellSize;
-    if (count < 6 || boxWidth < 60 || boxHeight < 60) continue;
-    const pad = cellSize / 2;
-    boxes.push({
+    const aspectRatio = boxWidth / Math.max(1, boxHeight);
+    if (count < 10 || boxWidth < 84 || boxHeight < 96 || aspectRatio > 6) continue;
+    const pad = 0;
+    candidates.push({
       left: Math.max(0, minX * cellSize - pad),
       top: Math.max(0, minY * cellSize - pad),
       right: Math.min(width, (maxX + 1) * cellSize + pad),
       bottom: Math.min(height, (maxY + 1) * cellSize + pad)
     });
   }
-  return boxes;
+
+  if (candidates.length < 2) return candidates;
+  const parents = candidates.map((_box, index) => index);
+  const find = (index) => {
+    let root = index;
+    while (parents[root] !== root) root = parents[root];
+    while (parents[index] !== index) {
+      const next = parents[index];
+      parents[index] = root;
+      index = next;
+    }
+    return root;
+  };
+  const join = (left, right) => {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) parents[rightRoot] = leftRoot;
+  };
+  const mergeGap = cellSize * 4;
+  candidates.forEach((left, leftIndex) => {
+    candidates.slice(leftIndex + 1).forEach((right, offset) => {
+      const rightIndex = leftIndex + offset + 1;
+      const horizontalGap = Math.max(0, Math.max(left.left, right.left) - Math.min(left.right, right.right));
+      const verticalGap = Math.max(0, Math.max(left.top, right.top) - Math.min(left.bottom, right.bottom));
+      const horizontalOverlap = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));
+      const verticalOverlap = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
+      const aligned = horizontalOverlap >= Math.min(left.right - left.left, right.right - right.left) * 0.2
+        || verticalOverlap >= Math.min(left.bottom - left.top, right.bottom - right.top) * 0.2;
+      if (aligned && horizontalGap <= mergeGap && verticalGap <= mergeGap) join(leftIndex, rightIndex);
+    });
+  });
+
+  const merged = new Map();
+  candidates.forEach((box, index) => {
+    const root = find(index);
+    const current = merged.get(root);
+    merged.set(root, current ? {
+      left: Math.min(current.left, box.left),
+      top: Math.min(current.top, box.top),
+      right: Math.max(current.right, box.right),
+      bottom: Math.max(current.bottom, box.bottom)
+    } : box);
+  });
+  return Array.from(merged.values());
 }
 
 function mixRgb(from, to, amount) {
