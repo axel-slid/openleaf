@@ -8005,7 +8005,7 @@ async function loadProjects() {
     const data = await window.localOverleaf.listProjects();
     projects = data.projects || [];
     projectCollections = readProjectCollections();
-    ensureDemogReadingCollection();
+    ensureCourseReadingCollections();
     renderProjectGrid();
   } catch (error) {
     projectGrid.innerHTML = `<div class="project-loading project-error">${escapeHtml(formatError(error))}</div>`;
@@ -8158,33 +8158,55 @@ function collectionIdentifier(prefix = "folder") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function ensureDemogReadingCollection() {
-  const demogProjects = projects.filter((project) => /demog\s*c?126|c126.*demog/i.test(`${project.name} ${project.displayName} ${project.folderName} ${project.texPath}`));
-  const demog = demogProjects.sort((left, right) => (
-    (Array.isArray(right.readingFiles) ? right.readingFiles.length : 0)
-      - (Array.isArray(left.readingFiles) ? left.readingFiles.length : 0)
-  ))[0];
-  if (!demog) return;
-  let collection = projectCollections.find((item) => /demog\s*c?126|c126.*demog/i.test(item.name));
-  if (!collection) {
-    collection = {
-      id: collectionIdentifier("subject"),
-      name: "DEMOG C126",
-      divisions: [{ id: collectionIdentifier("division"), name: "Readings", projectIds: [] }]
-    };
-    projectCollections.unshift(collection);
-  }
-  let readings = collection.divisions.find((division) => /^readings$/i.test(division.name));
-  if (!readings) {
-    readings = { id: collectionIdentifier("division"), name: "Readings", projectIds: [] };
-    collection.divisions.unshift(readings);
-  }
-  const demogIds = new Set(demogProjects.map((project) => project.id));
-  collection.divisions.forEach((division) => {
-    division.projectIds = division.projectIds.filter((id) => !demogIds.has(id));
+function formatReadingTime(value, { total = false } = {}) {
+  const minutes = Math.max(0, Math.round(Number(value) || 0));
+  if (!minutes) return "";
+  if (minutes < 60) return `${minutes} min${total ? " total" : " read"}`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  const duration = remainder ? `${hours} hr ${remainder} min` : `${hours} hr`;
+  return `${duration}${total ? " total" : " read"}`;
+}
+
+function ensureCourseReadingCollections() {
+  const grouped = new Map();
+  projects.forEach((project) => {
+    const subject = String(project.readingCollection && project.readingCollection.subject || "").trim();
+    if (!subject || !Array.isArray(project.readingFiles) || !project.readingFiles.length) return;
+    if (!grouped.has(subject)) grouped.set(subject, []);
+    grouped.get(subject).push(project);
   });
-  readings.projectIds.unshift(demog.id);
+  grouped.forEach((courseProjects, subject) => {
+    const primaryProject = courseProjects.sort((left, right) => right.readingFiles.length - left.readingFiles.length)[0];
+    const normalizedSubject = subject.replace(/[^a-z0-9]+/gi, "").toLowerCase();
+    let collection = projectCollections.find((item) => (
+      item.name.replace(/[^a-z0-9]+/gi, "").toLowerCase() === normalizedSubject
+    ));
+    if (!collection) {
+      collection = {
+        id: collectionIdentifier("subject"),
+        name: subject,
+        divisions: [{ id: collectionIdentifier("division"), name: "Readings", projectIds: [] }]
+      };
+      projectCollections.unshift(collection);
+    }
+    const divisionName = String(primaryProject.readingCollection.division || "Readings");
+    let readingDivision = collection.divisions.find((division) => division.name.toLowerCase() === divisionName.toLowerCase());
+    if (!readingDivision) {
+      readingDivision = { id: collectionIdentifier("division"), name: divisionName, projectIds: [] };
+      collection.divisions.unshift(readingDivision);
+    }
+    const courseProjectIds = new Set(courseProjects.map((project) => project.id));
+    collection.divisions.forEach((division) => {
+      division.projectIds = division.projectIds.filter((id) => !courseProjectIds.has(id));
+    });
+    readingDivision.projectIds.unshift(primaryProject.id);
+  });
   saveProjectCollections();
+}
+
+function ensureDemogReadingCollection() {
+  ensureCourseReadingCollections();
 }
 
 function projectCollectionMembership(projectId) {
@@ -8283,6 +8305,9 @@ function renderProjectCollectionCard(collection) {
   const memberIds = collection.divisions.flatMap((division) => division.projectIds);
   const members = memberIds.map((id) => projects.find((project) => project.id === id)).filter(Boolean);
   const readingCount = members.reduce((count, project) => count + (Array.isArray(project.readingFiles) ? project.readingFiles.length : 0), 0);
+  const readingMinutes = members.reduce((total, project) => total + (Array.isArray(project.readingFiles)
+    ? project.readingFiles.reduce((sum, reading) => sum + (Number(reading.readingMinutes) || 0), 0)
+    : 0), 0);
   const itemCount = readingCount || members.length;
   const card = document.createElement("button");
   card.type = "button";
@@ -8298,7 +8323,7 @@ function renderProjectCollectionCard(collection) {
     <span class="project-collection-preview" aria-hidden="true">${tiles}</span>
     <span class="project-collection-copy">
       <strong>${escapeHtml(collection.name)}</strong>
-      <small>${itemCount} ${readingCount ? (itemCount === 1 ? "reading" : "readings") : (itemCount === 1 ? "project" : "projects")} · ${collection.divisions.length} ${collection.divisions.length === 1 ? "division" : "divisions"}</small>
+      <small>${itemCount} ${readingCount ? (itemCount === 1 ? "reading" : "readings") : (itemCount === 1 ? "project" : "projects")}${readingMinutes ? ` · ${escapeHtml(formatReadingTime(readingMinutes, { total: true }))}` : ""} · ${collection.divisions.length} ${collection.divisions.length === 1 ? "division" : "divisions"}</small>
     </span>
   `;
   card.addEventListener("click", () => openProjectCollection(collection.id));
@@ -8394,6 +8419,9 @@ function renderOpenProjectCollection(collection, overlay) {
     const grid = section.querySelector(".project-division-grid");
     entries.forEach(({ project, reading }) => {
       const title = reading ? reading.name : projectDisplaySortName(project);
+      const readingDetails = reading
+        ? [reading.category || "Reading", formatReadingTime(reading.readingMinutes)].filter(Boolean).join(" · ")
+        : "";
       const card = document.createElement("article");
       card.className = "project-division-card";
       card.classList.toggle("reading-card", Boolean(reading));
@@ -8404,7 +8432,7 @@ function renderOpenProjectCollection(collection, overlay) {
         <span class="project-division-preview">${(reading && reading.previewImageUrl) || project.previewImageUrl ? `<img src="${escapeHtml((reading && reading.previewImageUrl) || project.previewImageUrl)}" alt="">` : "PDF"}</span>
         <span class="project-division-card-copy">
           <strong>${escapeHtml(title)}</strong>
-          ${reading ? `<small>${escapeHtml(reading.category || "Reading")}</small>` : ""}
+          ${reading ? `<small>${escapeHtml(readingDetails)}</small>` : ""}
         </span>
         ${reading ? "" : `<button type="button" aria-label="Move ${escapeHtml(title)} to Home">×</button>`}
       `;
@@ -8425,7 +8453,7 @@ function renderOpenProjectCollection(collection, overlay) {
       if (reading) {
         card.tabIndex = 0;
         card.setAttribute("role", "button");
-        card.setAttribute("aria-label", `Open ${title}`);
+        card.setAttribute("aria-label", `Open ${title}${readingDetails ? `, ${readingDetails}` : ""}`);
         card.addEventListener("keydown", (event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
           event.preventDefault();
@@ -15456,12 +15484,14 @@ function isPdfSpeechNonContentLine(line, lineIndex, lineCount, options = {}) {
   const lineHeight = Number(line && line.height) || 0;
   const headingSized = bodyHeight > 0 && lineHeight >= bodyHeight * 1.16;
   const smallPrint = bodyHeight > 0 && lineHeight <= bodyHeight * 0.79;
-  if (headingSized && wordCount <= 24) return true;
-  if (smallPrint && wordCount <= 38) return true;
+  const mathExpression = looksLikePdfMathExpression(text);
+  if (!mathExpression && headingSized && wordCount <= 24) return true;
+  if (!mathExpression && smallPrint && wordCount <= 38) return true;
 
   const tokens = text.split(/\s+/).filter(Boolean);
   const numericTokens = tokens.filter((token) => /\d/.test(token)).length;
   const alphabeticTokens = tokens.filter((token) => /[\p{L}\p{M}]{2,}/u.test(token)).length;
+  if (mathExpression) return false;
   if (tokens.length >= 3 && numericTokens / tokens.length >= 0.46 && alphabeticTokens <= numericTokens + 1) return true;
   if (numericTokens >= 2 && alphabeticTokens <= 3 && /[%±=<>]|\b(?:ci|sd|se|n\s*=)\b/i.test(text)) return true;
   return false;
@@ -15610,6 +15640,68 @@ function normalizePdfSpeechToken(value) {
     .replace(/\uFB02/g, "fl")
     .replace(/[\u00AD]/g, "")
     .trim();
+}
+
+function pdfMathToSpeech(value) {
+  const greek = {
+    α: "alpha", β: "beta", γ: "gamma", δ: "delta", ε: "epsilon", ζ: "zeta", η: "eta", θ: "theta",
+    κ: "kappa", λ: "lambda", μ: "mu", ν: "nu", ξ: "xi", π: "pi", ρ: "rho", σ: "sigma", τ: "tau",
+    φ: "phi", χ: "chi", ψ: "psi", ω: "omega", Δ: "delta", Θ: "theta", Λ: "lambda", Σ: "sigma", Φ: "phi", Ω: "omega"
+  };
+  const superscripts = { "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9" };
+  const subscripts = { "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4", "₅": "5", "₆": "6", "₇": "7", "₈": "8", "₉": "9" };
+  let text = String(value || "")
+    .replace(/log([₀-₉]+)/g, (_match, digits) => `log base ${Array.from(digits).map((digit) => subscripts[digit]).join("")}`)
+    .replace(/([\p{L}\p{N})])([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/gu, (_match, base, digits) => `${base}^${Array.from(digits).map((digit) => superscripts[digit]).join("")}`)
+    .replace(/([\p{L}\p{N})])([₀₁₂₃₄₅₆₇₈₉]+)/gu, (_match, base, digits) => `${base}_${Array.from(digits).map((digit) => subscripts[digit]).join("")}`)
+    .normalize("NFKC");
+  text = text
+    .replace(/\bO\s*\(([^()]{1,80})\)/g, "big O of $1")
+    .replace(/Θ\s*\(([^()]{1,80})\)/g, "theta of $1")
+    .replace(/Ω\s*\(([^()]{1,80})\)/g, "omega of $1")
+    .replace(/([\p{L}\p{N})]+)\s*\^\s*2\b/gu, "$1 squared")
+    .replace(/([\p{L}\p{N})]+)\s*\^\s*3\b/gu, "$1 cubed")
+    .replace(/([\p{L}\p{N})]+)\s*\^\s*\(?([^\s,.;)]+)\)?/gu, "$1 to the power of $2")
+    .replace(/([\p{L}\p{N})]+)_\{?([\p{L}\p{N}+-]+)\}?/gu, "$1 sub $2")
+    .replace(/\b([\p{L}\p{N}]+)\s*\/\s*([\p{L}\p{N}]+)\b/gu, "$1 over $2")
+    .replace(/∑/g, " sum ")
+    .replace(/∏/g, " product ")
+    .replace(/∫/g, " integral ")
+    .replace(/√/g, " square root of ")
+    .replace(/∞/g, " infinity ")
+    .replace(/∈/g, " is in ")
+    .replace(/∉/g, " is not in ")
+    .replace(/⊆|⊂/g, " is a subset of ")
+    .replace(/∪/g, " union ")
+    .replace(/∩/g, " intersection ")
+    .replace(/∀/g, " for every ")
+    .replace(/∃/g, " there exists ")
+    .replace(/⇒|⟹/g, " implies ")
+    .replace(/↔|⇔/g, " if and only if ")
+    .replace(/→|↦/g, " maps to ")
+    .replace(/≤/g, " is less than or equal to ")
+    .replace(/≥/g, " is greater than or equal to ")
+    .replace(/≠/g, " is not equal to ")
+    .replace(/≈|≃/g, " is approximately ")
+    .replace(/\s=\s/g, " equals ")
+    .replace(/\s<\s/g, " is less than ")
+    .replace(/\s>\s/g, " is greater than ")
+    .replace(/±/g, " plus or minus ")
+    .replace(/\+/g, " plus ")
+    .replace(/\s-\s/g, " minus ")
+    .replace(/\s\*\s/g, " times ")
+    .replace(/(?<=\s|\d)−(?=\s|\d)/g, " minus ")
+    .replace(/(?<=\s|\d)×(?=\s|\d)/g, " times ")
+    .replace(/(?<=\s|\d)÷(?=\s|\d)/g, " divided by ");
+  Object.entries(greek).forEach(([symbol, name]) => {
+    text = text.replaceAll(symbol, ` ${name} `);
+  });
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function looksLikePdfMathExpression(value) {
+  const text = String(value || "");
+  return /[=≤≥≠≈<>∑∏∫√∞∈∉∪∩⊂⊆^⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]|\b(?:O|Theta|Omega)\s*\(/u.test(text);
 }
 
 function setPdfSpeechStatus(message, state = "idle") {
@@ -16435,7 +16527,7 @@ function pdfSpeechWordPageGeometry(pageShell, word, suppliedElement = null) {
 function preparePdfSpeechAudio(chunkIndex, voiceId = pdfSpeechVoiceId()) {
   const chunk = pdfSpeechPlan.chunks[chunkIndex];
   if (!chunk) return Promise.reject(new Error("No speech chunk."));
-  const speechText = applyPdfPronunciationRules(chunk.text);
+  const speechText = applyPdfPronunciationRules(pdfMathToSpeech(chunk.text));
   const key = `${voiceId}:${speechText}`;
   if (pdfSpeechAudioCache.has(key)) return pdfSpeechAudioCache.get(key);
   const request = window.localOverleaf.synthesizePdfSpeech(speechText, 1, voiceId);

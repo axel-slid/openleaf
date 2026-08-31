@@ -804,9 +804,51 @@ function projectKind(project) {
   return project && isEditablePresentationFile(project.texPath || "") ? "presentation" : "latex";
 }
 
-function projectReadingFiles(project, rootPath) {
+function projectReadingManifest(rootPath) {
+  const manifestPath = path.join(rootPath, ".openleaf-readings.json");
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    return manifest && typeof manifest === "object" ? manifest : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function projectReadingProfile(project, rootPath) {
   const identity = `${project && project.name || ""} ${project && project.texPath || ""} ${rootPath || ""}`;
-  if (!/demog\s*c?126|c126.*demog/i.test(identity) || !rootPath || !fs.existsSync(rootPath)) return [];
+  const manifest = rootPath ? projectReadingManifest(rootPath) : null;
+  if (manifest && manifest.subject) {
+    const configuredDirectory = String(manifest.scanDirectory || ".");
+    const scanRoot = path.resolve(rootPath, configuredDirectory);
+    if (scanRoot === rootPath || scanRoot.startsWith(`${rootPath}${path.sep}`)) {
+      return {
+        subject: String(manifest.subject),
+        division: String(manifest.division || "Readings"),
+        scanRoot,
+        manifest
+      };
+    }
+  }
+  if (/demog\s*c?126|c126.*demog/i.test(identity)) {
+    return { subject: "DEMOG C126", division: "Readings", scanRoot: rootPath, manifest: null };
+  }
+  if (/\b(?:berkeley\s+)?cs\s*170\b|computer\s+science\s*170/i.test(identity)) {
+    const readingsRoot = path.join(rootPath, "Readings");
+    return {
+      subject: "CS 170",
+      division: "Readings",
+      scanRoot: fs.existsSync(readingsRoot) ? readingsRoot : rootPath,
+      manifest: null
+    };
+  }
+  return null;
+}
+
+function projectReadingFiles(project, rootPath, profile = projectReadingProfile(project, rootPath)) {
+  if (!profile || !rootPath || !fs.existsSync(profile.scanRoot)) return [];
+  const manifestReadings = profile.manifest && profile.manifest.readings && typeof profile.manifest.readings === "object"
+    ? profile.manifest.readings
+    : {};
   const readings = [];
   const visit = (directory, depth = 0) => {
     if (depth > 4) return;
@@ -825,19 +867,25 @@ function projectReadingFiles(project, rootPath) {
       }
       if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== ".pdf") return;
       const relativePath = path.relative(rootPath, absolutePath).split(path.sep).join("/");
-      const parts = relativePath.split("/");
+      const libraryRelativePath = path.relative(profile.scanRoot, absolutePath).split(path.sep).join("/");
+      const parts = libraryRelativePath.split("/");
       const textRelativePath = `.openleaf-reading-text/${crypto.createHash("sha1").update(relativePath).digest("hex").slice(0, 16)}/main.tex`;
+      const metadata = manifestReadings[relativePath] || manifestReadings[libraryRelativePath] || {};
       readings.push({
         name: path.basename(entry.name, path.extname(entry.name)),
         fileName: entry.name,
         relativePath,
-        category: parts.length > 1 ? parts[0].replace(/^\d+\s*/, "") : "Readings",
+        category: parts.length > 1 ? parts[0].replace(/^\d+[\s._-]*/, "") : profile.division,
         previewImageUrl: freshPreviewUrl(pdfViewPreviewPath(project.id, relativePath), absolutePath),
-        textRelativePath: fs.existsSync(path.join(rootPath, textRelativePath)) ? textRelativePath : ""
+        textRelativePath: fs.existsSync(path.join(rootPath, textRelativePath)) ? textRelativePath : "",
+        readingMinutes: Math.max(0, Number(metadata.minutes) || 0),
+        wordCount: Math.max(0, Number(metadata.wordCount) || 0),
+        pageCount: Math.max(0, Number(metadata.pageCount) || 0),
+        formulaCount: Math.max(0, Number(metadata.formulaCount) || 0)
       });
     });
   };
-  visit(rootPath);
+  visit(profile.scanRoot);
   return readings.sort((left, right) => {
     const leftCompletePacket = /complete assigned readings|complete reading packet/i.test(left.name);
     const rightCompletePacket = /complete assigned readings|complete reading packet/i.test(right.name);
@@ -856,6 +904,7 @@ function decorateProject(project) {
   const presentation = kind === "presentation";
   const pdfPath = pdfPathFor(project);
   const rootPath = projectRootFor(project);
+  const readingProfile = projectReadingProfile(project, rootPath);
   const pdfExists = presentation ? texExists : fs.existsSync(pdfPath);
   const previewImageUrl = pdfExists
     ? freshPreviewUrl(projectPreviewPngPath(project.id), presentation ? project.texPath : pdfPath)
@@ -883,7 +932,8 @@ function decorateProject(project) {
     pdfName: path.basename(pdfPath),
     texExists,
     pdfExists,
-    readingFiles: projectReadingFiles(project, rootPath),
+    readingCollection: readingProfile ? { subject: readingProfile.subject, division: readingProfile.division } : null,
+    readingFiles: projectReadingFiles(project, rootPath, readingProfile),
     previewImageUrl,
     modifiedAt
   };
