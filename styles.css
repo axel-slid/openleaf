@@ -6789,48 +6789,6 @@ body.editor-immersive-fullscreen .top-document-title-wrap {
   display: none;
 }
 
-body.window-fullscreen .fullscreen-notch-title,
-body.editor-immersive-fullscreen .fullscreen-notch-title {
-  display: block;
-  height: 34px;
-  left: 50%;
-  pointer-events: auto;
-  position: fixed;
-  top: 0;
-  transform: translateX(-50%);
-  width: min(280px, 42vw);
-  z-index: 10000;
-  -webkit-app-region: no-drag;
-}
-
-.fullscreen-notch-title span {
-  backdrop-filter: blur(24px) saturate(160%);
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
-  color: var(--text);
-  display: block;
-  font: 700 12px/1.2 var(--sans);
-  left: 50%;
-  max-width: min(360px, 48vw);
-  opacity: 0;
-  overflow: hidden;
-  padding: 7px 13px;
-  pointer-events: none;
-  position: absolute;
-  text-overflow: ellipsis;
-  top: 36px;
-  transform: translate(-50%, -6px);
-  transition: opacity 140ms ease, transform 140ms ease;
-  white-space: nowrap;
-}
-
-.fullscreen-notch-title:hover span {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
 body.window-fullscreen .project-back-button {
   justify-self: start !important;
 }

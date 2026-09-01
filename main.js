@@ -22,6 +22,8 @@ const editablePresentationExtensions = new Set([".pptx"]);
 const appIconPngPath = path.join(repoRoot, "assets", "icon.png");
 
 let mainWindow;
+let notchOverlayWindow = null;
+let fullscreenDocumentTitle = "Openleaf";
 const terminalSessions = new Map();
 const pythonSessions = new Map();
 const wordDefinitionCache = new Map();
@@ -183,9 +185,6 @@ function createWindow() {
       ? {
           titleBarStyle: "hiddenInset",
           fullscreenable: true,
-          // Route the macOS green traffic-light control through complete-display
-          // fullscreen so transparent windows extend beside the camera housing.
-          simpleFullscreen: true,
           vibrancy: "under-window",
           visualEffectState: "active",
           trafficLightPosition: { x: 14, y: 13 }
@@ -214,32 +213,17 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  let reportedFullscreen = false;
-  const reportFullscreenState = () => {
-    const fullscreen = window.isFullScreen() || (process.platform === "darwin" && window.isSimpleFullScreen());
-    if (fullscreen === reportedFullscreen) return;
-    reportedFullscreen = fullscreen;
-    sendEditorCommand(fullscreen ? "fullscreen-enter" : "fullscreen-leave", window);
-  };
-  let convertingNativeFullscreen = false;
   window.on("enter-full-screen", () => {
-    if (process.platform === "darwin" && !window.isSimpleFullScreen() && !convertingNativeFullscreen) {
-      convertingNativeFullscreen = true;
-      window.once("leave-full-screen", () => {
-        if (window.isDestroyed()) return;
-        window.setSimpleFullScreen(true);
-        convertingNativeFullscreen = false;
-        reportFullscreenState();
-      });
-      window.setFullScreen(false);
-      return;
-    }
-    reportFullscreenState();
+    showNotchOverlay(window);
+    sendEditorCommand("fullscreen-enter", window);
   });
-  window.on("leave-full-screen", reportFullscreenState);
-  window.on("resize", reportFullscreenState);
+  window.on("leave-full-screen", () => {
+    destroyNotchOverlay();
+    sendEditorCommand("fullscreen-leave", window);
+  });
 
   window.on("closed", () => {
+    destroyNotchOverlay();
     killTerminalSessionsForWebContents(windowWebContentsId);
     const remainingWindows = BrowserWindow.getAllWindows().filter((candidate) => !candidate.isDestroyed());
     if (remainingWindows.length === 0) {
@@ -249,6 +233,114 @@ function createWindow() {
   });
 
   return window;
+}
+
+function notchOverlayHtml(topInset) {
+  const titleTop = Math.max(32, topInset + 3);
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; overflow: hidden; background: transparent; }
+      .display-cap { background: rgba(18, 18, 20, 0.985); height: ${topInset}px; left: 124px; position: fixed; top: 0; width: calc(100% - 124px); }
+      .notch-trigger { height: ${topInset}px; left: 50%; position: fixed; top: 0; transform: translateX(-50%); width: min(320px, 44vw); }
+      .document-title {
+        backdrop-filter: blur(24px) saturate(160%);
+        -webkit-backdrop-filter: blur(24px) saturate(160%);
+        background: rgba(31, 31, 34, 0.94);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
+        color: #f4f4f5;
+        font: 700 12px/1.2 -apple-system, BlinkMacSystemFont, sans-serif;
+        left: 50%;
+        max-width: min(380px, 50vw);
+        opacity: 0;
+        overflow: hidden;
+        padding: 7px 13px;
+        position: fixed;
+        text-overflow: ellipsis;
+        top: ${titleTop}px;
+        transform: translate(-50%, -6px);
+        transition: opacity 140ms ease, transform 140ms ease;
+        white-space: nowrap;
+      }
+      .notch-trigger:hover + .document-title,
+      .document-title:hover { opacity: 1; transform: translate(-50%, 0); }
+    </style>
+  </head>
+  <body>
+    <div class="display-cap"></div>
+    <div class="notch-trigger"></div>
+    <div id="documentTitle" class="document-title"></div>
+    <script>
+      window.setOpenleafNotchTitle = (title) => {
+        document.getElementById("documentTitle").textContent = String(title || "Openleaf");
+      };
+    </script>
+  </body>
+</html>`;
+}
+
+function updateNotchOverlayTitle() {
+  if (!notchOverlayWindow || notchOverlayWindow.isDestroyed() || notchOverlayWindow.webContents.isLoading()) return;
+  const script = `window.setOpenleafNotchTitle(${JSON.stringify(fullscreenDocumentTitle)})`;
+  notchOverlayWindow.webContents.executeJavaScript(script, true).catch(() => {});
+}
+
+function showNotchOverlay(parentWindow) {
+  if (process.platform !== "darwin" || !parentWindow || parentWindow.isDestroyed()) return;
+  const display = screen.getDisplayMatching(parentWindow.getBounds());
+  const rawTopInset = Math.max(0, display.workArea.y - display.bounds.y);
+  const topInset = Math.max(32, Math.min(48, rawTopInset || 38));
+  const height = topInset + 46;
+
+  destroyNotchOverlay();
+  notchOverlayWindow = new BrowserWindow({
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height,
+    type: "panel",
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    closable: false,
+    focusable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+  notchOverlayWindow.setAlwaysOnTop(true, "floating", 1);
+  notchOverlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  notchOverlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  notchOverlayWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(notchOverlayHtml(topInset))}`);
+  notchOverlayWindow.webContents.once("did-finish-load", () => {
+    if (!notchOverlayWindow || notchOverlayWindow.isDestroyed() || !parentWindow.isFullScreen()) return;
+    updateNotchOverlayTitle();
+    notchOverlayWindow.showInactive();
+  });
+}
+
+function destroyNotchOverlay() {
+  if (!notchOverlayWindow || notchOverlayWindow.isDestroyed()) {
+    notchOverlayWindow = null;
+    return;
+  }
+  const overlay = notchOverlayWindow;
+  notchOverlayWindow = null;
+  overlay.destroy();
 }
 
 function activeWindow() {
@@ -375,24 +467,23 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function toggleFullscreen(_event, requestedState) {
-  const window = activeWindow();
+function toggleFullscreen(event, requestedState) {
+  const requestingWindow = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+  const window = requestingWindow && !requestingWindow.isDestroyed() ? requestingWindow : activeWindow();
   if (!window) return { fullscreen: false };
   const current = process.platform === "darwin"
     ? window.isSimpleFullScreen() || window.isFullScreen()
     : window.isFullScreen();
   const next = typeof requestedState === "boolean" ? requestedState : !current;
 
-  if (process.platform === "darwin") {
-    // Native fullscreen keeps transparent Electron windows inside the visible
-    // frame, leaving the camera-housing strip unused. Simple fullscreen uses
-    // the complete display frame so content can extend beside the notch.
-    if (!next && window.isFullScreen()) window.setFullScreen(false);
-    window.setSimpleFullScreen(next);
-  } else {
-    window.setFullScreen(next);
+  // Always use native fullscreen so the macOS green control, Escape, Spaces,
+  // and the View menu all enter and leave the same dependable state. Clean up
+  // a legacy simple-fullscreen window if an older build left one active.
+  if (process.platform === "darwin" && window.isSimpleFullScreen()) {
+    window.setSimpleFullScreen(false);
   }
-  return { fullscreen: next, mode: process.platform === "darwin" ? "display-frame" : "native" };
+  if (window.isFullScreen() !== next) window.setFullScreen(next);
+  return { fullscreen: next, mode: "native" };
 }
 
 function storePath() {
@@ -4762,6 +4853,10 @@ ipcMain.handle("push-project-to-github", pushProjectToGithub);
 ipcMain.handle("pull-project-from-github", pullProjectFromGithub);
 ipcMain.handle("list-ssh-hosts", listSshHosts);
 ipcMain.handle("toggle-fullscreen", toggleFullscreen);
+ipcMain.on("fullscreen-document-title", (_event, title) => {
+  fullscreenDocumentTitle = String(title || "Openleaf").trim() || "Openleaf";
+  updateNotchOverlayTitle();
+});
 ipcMain.handle("open-external-link", openExternalLink);
 ipcMain.handle("open-history-window", openHistoryWindow);
 ipcMain.handle("read-agents", readAgents);

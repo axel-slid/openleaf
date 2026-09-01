@@ -2697,7 +2697,11 @@ async function init() {
 function setupFullscreenNotchTitle() {
   if (!activeDocumentTitle || !fullscreenNotchTitleText) return;
   const syncTitle = () => {
-    fullscreenNotchTitleText.textContent = activeDocumentTitle.textContent || "No document loaded";
+    const title = activeDocumentTitle.textContent || "No document loaded";
+    fullscreenNotchTitleText.textContent = title;
+    if (window.localOverleaf && typeof window.localOverleaf.setFullscreenDocumentTitle === "function") {
+      window.localOverleaf.setFullscreenDocumentTitle(title);
+    }
   };
   syncTitle();
   new MutationObserver(syncTitle).observe(activeDocumentTitle, {
