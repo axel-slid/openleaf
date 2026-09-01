@@ -94,6 +94,14 @@ function safeSetPlist(plistPath, key, value) {
   }
 }
 
+function safeSetPlistBoolean(plistPath, key, value) {
+  try {
+    plist(`Set :${key} ${value ? "true" : "false"}`, plistPath);
+  } catch (error) {
+    plist(`Add :${key} bool ${value ? "true" : "false"}`, plistPath);
+  }
+}
+
 function ensureElectronTemplate() {
   if (fs.existsSync(sourceElectronApp)) return;
   console.log("Electron app template not found. Installing packaging dependencies...");
@@ -157,6 +165,7 @@ function writeMainPlist() {
   safeSetPlist(plistPath, "LSApplicationCategoryType", "public.app-category.developer-tools");
   safeSetPlist(plistPath, "NSCameraUsageDescription", "Openleaf does not use the camera.");
   safeSetPlist(plistPath, "NSMicrophoneUsageDescription", "Openleaf does not use the microphone.");
+  safeSetPlistBoolean(plistPath, "NSPrefersDisplaySafeAreaCompatibilityMode", false);
 }
 
 async function main() {

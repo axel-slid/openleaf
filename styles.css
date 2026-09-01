@@ -6780,6 +6780,11 @@ body.window-fullscreen .topbar {
   padding-left: 10px !important;
 }
 
+body.window-fullscreen .top-document-title-wrap,
+body.editor-immersive-fullscreen .top-document-title-wrap {
+  display: none !important;
+}
+
 body.window-fullscreen .project-back-button {
   justify-self: start !important;
 }

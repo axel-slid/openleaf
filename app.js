@@ -3776,7 +3776,7 @@ function refreshEditorFullscreenLayout() {
   });
 }
 
-function setEditorFullscreen(active) {
+function setEditorFullscreen(active, { syncWindow = true } = {}) {
   const next = Boolean(active);
   if (next === editorFullscreenActive) {
     updateEditorFullscreenButton();
@@ -3795,6 +3795,7 @@ function setEditorFullscreen(active) {
       compileLogMaximized: previewPane.classList.contains("log-maximized")
     };
     editorFullscreenActive = true;
+    document.body.classList.add("editor-immersive-fullscreen");
     workspace.classList.add("editor-fullscreen");
     sourcePane.classList.remove("terminal-maximized");
     previewPane.classList.remove("log-maximized");
@@ -3806,6 +3807,7 @@ function setEditorFullscreen(active) {
   } else {
     const snapshot = editorFullscreenSnapshot || {};
     editorFullscreenActive = false;
+    document.body.classList.remove("editor-immersive-fullscreen");
     workspace.classList.remove("editor-fullscreen");
     applyLayoutSettings({
       showSidebar: snapshot.showSidebar !== false,
@@ -3822,6 +3824,11 @@ function setEditorFullscreen(active) {
 
   updateEditorFullscreenButton();
   refreshEditorFullscreenLayout();
+  if (syncWindow && window.localOverleaf && typeof window.localOverleaf.setFullscreen === "function") {
+    void window.localOverleaf.setFullscreen(next).catch((error) => {
+      compileLog.textContent = `Could not ${next ? "enter" : "exit"} fullscreen: ${formatError(error)}`;
+    });
+  }
 }
 
 function applyPdfSidebarVisibility({ persist = true } = {}) {
@@ -6095,13 +6102,22 @@ function wireEvents() {
   });
 
   // Handle this on the editor input itself so Shift+Enter consistently wins
-  // over CodeMirror's newline handling in both normal and Vim modes.
+  // over CodeMirror's newline handling in both normal and Vim modes. Python
+  // keeps its run-cell behavior; every other project source compiles.
   editor.getInputField().addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || !event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (!isPythonExecutionFile()) return;
     event.preventDefault();
     event.stopPropagation();
-    void runActivePythonCell();
+    if (isPythonExecutionFile()) void runActivePythonCell();
+    else void compileManuscript({ manual: true });
+  }, true);
+
+  // Capture Ctrl+F before Vim/CodeMirror can interpret it as an editor command.
+  editor.getInputField().addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() !== "f" || !event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openFind();
   }, true);
 
   window.addEventListener("resize", () => {
@@ -6150,7 +6166,10 @@ function wireEvents() {
       if (command === "find-previous") findNextMatch(true);
       if (command === "history") openHistoryWindow();
       if (command === "fullscreen-enter") document.body.classList.add("window-fullscreen");
-      if (command === "fullscreen-leave") document.body.classList.remove("window-fullscreen");
+      if (command === "fullscreen-leave") {
+        document.body.classList.remove("window-fullscreen");
+        if (editorFullscreenActive) setEditorFullscreen(false, { syncWindow: false });
+      }
     });
   }
 }

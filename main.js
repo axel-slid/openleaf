@@ -182,6 +182,8 @@ function createWindow() {
     ...(process.platform === "darwin"
       ? {
           titleBarStyle: "hiddenInset",
+          fullscreenable: true,
+          simpleFullscreen: false,
           vibrancy: "under-window",
           visualEffectState: "active",
           trafficLightPosition: { x: 14, y: 13 }
@@ -349,10 +351,10 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function toggleFullscreen() {
+function toggleFullscreen(_event, requestedState) {
   const window = activeWindow();
   if (!window) return { fullscreen: false };
-  const next = !window.isFullScreen();
+  const next = typeof requestedState === "boolean" ? requestedState : !window.isFullScreen();
   window.setFullScreen(next);
   return { fullscreen: next };
 }
