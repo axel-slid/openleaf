@@ -183,7 +183,6 @@ function createWindow() {
       ? {
           titleBarStyle: "hiddenInset",
           fullscreenable: true,
-          simpleFullscreen: false,
           vibrancy: "under-window",
           visualEffectState: "active",
           trafficLightPosition: { x: 14, y: 13 }
@@ -354,9 +353,21 @@ function buildMenu() {
 function toggleFullscreen(_event, requestedState) {
   const window = activeWindow();
   if (!window) return { fullscreen: false };
-  const next = typeof requestedState === "boolean" ? requestedState : !window.isFullScreen();
-  window.setFullScreen(next);
-  return { fullscreen: next };
+  const current = process.platform === "darwin"
+    ? window.isSimpleFullScreen() || window.isFullScreen()
+    : window.isFullScreen();
+  const next = typeof requestedState === "boolean" ? requestedState : !current;
+
+  if (process.platform === "darwin") {
+    // Native fullscreen keeps transparent Electron windows inside the visible
+    // frame, leaving the camera-housing strip unused. Simple fullscreen uses
+    // the complete display frame so content can extend beside the notch.
+    if (!next && window.isFullScreen()) window.setFullScreen(false);
+    window.setSimpleFullScreen(next);
+  } else {
+    window.setFullScreen(next);
+  }
+  return { fullscreen: next, mode: process.platform === "darwin" ? "display-frame" : "native" };
 }
 
 function storePath() {
