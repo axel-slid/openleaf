@@ -183,6 +183,9 @@ function createWindow() {
       ? {
           titleBarStyle: "hiddenInset",
           fullscreenable: true,
+          // Route the macOS green traffic-light control through complete-display
+          // fullscreen so transparent windows extend beside the camera housing.
+          simpleFullscreen: true,
           vibrancy: "under-window",
           visualEffectState: "active",
           trafficLightPosition: { x: 14, y: 13 }
@@ -211,8 +214,30 @@ function createWindow() {
     return { action: "deny" };
   });
 
-  window.on("enter-full-screen", () => sendEditorCommand("fullscreen-enter", window));
-  window.on("leave-full-screen", () => sendEditorCommand("fullscreen-leave", window));
+  let reportedFullscreen = false;
+  const reportFullscreenState = () => {
+    const fullscreen = window.isFullScreen() || (process.platform === "darwin" && window.isSimpleFullScreen());
+    if (fullscreen === reportedFullscreen) return;
+    reportedFullscreen = fullscreen;
+    sendEditorCommand(fullscreen ? "fullscreen-enter" : "fullscreen-leave", window);
+  };
+  let convertingNativeFullscreen = false;
+  window.on("enter-full-screen", () => {
+    if (process.platform === "darwin" && !window.isSimpleFullScreen() && !convertingNativeFullscreen) {
+      convertingNativeFullscreen = true;
+      window.once("leave-full-screen", () => {
+        if (window.isDestroyed()) return;
+        window.setSimpleFullScreen(true);
+        convertingNativeFullscreen = false;
+        reportFullscreenState();
+      });
+      window.setFullScreen(false);
+      return;
+    }
+    reportFullscreenState();
+  });
+  window.on("leave-full-screen", reportFullscreenState);
+  window.on("resize", reportFullscreenState);
 
   window.on("closed", () => {
     killTerminalSessionsForWebContents(windowWebContentsId);

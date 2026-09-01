@@ -220,6 +220,8 @@ const minimapToggleButton = document.getElementById("minimapToggleButton");
 const editorFullscreenButton = document.getElementById("editorFullscreenButton");
 const editorTitle = document.getElementById("editorTitle");
 const activeDocumentTitle = document.getElementById("activeDocumentTitle");
+const fullscreenNotchTitle = document.getElementById("fullscreenNotchTitle");
+const fullscreenNotchTitleText = document.getElementById("fullscreenNotchTitleText");
 const editTitleButton = document.getElementById("editTitleButton");
 const topSaveStatusButton = document.getElementById("topSaveStatusButton");
 const topSaveStatusLabel = document.getElementById("topSaveStatusLabel");
@@ -2684,11 +2686,25 @@ async function init() {
   if (historyPanel && historyPanel.parentElement !== document.body) document.body.appendChild(historyPanel);
   setupSettings();
   setupSourceEditor();
+  setupFullscreenNotchTitle();
   setupTerminalPanel();
   setupPdfSpeech();
   wireEvents();
   await loadProjects();
   maybeStartOpenleafTour();
+}
+
+function setupFullscreenNotchTitle() {
+  if (!activeDocumentTitle || !fullscreenNotchTitleText) return;
+  const syncTitle = () => {
+    fullscreenNotchTitleText.textContent = activeDocumentTitle.textContent || "No document loaded";
+  };
+  syncTitle();
+  new MutationObserver(syncTitle).observe(activeDocumentTitle, {
+    childList: true,
+    characterData: true,
+    subtree: true
+  });
 }
 
 function defineBibtexMode() {
@@ -14578,7 +14594,7 @@ async function renderPdf({ showLoading = true, preserveView = false, preserveLog
 
       const textContent = await page.getTextContent();
       nextPageTextLines.set(pageNumber, buildPdfTextLines(textContent, viewport, pdfjsLib, pageNumber));
-      pageShell.addEventListener("click", (event) => jumpToSourceFromPdfClick(event, pageNumber));
+      pageShell.addEventListener("dblclick", (event) => jumpToSourceFromPdfClick(event, pageNumber));
 
       pageShell.appendChild(canvas);
       if (pageNumber <= 2) {
@@ -16932,7 +16948,11 @@ function pdfWordBoxCorners(item, advanceStart, advanceEnd) {
 }
 
 function jumpToSourceFromPdfClick(event, pageNumber) {
-  if (!activeProject || event.defaultPrevented) return;
+  if (!activeProject) return;
+
+  const eventTarget = event.target instanceof Element ? event.target : null;
+  if (eventTarget && eventTarget.closest("a, button, input, select, textarea")) return;
+  event.preventDefault();
 
   const pageShell = event.currentTarget;
   const canvas = pageShell.querySelector("canvas");
