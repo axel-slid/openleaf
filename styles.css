@@ -6777,7 +6777,11 @@ body.transparent-theme #compileLog {
 
 /* Final current-turn overrides. */
 body.window-fullscreen .topbar {
-  padding-left: 42px !important;
+  padding-left: 120px !important;
+}
+
+body.window-fullscreen .pptx-topbar {
+  padding-left: 120px !important;
 }
 
 body.window-fullscreen,
@@ -6927,7 +6931,7 @@ body.window-fullscreen .fullscreen-traffic-lights {
 }
 
 body.window-fullscreen .project-back-button {
-  display: none !important;
+  display: inline-flex !important;
 }
 
 .project-tools {
