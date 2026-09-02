@@ -6777,7 +6777,17 @@ body.transparent-theme #compileLog {
 
 /* Final current-turn overrides. */
 body.window-fullscreen .topbar {
-  padding-left: 10px !important;
+  padding-left: 42px !important;
+}
+
+body.window-fullscreen,
+body.window-fullscreen .app,
+body.window-fullscreen .project-screen,
+body.window-fullscreen .editor-screen {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
 }
 
 body.window-fullscreen .top-document-title-wrap,
@@ -6831,24 +6841,81 @@ body.editor-immersive-fullscreen .fullscreen-notch-title {
   transform: translate(-50%, 0);
 }
 
-.fullscreen-exit-traffic-light {
-  background: #28c840;
-  border: 0;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.06);
+.fullscreen-top-reveal {
   display: none;
-  height: 14px;
-  left: 72px;
-  padding: 0;
+}
+
+body.window-fullscreen .fullscreen-top-reveal {
+  display: block;
+  height: 9px;
+  left: 0;
   position: fixed;
-  top: 13px;
-  width: 14px;
+  right: 0;
+  top: 0;
   z-index: 10001;
   -webkit-app-region: no-drag;
 }
 
-body.window-fullscreen .fullscreen-exit-traffic-light {
+.fullscreen-traffic-lights {
+  align-items: center;
+  backdrop-filter: blur(18px) saturate(150%);
+  background: rgba(246, 246, 248, 0.88);
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  border-radius: 999px;
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.16);
+  display: flex;
+  gap: 8px;
+  left: 10px;
+  opacity: 0;
+  padding: 7px 9px;
+  position: absolute;
+  top: 7px;
+  transform: translateY(-8px);
+  transition: opacity 130ms ease, transform 150ms ease;
+  -webkit-app-region: no-drag;
+}
+
+body[data-theme="dark"] .fullscreen-traffic-lights {
+  background: rgba(24, 24, 27, 0.82);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28);
+}
+
+body.window-fullscreen .fullscreen-traffic-lights {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fullscreen-top-reveal:hover .fullscreen-traffic-lights,
+.fullscreen-top-reveal:focus-within .fullscreen-traffic-lights {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fullscreen-traffic-light,
+.fullscreen-exit-traffic-light {
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.06);
   display: block;
+  flex: 0 0 auto;
+  height: 14px;
+  padding: 0;
+  width: 14px;
+  -webkit-app-region: no-drag;
+}
+
+.fullscreen-traffic-light-close {
+  background: #ff5f57;
+}
+
+.fullscreen-traffic-light-minimize {
+  background: #febc2e;
+}
+
+.fullscreen-exit-traffic-light {
+  background: #28c840 !important;
+  position: relative;
 }
 
 .fullscreen-exit-traffic-light:hover {
@@ -6865,12 +6932,16 @@ body.window-fullscreen .fullscreen-exit-traffic-light {
   text-align: center;
 }
 
+body.window-fullscreen .fullscreen-exit-traffic-light::after {
+  opacity: 0.62;
+}
+
 .fullscreen-exit-traffic-light:hover::after {
   opacity: 1;
 }
 
 body.window-fullscreen .project-back-button {
-  justify-self: start !important;
+  display: none !important;
 }
 
 .project-tools {
@@ -7726,13 +7797,13 @@ body[data-contrast="high"] .log-collapsed-rail::before {
 }
 
 .terminal-workbench {
-  grid-template-columns: minmax(0, 1fr) 5px var(--terminal-tabs-width, 184px) !important;
+  grid-template-columns: minmax(0, 1fr) 8px var(--terminal-tabs-width, 184px) !important;
 }
 
 .terminal-tabs-resize-handle {
   background: color-mix(in srgb, var(--border) 70%, transparent);
   cursor: col-resize;
-  min-width: 5px;
+  min-width: 8px;
   position: relative;
 }
 
@@ -10124,10 +10195,10 @@ body.transparent-theme .settings-backdrop:not([hidden]) {
 
 .openleaf-tour-step-label {
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
 }
 
 .openleaf-tour-card h2 {
@@ -12603,8 +12674,16 @@ body.is-resizing-notes .notes-resize-handle::before {
 
 .splitter::before {
   background: color-mix(in srgb, var(--accent) 38%, var(--cm-text)) !important;
-  height: 64px !important;
+  height: 42px !important;
   opacity: 0.82;
+  width: 3px !important;
+}
+
+.file-splitter::before,
+.workspace > .splitter::before,
+.terminal-tabs-resize-handle::before,
+.notes-panel.notes-open .notes-resize-handle::before {
+  height: 42px !important;
   width: 3px !important;
 }
 
@@ -15786,5 +15865,69 @@ body[data-theme="dark"] .pdf-viewer.pdf-dark-render .pdf-page canvas.pdf-canvas-
   .pdf-speech-pill {
     gap: 0 !important;
     padding: 2px !important;
+  }
+}
+
+/* Keep the PDF surface distinct from the source and Notes, including when the
+   PDF is collapsed to its vertical rail. These rules intentionally live last
+   so older rail compatibility styles cannot erase the second divider. */
+.preview-rail {
+  border-left: 1px solid color-mix(in srgb, var(--text) 34%, var(--border-strong)) !important;
+  border-right: 1px solid color-mix(in srgb, var(--text) 34%, var(--border-strong)) !important;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.workspace:not(.pdf-hidden) .preview-pane {
+  border-left-color: color-mix(in srgb, var(--text) 30%, var(--border-strong)) !important;
+}
+
+.preview-pane .pane-header {
+  border-bottom-color: color-mix(in srgb, var(--text) 28%, var(--border-strong)) !important;
+}
+
+body[data-theme="light"] .pdf-page canvas {
+  outline-color: color-mix(in srgb, var(--text) 28%, var(--border-strong)) !important;
+}
+
+body.high-contrast .preview-rail,
+body[data-contrast="high"] .preview-rail {
+  border-left-width: 2px !important;
+  border-right-width: 2px !important;
+  border-color: var(--text) !important;
+}
+
+body.high-contrast .workspace:not(.pdf-hidden) .preview-pane,
+body[data-contrast="high"] .workspace:not(.pdf-hidden) .preview-pane,
+body.high-contrast .preview-pane .pane-header,
+body[data-contrast="high"] .preview-pane .pane-header {
+  border-color: var(--text) !important;
+}
+
+/* Center the compact PDF reader control geometrically, then nudge the play
+   triangle one pixel right for optical centering inside its circle. */
+.pdf-speech-controls {
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.pdf-speech-pill {
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.pdf-speech-button {
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.pdf-speech-play-icon {
+  transform: translateX(1px);
+}
+
+@container pdf-toolbar (max-width: 650px) {
+  .pdf-speech-pill {
+    justify-content: center;
+    width: 100% !important;
   }
 }

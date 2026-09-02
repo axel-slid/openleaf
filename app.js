@@ -222,6 +222,9 @@ const editorTitle = document.getElementById("editorTitle");
 const activeDocumentTitle = document.getElementById("activeDocumentTitle");
 const fullscreenNotchTitle = document.getElementById("fullscreenNotchTitle");
 const fullscreenNotchTitleText = document.getElementById("fullscreenNotchTitleText");
+const fullscreenTopReveal = document.getElementById("fullscreenTopReveal");
+const fullscreenCloseTrafficLight = document.getElementById("fullscreenCloseTrafficLight");
+const fullscreenMinimizeTrafficLight = document.getElementById("fullscreenMinimizeTrafficLight");
 const fullscreenExitTrafficLight = document.getElementById("fullscreenExitTrafficLight");
 const editTitleButton = document.getElementById("editTitleButton");
 const topSaveStatusButton = document.getElementById("topSaveStatusButton");
@@ -2685,7 +2688,7 @@ async function init() {
   hiddenBuiltInTemplates = readHiddenBuiltInTemplates();
   defineBibtexMode();
   if (historyPanel && historyPanel.parentElement !== document.body) document.body.appendChild(historyPanel);
-  if (fullscreenExitTrafficLight && fullscreenExitTrafficLight.parentElement !== document.body) document.body.appendChild(fullscreenExitTrafficLight);
+  if (fullscreenTopReveal && fullscreenTopReveal.parentElement !== document.body) document.body.appendChild(fullscreenTopReveal);
   setupSettings();
   setupSourceEditor();
   setupFullscreenNotchTitle();
@@ -5538,47 +5541,47 @@ function openDocumentationSettings() {
 const OPENLEAF_TOUR_STEPS = [
   {
     title: "Welcome to Openleaf",
-    copy: "A private, local workspace for papers, readings, PDFs, presentations, and AI-assisted research. Here are the 10 features worth knowing first."
-  },
-  {
-    selector: "#addProjectButton",
-    title: "Create or import anything",
-    copy: "Start a blank paper or bring in an existing TeX file, project folder, archive, or PowerPoint deck. Your original files stay on your Mac."
-  },
-  {
-    selector: "#templatesButton",
-    title: "Begin with a real template",
-    copy: "Use academic paper, thesis, poster, résumé, and presentation starters, then keep your own templates beside them."
-  },
-  {
-    selector: "#projectSearch",
-    title: "Find work instantly",
-    copy: "Search every project from Home. Favorite, sort, and switch between grid and compact list views without opening files one by one."
-  },
-  {
-    selector: ".project-collection-card, #projectGrid",
-    title: "Organize subjects and divisions",
-    copy: "Drag one project onto another to create an Apple-style subject folder. Open it to add divisions such as Readings, Notes, and Assignments."
+    copy: "This guided tour runs inside a real sample project. It is yours to edit, compile, and experiment with as we walk through the workspace."
   },
   {
     selector: ".file-pane, #fileRailButton",
-    title: "A complete project file tree",
-    copy: "Create, rename, duplicate, move, and import project files. PDFs inside a reading folder are available directly from the PDF title menu."
+    title: "Explore the sample files",
+    copy: "Open the Files rail to see main.tex and the sample bibliography. This is the same project tree you will use for figures and supporting files."
   },
   {
     selector: ".toolbar-segment, #visualModeButton",
-    title: "Code and Visual editing",
-    copy: "Switch between precise source editing and a structured visual manuscript view. Your content remains the same in both modes."
+    title: "Switch between Code and Visual",
+    copy: "Use Code for exact LaTeX and Visual for structured editing. Both modes edit the same sample document, so you can switch whenever it helps."
+  },
+  {
+    selector: ".CodeMirror, #sourceEditor",
+    title: "Make a real source edit",
+    copy: "Change a sentence in main.tex. Press Command+F to find text, and Shift+Enter when you are ready to compile your edit."
   },
   {
     selector: "#compileButton",
-    title: "Compile locally",
-    copy: "Build the current document with one click. Openleaf keeps the PDF, log, and source side by side and only refreshes what changed."
+    title: "Compile the sample locally",
+    copy: "Compile builds this project on your Mac and refreshes the PDF beside the source. The sample is already valid, so you can try it immediately."
+  },
+  {
+    selector: ".preview-pane, #previewRailButton",
+    title: "Source and PDF stay connected",
+    copy: "The compiled sample appears beside its LaTeX. Double-click a PDF word to jump to the matching source, then keep writing from there."
   },
   {
     selector: "#pdfSpeechControls",
-    title: "Read with synchronized speech",
-    copy: "The local Adam voice pre-analyzes the PDF, tracks real progress, highlights each word, and pauses or resumes with Space when you are not typing."
+    title: "Read the sample aloud",
+    copy: "Use synchronized speech to follow the sample PDF word by word. Space pauses or resumes playback whenever you are not typing."
+  },
+  {
+    selector: ".terminal-panel, #terminalCollapsedButton",
+    title: "Use the project terminal",
+    copy: "Open Terminal for commands, Codex, or another shell rooted in this sample project. Its resize handle matches the other workspace dividers."
+  },
+  {
+    selector: ".notes-panel, #notesRailButton",
+    title: "Keep notes beside the document",
+    copy: "Open Notes to capture ideas while reading the sample. Resize it with the same consistent pill used by the center and Files dividers."
   },
   {
     selector: ".settingsButton, #helpButton",
@@ -5587,14 +5590,159 @@ const OPENLEAF_TOUR_STEPS = [
   }
 ];
 
+const OPENLEAF_TUTORIAL_SOURCE_MARKER = "% OPENLEAF_TUTORIAL_VERSION: 2";
+const OPENLEAF_TUTORIAL_SOURCE = String.raw`% OPENLEAF_TUTORIAL_VERSION: 2
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue]{hyperref}
+
+\title{Your First Openleaf Project}
+\author{Openleaf Tutorial}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This sample project is a safe place to explore editing, compiling, PDF navigation, notes, and the terminal.
+\end{abstract}
+
+\section{Start editing}
+Change this sentence, then press Shift+Enter to compile the PDF.
+
+\section{A small equation}\label{sec:equation}
+Openleaf keeps source and output together:
+\begin{equation}
+  e^{i\pi} + 1 = 0.
+\end{equation}
+
+\section{Things to try}
+\begin{itemize}
+  \item Press Command+F to find text in the LaTeX source.
+  \item Double-click a word in the PDF to jump back to its source.
+  \item Open Files, Notes, and Terminal and resize their matching handles.
+\end{itemize}
+
+\section{A callout and a table}
+\noindent\fcolorbox{blue!55}{blue!6}{%
+  \parbox{0.9\linewidth}{\textbf{Tip.} Source and PDF remain linked, so a small edit is easy to find on both sides.}%
+}
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    Feature & Shortcut & Result \\
+    \midrule
+    Find & Command+F & Search the source \\
+    Compile & Shift+Enter & Refresh the PDF \\
+    Source jump & Double-click & Locate matching LaTeX \\
+    \bottomrule
+  \end{tabular}
+  \caption{A few things to try in this project.}
+\end{table}
+
+\newpage
+\section{References, links, and code}
+Sections can link to each other; see the equation in Section~\ref{sec:equation}. You can also add a \href{https://www.latex-project.org}{web link}.
+
+\begin{verbatim}
+% LaTeX comments stay in source but do not appear in the PDF.
+\textbf{This text would be bold.}
+\end{verbatim}
+
+\section{Next steps}
+Replace this sample with your own idea, or return to Projects and create a new paper from a template.
+
+\end{document}
+`;
+
+function upgradeOpenleafTutorialSource(source) {
+  const current = String(source || "");
+  if (current.includes(OPENLEAF_TUTORIAL_SOURCE_MARKER)) return current;
+  if (!current.includes("\\title{Your First Openleaf Project}")) return current;
+  const expansion = String.raw`
+\section{A callout and a table}
+\noindent\fcolorbox{blue!55}{blue!6}{\parbox{0.9\linewidth}{\textbf{Tip.} Source and PDF remain linked, so a small edit is easy to find on both sides.}}
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    Feature & Shortcut & Result \\
+    \midrule
+    Find & Command+F & Search the source \\
+    Compile & Shift+Enter & Refresh the PDF \\
+    Source jump & Double-click & Locate matching LaTeX \\
+    \bottomrule
+  \end{tabular}
+  \caption{A few things to try in this project.}
+\end{table}
+
+\newpage
+\section{Links and code}
+Add links, tables, callouts, equations, lists, and code to make the sample your own.
+\begin{verbatim}
+% Comments stay in source but do not appear in the PDF.
+\textbf{This text would be bold.}
+\end{verbatim}
+`;
+  let upgraded = current
+    .replaceAll("Control+F", "Command+F")
+    .replace("\\usepackage{amsmath}", "\\usepackage{amsmath}\n\\usepackage{booktabs}\n\\usepackage{xcolor}")
+    .replace("\\end{document}", `${expansion}\n\\end{document}`);
+  upgraded = `${OPENLEAF_TUTORIAL_SOURCE_MARKER}\n${upgraded}`;
+  return upgraded;
+}
+
+async function prepareOpenleafTutorialProject() {
+  if (!window.localOverleaf || window.localOverleaf.isTestRuntime) return;
+  const storedId = localStorage.getItem("openleafTutorialProjectId") || "";
+  let project = projects.find((item) => item.id === storedId);
+  let created = false;
+
+  if (!project) {
+    const result = await window.localOverleaf.createProjectFromTemplate("research-article");
+    projects = result.projects || projects;
+    project = result.project || null;
+    if (!project) throw new Error("Could not create the Openleaf tutorial project.");
+    const renamed = await window.localOverleaf.renameProject(project.id, "Openleaf Tutorial");
+    projects = renamed.projects || projects;
+    project = projects.find((item) => item.id === project.id) || project;
+    localStorage.setItem("openleafTutorialProjectId", project.id);
+    created = true;
+  }
+
+  if (activeProject && activeProject.id !== project.id && getSourceText() !== savedText) await saveManuscript();
+  if (!activeProject || activeProject.id !== project.id || editorScreen.hidden) await openProject(project.id);
+
+  const tutorialSource = created ? OPENLEAF_TUTORIAL_SOURCE : upgradeOpenleafTutorialSource(getSourceText());
+  if (tutorialSource !== getSourceText()) {
+    editor.setValue(tutorialSource);
+    handleSourceChanged({ renderVisual: true });
+    await saveManuscript();
+    await compileManuscript({ manual: false });
+  }
+}
+
 function maybeStartOpenleafTour() {
   if (window.localOverleaf && window.localOverleaf.isTestRuntime) return;
   if (localStorage.getItem("openleafWelcomeTourVersion") === "1") return;
   setTimeout(() => startOpenleafTour(), 650);
 }
 
-function startOpenleafTour() {
+async function startOpenleafTour() {
   closeOpenleafTour({ remember: false });
+  if (window.localOverleaf && !window.localOverleaf.isTestRuntime) {
+    try {
+      await prepareOpenleafTutorialProject();
+    } catch (error) {
+      console.warn("Could not prepare the tutorial project.", error);
+    }
+  }
   openleafTourOverlay = document.createElement("section");
   openleafTourOverlay.className = "openleaf-tour-overlay";
   openleafTourOverlay.setAttribute("role", "dialog");
@@ -5643,12 +5791,24 @@ function visibleTourTarget(selector) {
   }) || null;
 }
 
+function prepareOpenleafTourStep(index) {
+  if (index === 1) setFileSidebarVisible(true, { persist: false });
+  if (index < 7) setTerminalCollapsed(true, { persist: false });
+  if (index === 5 || index === 6) setPdfCollapsed(false, { persist: false });
+  if (index === 7) setTerminalCollapsed(false, { persist: false });
+  if (index === 8) {
+    const panel = document.getElementById("notesPanel");
+    const rail = document.getElementById("notesRailButton");
+    if (panel && rail && !panel.classList.contains("notes-open")) rail.click();
+  }
+}
+
 function showOpenleafTourStep(index) {
   if (!openleafTourOverlay) return;
   openleafTourStepIndex = clampNumber(index, 0, OPENLEAF_TOUR_STEPS.length - 1, 0);
   const step = OPENLEAF_TOUR_STEPS[openleafTourStepIndex];
   const card = openleafTourOverlay.querySelector(".openleaf-tour-card");
-  card.querySelector(".openleaf-tour-step-label").textContent = `Feature ${openleafTourStepIndex + 1} of ${OPENLEAF_TOUR_STEPS.length}`;
+  card.querySelector(".openleaf-tour-step-label").textContent = `${openleafTourStepIndex + 1}/${OPENLEAF_TOUR_STEPS.length}`;
   card.querySelector("h2").textContent = step.title;
   card.querySelector("p").textContent = step.copy;
   card.querySelector(".openleaf-tour-dots").innerHTML = OPENLEAF_TOUR_STEPS.map((_item, dotIndex) => (
@@ -5656,7 +5816,10 @@ function showOpenleafTourStep(index) {
   )).join("");
   card.querySelector(".openleaf-tour-back").disabled = openleafTourStepIndex === 0;
   card.querySelector(".openleaf-tour-next").textContent = openleafTourStepIndex === OPENLEAF_TOUR_STEPS.length - 1 ? "Start using Openleaf" : "Next";
+  prepareOpenleafTourStep(openleafTourStepIndex);
   positionOpenleafTour();
+  requestAnimationFrame(() => requestAnimationFrame(positionOpenleafTour));
+  setTimeout(positionOpenleafTour, 260);
   card.querySelector(".openleaf-tour-next").focus({ preventScroll: true });
 }
 
@@ -5677,19 +5840,40 @@ function positionOpenleafTour() {
   }
   spotlight.hidden = false;
   const targetBounds = target.getBoundingClientRect();
-  spotlight.style.left = `${Math.max(8, targetBounds.left - 7)}px`;
-  spotlight.style.top = `${Math.max(8, targetBounds.top - 7)}px`;
-  spotlight.style.width = `${Math.min(window.innerWidth - 16, targetBounds.width + 14)}px`;
-  spotlight.style.height = `${Math.min(window.innerHeight - 16, targetBounds.height + 14)}px`;
+  const spotlightLeft = Math.max(8, targetBounds.left - 7);
+  const spotlightTop = Math.max(8, targetBounds.top - 7);
+  spotlight.style.left = `${spotlightLeft}px`;
+  spotlight.style.top = `${spotlightTop}px`;
+  spotlight.style.width = `${Math.max(1, Math.min(window.innerWidth - spotlightLeft - 8, targetBounds.width + 14))}px`;
+  spotlight.style.height = `${Math.max(1, Math.min(window.innerHeight - spotlightTop - 8, targetBounds.height + 14))}px`;
   card.style.transform = "none";
   const cardBounds = card.getBoundingClientRect();
-  const belowTop = targetBounds.bottom + gap;
-  const top = belowTop + cardBounds.height <= window.innerHeight - margin
-    ? belowTop
-    : Math.max(margin, targetBounds.top - cardBounds.height - gap);
-  const left = clampNumber(targetBounds.left + targetBounds.width / 2 - cardBounds.width / 2, margin, window.innerWidth - cardBounds.width - margin, margin);
-  card.style.left = `${Math.round(left)}px`;
-  card.style.top = `${Math.round(top)}px`;
+  const centeredTop = targetBounds.top + targetBounds.height / 2 - cardBounds.height / 2;
+  const centeredLeft = targetBounds.left + targetBounds.width / 2 - cardBounds.width / 2;
+  const clampedTop = clampNumber(centeredTop, margin, window.innerHeight - cardBounds.height - margin, margin);
+  const clampedLeft = clampNumber(centeredLeft, margin, window.innerWidth - cardBounds.width - margin, margin);
+  const candidates = [
+    { left: targetBounds.right + gap, top: centeredTop },
+    { left: targetBounds.left - cardBounds.width - gap, top: centeredTop },
+    { left: centeredLeft, top: targetBounds.bottom + gap },
+    { left: centeredLeft, top: targetBounds.top - cardBounds.height - gap },
+    { left: targetBounds.right + gap, top: clampedTop },
+    { left: targetBounds.left - cardBounds.width - gap, top: clampedTop },
+    { left: clampedLeft, top: targetBounds.bottom + gap },
+    { left: clampedLeft, top: targetBounds.top - cardBounds.height - gap }
+  ];
+  const fits = (candidate) => (
+    candidate.left >= margin
+    && candidate.top >= margin
+    && candidate.left + cardBounds.width <= window.innerWidth - margin
+    && candidate.top + cardBounds.height <= window.innerHeight - margin
+  );
+  const chosen = candidates.find(fits) || {
+    left: clampNumber(targetBounds.right + gap, margin, window.innerWidth - cardBounds.width - margin, margin),
+    top: clampNumber(centeredTop, margin, window.innerHeight - cardBounds.height - margin, margin)
+  };
+  card.style.left = `${Math.round(chosen.left)}px`;
+  card.style.top = `${Math.round(chosen.top)}px`;
 }
 
 function wireEvents() {
@@ -5712,6 +5896,8 @@ function wireEvents() {
   redoButton.addEventListener("click", () => editor.redo());
   if (minimapToggleButton) minimapToggleButton.addEventListener("click", () => setMinimapVisible(!minimapVisible));
   if (editorFullscreenButton) editorFullscreenButton.addEventListener("click", () => setEditorFullscreen(!editorFullscreenActive));
+  if (fullscreenCloseTrafficLight) fullscreenCloseTrafficLight.addEventListener("click", () => window.localOverleaf && window.localOverleaf.closeWindow());
+  if (fullscreenMinimizeTrafficLight) fullscreenMinimizeTrafficLight.addEventListener("click", () => window.localOverleaf && window.localOverleaf.minimizeWindow());
   if (fullscreenExitTrafficLight) fullscreenExitTrafficLight.addEventListener("click", exitWindowFullscreen);
   if (fileHeaderRefreshButton) fileHeaderRefreshButton.addEventListener("click", refreshActiveProject);
   newFileButton.addEventListener("click", () => createProjectFile("file"));

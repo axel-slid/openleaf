@@ -187,6 +187,50 @@ function restoreWindowToVisibleDisplay(window, fallbackBounds = widestDisplayWin
   if (!windowBoundsAreVisible(window.getBounds())) window.setBounds(fallbackBounds, false);
 }
 
+function setDisplayFrameAppearance(window, active) {
+  if (!window || window.isDestroyed()) return;
+  // Simple fullscreen is still a normal Cocoa window. Its regular shadow is
+  // otherwise rendered as a bright one-pixel frame at the display edges.
+  window.setHasShadow(!active);
+  // The renderer supplies its own compact, theme-aware traffic-light pill in
+  // display-frame fullscreen. Hide Cocoa's controls so its green button does
+  // not sit underneath that pill, then restore all native controls on exit.
+  if (process.platform === "darwin" && typeof window.setWindowButtonVisibility === "function") {
+    window.setWindowButtonVisibility(!active);
+    if (typeof window.setTrafficLightPosition === "function") {
+      window.setTrafficLightPosition(active ? { x: -120, y: -120 } : { x: 14, y: 13 });
+    }
+  }
+}
+
+function displayFrameBounds(display) {
+  // Cocoa keeps a hairline frame even when a window shadow is disabled. Bleed
+  // the simple-fullscreen window past the display by two points so that native
+  // frame is off-screen and the renderer reaches every physical edge.
+  const bleed = 2;
+  return {
+    x: display.bounds.x - bleed,
+    y: display.bounds.y - bleed,
+    width: display.bounds.width + bleed * 2,
+    height: display.bounds.height + bleed * 2
+  };
+}
+
+function applyDisplayFrameBounds(window, display) {
+  const bounds = displayFrameBounds(display);
+  const apply = () => {
+    if (!window || window.isDestroyed() || !window.openleafDisplayFrameFullscreen || !window.isSimpleFullScreen()) return;
+    // Cocoa can restore its traffic lights while the simple-fullscreen
+    // transition settles, so reassert the custom-pill appearance too.
+    setDisplayFrameAppearance(window, true);
+    window.setBounds(bounds, false);
+  };
+  // Cocoa adjusts the window more than once during the green-button
+  // transition, so keep the edge bleed in place as that transition settles.
+  apply();
+  [50, 250, 750].forEach((delay) => setTimeout(apply, delay));
+}
+
 function createWindow() {
   const windowBounds = widestDisplayWindowBounds(1520, 980);
   const window = new BrowserWindow({
@@ -248,10 +292,15 @@ function createWindow() {
 
   window.openleafNormalBounds = windowBounds;
   window.openleafConvertingFullscreen = false;
+  window.openleafDisplayFrameFullscreen = false;
   window.on("will-enter-full-screen", () => {
-    window.openleafNormalBounds = window.getBounds();
+    if (!window.openleafDisplayFrameFullscreen) window.openleafNormalBounds = window.getBounds();
   });
   window.on("enter-full-screen", () => {
+    if (process.platform === "darwin" && window.openleafDisplayFrameFullscreen) {
+      sendEditorCommand("fullscreen-enter", window);
+      return;
+    }
     if (process.platform === "darwin" && !window.openleafConvertingFullscreen) {
       window.openleafConvertingFullscreen = true;
       window.setFullScreen(false);
@@ -263,12 +312,20 @@ function createWindow() {
     if (process.platform === "darwin" && window.openleafConvertingFullscreen) {
       const display = screen.getAllDisplays().find((candidate) => candidate.internal)
         || screen.getDisplayMatching(window.openleafNormalBounds || windowBounds);
+      setDisplayFrameAppearance(window, true);
+      window.openleafDisplayFrameFullscreen = true;
       window.setSimpleFullScreen(true);
-      window.setBounds(display.bounds, false);
+      applyDisplayFrameBounds(window, display);
       window.openleafConvertingFullscreen = false;
       sendEditorCommand("fullscreen-enter", window);
       return;
     }
+    if (process.platform === "darwin" && window.openleafDisplayFrameFullscreen) {
+      sendEditorCommand("fullscreen-enter", window);
+      return;
+    }
+    window.openleafDisplayFrameFullscreen = false;
+    setDisplayFrameAppearance(window, false);
     sendEditorCommand("fullscreen-leave", window);
     setTimeout(() => {
       if (!window || window.isDestroyed() || window.isFullScreen()) return;
@@ -428,12 +485,16 @@ function toggleFullscreen(event, requestedState) {
       window.openleafNormalBounds = window.isSimpleFullScreen() ? window.openleafNormalBounds : window.getBounds();
       const display = screen.getAllDisplays().find((candidate) => candidate.internal)
         || screen.getDisplayMatching(window.openleafNormalBounds);
+      setDisplayFrameAppearance(window, true);
+      window.openleafDisplayFrameFullscreen = true;
       if (!window.isSimpleFullScreen()) window.setSimpleFullScreen(true);
-      window.setBounds(display.bounds, false);
+      applyDisplayFrameBounds(window, display);
       sendEditorCommand("fullscreen-enter", window);
     } else {
+      window.openleafDisplayFrameFullscreen = false;
       if (window.isFullScreen()) window.setFullScreen(false);
       if (window.isSimpleFullScreen()) window.setSimpleFullScreen(false);
+      setDisplayFrameAppearance(window, false);
       const normalBounds = window.openleafNormalBounds || widestDisplayWindowBounds(1520, 980);
       window.setBounds(windowBoundsAreVisible(normalBounds) ? normalBounds : widestDisplayWindowBounds(1520, 980), false);
       sendEditorCommand("fullscreen-leave", window);
@@ -443,6 +504,29 @@ function toggleFullscreen(event, requestedState) {
 
   if (window.isFullScreen() !== next) window.setFullScreen(next);
   return { fullscreen: next, mode: "native" };
+}
+
+function closeWindow(event) {
+  const window = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+  if (!window || window.isDestroyed()) return { closed: false };
+  setImmediate(() => {
+    if (!window.isDestroyed()) window.close();
+  });
+  return { closed: true };
+}
+
+function minimizeWindow(event) {
+  const window = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+  if (!window || window.isDestroyed()) return { minimized: false };
+  if (process.platform === "darwin" && window.openleafDisplayFrameFullscreen) {
+    toggleFullscreen(event, false);
+    setTimeout(() => {
+      if (!window.isDestroyed()) window.minimize();
+    }, 180);
+  } else {
+    window.minimize();
+  }
+  return { minimized: true };
 }
 
 function storePath() {
@@ -4811,6 +4895,8 @@ ipcMain.handle("download-project-package", downloadProjectPackage);
 ipcMain.handle("push-project-to-github", pushProjectToGithub);
 ipcMain.handle("pull-project-from-github", pullProjectFromGithub);
 ipcMain.handle("list-ssh-hosts", listSshHosts);
+ipcMain.handle("close-window", closeWindow);
+ipcMain.handle("minimize-window", minimizeWindow);
 ipcMain.handle("toggle-fullscreen", toggleFullscreen);
 ipcMain.handle("open-external-link", openExternalLink);
 ipcMain.handle("open-history-window", openHistoryWindow);

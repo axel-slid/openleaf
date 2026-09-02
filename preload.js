@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("localOverleaf", {
   pushProjectToGithub: (projectId, options = {}) => ipcRenderer.invoke("push-project-to-github", { projectId, ...options }),
   pullProjectFromGithub: (projectId, options = {}) => ipcRenderer.invoke("pull-project-from-github", { projectId, ...options }),
   listSshHosts: () => ipcRenderer.invoke("list-ssh-hosts"),
+  closeWindow: () => ipcRenderer.invoke("close-window"),
+  minimizeWindow: () => ipcRenderer.invoke("minimize-window"),
   toggleFullscreen: () => ipcRenderer.invoke("toggle-fullscreen"),
   setFullscreen: (fullscreen) => ipcRenderer.invoke("toggle-fullscreen", Boolean(fullscreen)),
   load: (projectId, relativePath) => ipcRenderer.invoke("load-manuscript", { projectId, relativePath }),

@@ -154,7 +154,13 @@
       <div id="fullscreenNotchTitle" class="fullscreen-notch-title" aria-hidden="true">
         <span id="fullscreenNotchTitleText">No document loaded</span>
       </div>
-      <button id="fullscreenExitTrafficLight" class="fullscreen-exit-traffic-light" type="button" aria-label="Exit full screen" title="Exit full screen"></button>
+      <div id="fullscreenTopReveal" class="fullscreen-top-reveal" aria-label="Window controls">
+        <div class="fullscreen-traffic-lights">
+          <button id="fullscreenCloseTrafficLight" class="fullscreen-traffic-light fullscreen-traffic-light-close" type="button" aria-label="Close window" title="Close window"></button>
+          <button id="fullscreenMinimizeTrafficLight" class="fullscreen-traffic-light fullscreen-traffic-light-minimize" type="button" aria-label="Minimize window" title="Minimize window"></button>
+          <button id="fullscreenExitTrafficLight" class="fullscreen-exit-traffic-light" type="button" aria-label="Exit full screen" title="Exit full screen"></button>
+        </div>
+      </div>
 
       <main class="workspace" id="workspace">
         <div id="fileRail" class="file-rail" hidden>
