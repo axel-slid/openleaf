@@ -222,6 +222,7 @@ const editorTitle = document.getElementById("editorTitle");
 const activeDocumentTitle = document.getElementById("activeDocumentTitle");
 const fullscreenNotchTitle = document.getElementById("fullscreenNotchTitle");
 const fullscreenNotchTitleText = document.getElementById("fullscreenNotchTitleText");
+const fullscreenExitTrafficLight = document.getElementById("fullscreenExitTrafficLight");
 const editTitleButton = document.getElementById("editTitleButton");
 const topSaveStatusButton = document.getElementById("topSaveStatusButton");
 const topSaveStatusLabel = document.getElementById("topSaveStatusLabel");
@@ -2684,6 +2685,7 @@ async function init() {
   hiddenBuiltInTemplates = readHiddenBuiltInTemplates();
   defineBibtexMode();
   if (historyPanel && historyPanel.parentElement !== document.body) document.body.appendChild(historyPanel);
+  if (fullscreenExitTrafficLight && fullscreenExitTrafficLight.parentElement !== document.body) document.body.appendChild(fullscreenExitTrafficLight);
   setupSettings();
   setupSourceEditor();
   setupFullscreenNotchTitle();
@@ -2699,9 +2701,6 @@ function setupFullscreenNotchTitle() {
   const syncTitle = () => {
     const title = activeDocumentTitle.textContent || "No document loaded";
     fullscreenNotchTitleText.textContent = title;
-    if (window.localOverleaf && typeof window.localOverleaf.setFullscreenDocumentTitle === "function") {
-      window.localOverleaf.setFullscreenDocumentTitle(title);
-    }
   };
   syncTitle();
   new MutationObserver(syncTitle).observe(activeDocumentTitle, {
@@ -5713,6 +5712,7 @@ function wireEvents() {
   redoButton.addEventListener("click", () => editor.redo());
   if (minimapToggleButton) minimapToggleButton.addEventListener("click", () => setMinimapVisible(!minimapVisible));
   if (editorFullscreenButton) editorFullscreenButton.addEventListener("click", () => setEditorFullscreen(!editorFullscreenActive));
+  if (fullscreenExitTrafficLight) fullscreenExitTrafficLight.addEventListener("click", exitWindowFullscreen);
   if (fileHeaderRefreshButton) fileHeaderRefreshButton.addEventListener("click", refreshActiveProject);
   newFileButton.addEventListener("click", () => createProjectFile("file"));
   newFolderButton.addEventListener("click", () => createProjectFile("folder"));
@@ -6253,6 +6253,12 @@ function handleGlobalShortcut(event) {
       closeSettings();
       return;
     }
+
+    if (document.body.classList.contains("window-fullscreen")) {
+      event.preventDefault();
+      exitWindowFullscreen();
+      return;
+    }
     return;
   }
 
@@ -6314,6 +6320,16 @@ function handleGlobalShortcut(event) {
   if (key === "m") {
     event.preventDefault();
     setMode(visualEditor.hidden ? "visual" : "source");
+  }
+}
+
+function exitWindowFullscreen() {
+  if (editorFullscreenActive) {
+    setEditorFullscreen(false);
+    return;
+  }
+  if (window.localOverleaf && typeof window.localOverleaf.setFullscreen === "function") {
+    void window.localOverleaf.setFullscreen(false);
   }
 }
 
