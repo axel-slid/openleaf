@@ -6923,21 +6923,7 @@ body.window-fullscreen .fullscreen-traffic-lights {
 }
 
 .fullscreen-exit-traffic-light::after {
-  color: rgba(0, 0, 0, 0.56);
-  content: "↙↗";
-  font: 700 7px/14px var(--sans);
-  inset: 0;
-  opacity: 0;
-  position: absolute;
-  text-align: center;
-}
-
-body.window-fullscreen .fullscreen-exit-traffic-light::after {
-  opacity: 0.62;
-}
-
-.fullscreen-exit-traffic-light:hover::after {
-  opacity: 1;
+  content: none;
 }
 
 body.window-fullscreen .project-back-button {
