@@ -16607,11 +16607,12 @@ function highlightPdfDefinitionWord(wordElement) {
   layer.className = "pdf-definition-highlight-layer";
   const highlight = document.createElement("span");
   highlight.className = "pdf-speech-highlight";
-  const padding = 4;
-  highlight.style.left = `${Math.max(0, geometry.x - padding)}px`;
-  highlight.style.top = `${Math.max(0, geometry.top - padding)}px`;
-  highlight.style.width = `${Math.max(1, geometry.width) + padding * 2}px`;
-  highlight.style.height = `${Math.max(1, geometry.height) + padding * 2}px`;
+  const paddingX = 2;
+  const paddingY = 1.5;
+  highlight.style.left = `${Math.max(0, geometry.x - paddingX)}px`;
+  highlight.style.top = `${Math.max(0, geometry.top - paddingY)}px`;
+  highlight.style.width = `${Math.max(1, geometry.width) + paddingX * 2}px`;
+  highlight.style.height = `${Math.max(1, geometry.height) + paddingY * 2}px`;
   layer.style.width = `${Number(pageShell.dataset.renderedWidth) || pageShell.clientWidth}px`;
   layer.style.height = `${Number(pageShell.dataset.renderedHeight) || pageShell.clientHeight}px`;
   const ratio = renderedPdfZoom ? pdfZoom / renderedPdfZoom : 1;
@@ -16939,36 +16940,17 @@ function highlightPdfSpeechWord(word) {
   layer.style.transform = ratio !== 1 ? `scale(${ratio})` : "";
 
   const geometry = pdfSpeechWordPageGeometry(pageShell, word);
-  const highlightPadding = 4;
-  const nextLeft = Math.max(0, geometry.x - highlightPadding);
-  const nextTop = Math.max(0, geometry.top - highlightPadding);
-  const nextWidth = Math.max(1, geometry.width) + highlightPadding * 2;
-  const nextHeight = Math.max(1, geometry.height) + highlightPadding * 2;
-  const previousLeft = Number.parseFloat(highlight.style.left);
-  const previousTop = Number.parseFloat(highlight.style.top);
-  const travel = canMorph && Number.isFinite(previousLeft) && Number.isFinite(previousTop)
-    ? Math.hypot(nextLeft - previousLeft, nextTop - previousTop)
-    : 0;
+  const paddingX = 2;
+  const paddingY = 1.5;
+  const nextLeft = Math.max(0, geometry.x - paddingX);
+  const nextTop = Math.max(0, geometry.top - paddingY);
+  const nextWidth = Math.max(1, geometry.width) + paddingX * 2;
+  const nextHeight = Math.max(1, geometry.height) + paddingY * 2;
 
   highlight.style.left = `${nextLeft}px`;
   highlight.style.top = `${nextTop}px`;
   highlight.style.width = `${nextWidth}px`;
   highlight.style.height = `${nextHeight}px`;
-  if (travel > 1 && typeof highlight.animate === "function" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const horizontalTravel = Math.abs(nextLeft - previousLeft) >= Math.abs(nextTop - previousTop);
-    if (highlight.pdfSpeechMorphAnimation) highlight.pdfSpeechMorphAnimation.cancel();
-    highlight.style.transformOrigin = horizontalTravel
-      ? (nextLeft >= previousLeft ? "0 50%" : "100% 50%")
-      : (nextTop >= previousTop ? "50% 0" : "50% 100%");
-    highlight.pdfSpeechMorphAnimation = highlight.animate([
-      { transform: "scale(1)", borderRadius: "7px" },
-      { transform: horizontalTravel ? "scaleX(1.12) scaleY(0.9)" : "scaleX(0.94) scaleY(1.1)", borderRadius: "999px", offset: 0.46 },
-      { transform: "scale(1)", borderRadius: "7px" }
-    ], {
-      duration: Math.round(clampNumber(150 + travel * 0.18, 160, 260, 190)),
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)"
-    });
-  }
   scrollPdfSpeechWordIntoView(word, pageShell);
 }
 

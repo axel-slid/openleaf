@@ -6906,11 +6906,11 @@ body.window-fullscreen .fullscreen-traffic-lights {
 }
 
 .fullscreen-traffic-light-close {
-  background: #ff5f57;
+  background: #ff5f57 !important;
 }
 
 .fullscreen-traffic-light-minimize {
-  background: #febc2e;
+  background: #febc2e !important;
 }
 
 .fullscreen-exit-traffic-light {
@@ -13126,13 +13126,8 @@ body[data-theme="dark"] .pdf-text-layer .pdf-speech-word.is-speaking {
   isolation: isolate;
   mix-blend-mode: multiply;
   position: absolute;
-  transition:
-    left 185ms cubic-bezier(0.22, 1, 0.36, 1),
-    top 185ms cubic-bezier(0.22, 1, 0.36, 1),
-    width 205ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 205ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-radius 180ms ease;
-  will-change: left, top, width, height, transform;
+  transition: background-color 100ms ease, border-color 100ms ease;
+  will-change: left, top, width, height;
 }
 
 .pdf-speech-highlight::after {
@@ -15916,4 +15911,44 @@ body[data-contrast="high"] .preview-pane .pane-header {
     justify-content: center;
     width: 100% !important;
   }
+}
+
+/* Every draggable workspace divider uses one neutral track and pill. Specific
+   selectors here override the older Notes/PDF rule that inherited the pale
+   PDF background and made that handle look unrelated to the center splitter. */
+.file-splitter,
+.splitter,
+.terminal-resize-handle,
+.log-resize-handle,
+.file-outline-resize-handle,
+.terminal-tabs-resize-handle,
+.notes-panel.notes-open .notes-resize-handle {
+  background: color-mix(in srgb, var(--border-strong) 58%, var(--panel)) !important;
+}
+
+.file-splitter::before,
+.splitter::before,
+.terminal-resize-handle::before,
+.log-resize-handle::before,
+.file-outline-resize-handle::before,
+.terminal-tabs-resize-handle::before,
+.notes-panel.notes-open .notes-resize-handle::before {
+  background: color-mix(in srgb, var(--cm-text) 30%, transparent) !important;
+}
+
+.file-splitter:hover::before,
+.splitter:hover::before,
+.terminal-resize-handle:hover::before,
+.log-resize-handle:hover::before,
+.file-outline-resize-handle:hover::before,
+.terminal-tabs-resize-handle:hover::before,
+.notes-panel.notes-open .notes-resize-handle:hover::before,
+.is-resizing-files .file-splitter::before,
+.is-resizing .splitter::before,
+.is-resizing-outline .file-outline-resize-handle::before,
+.is-resizing-terminal .terminal-resize-handle::before,
+.is-resizing-terminal-tabs .terminal-tabs-resize-handle::before,
+.is-resizing-log .log-resize-handle::before,
+body.is-resizing-notes .notes-panel.notes-open .notes-resize-handle::before {
+  background: var(--accent) !important;
 }
