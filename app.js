@@ -13524,6 +13524,7 @@ function togglePdfCinematicPlayback() {
     return;
   }
   if (pdfCinematicAudio.paused) {
+    applyPdfSpeechAudioRate(pdfCinematicAudio);
     pdfCinematicAudio.play().then(() => {
       pdfCinematicPlaying = true;
       pdfCinematicPaused = false;
@@ -13626,9 +13627,8 @@ function updatePdfCinematicProgress() {
     rawElapsed += Number(pdfSpeechChunkDurations[index]) || 0;
   }
   rawElapsed += Number(pdfCinematicAudio && pdfCinematicAudio.currentTime) || 0;
-  const rate = pdfSpeechPlaybackRate();
-  const total = pdfSpeechDurationEstimate().duration / rate;
-  pdfCinematicStatus.textContent = `${pdfSpeechVoiceLabel()} · ${formatPdfSpeechTime(rawElapsed / rate)} / ${total ? formatPdfSpeechTime(total) : "--:--"} · ${Math.round(progress * 100)}%`;
+  const total = pdfSpeechDurationEstimate().duration;
+  pdfCinematicStatus.textContent = `${pdfSpeechVoiceLabel()} · ${formatPdfSpeechTime(rawElapsed)} / ${total ? formatPdfSpeechTime(total) : "--:--"} · ${Math.round(progress * 100)}%`;
 }
 
 function updatePdfCinematicPlaybackButton() {
@@ -13643,6 +13643,7 @@ function monitorPdfCinematicAudio() {
   cancelAnimationFrame(pdfCinematicAnimationFrame);
   const update = () => {
     if (!pdfCinematicAudio || !pdfCinematicPlaying || pdfCinematicAudio.paused) return;
+    applyPdfSpeechAudioRate(pdfCinematicAudio);
     const time = Number(pdfCinematicAudio.currentTime) || 0;
     let timing = pdfCinematicCurrentTimings[0];
     pdfCinematicCurrentTimings.forEach((candidate) => {
@@ -13685,8 +13686,18 @@ async function playPdfCinematicChunk() {
     closePdfCinematicAudio();
     pdfCinematicAudio = new Audio(result.audioUrl);
     pdfCinematicAudio.preload = "auto";
-    pdfCinematicAudio.playbackRate = pdfSpeechPlaybackRate();
-    pdfCinematicAudio.preservesPitch = true;
+    applyPdfSpeechAudioRate(pdfCinematicAudio);
+    const cinematicAudio = pdfCinematicAudio;
+    const cinematicChunkIndex = pdfCinematicChunkIndex;
+    cinematicAudio.addEventListener("loadedmetadata", () => {
+      if (generation !== pdfCinematicGeneration || pdfCinematicAudio !== cinematicAudio) return;
+      applyPdfSpeechAudioRate(cinematicAudio);
+      const duration = Number(cinematicAudio.duration);
+      if (Number.isFinite(duration) && duration > 0) {
+        pdfSpeechChunkDurations[cinematicChunkIndex] = duration;
+        updatePdfCinematicProgress();
+      }
+    }, { once: true });
     pdfCinematicAudio.addEventListener("ended", () => {
       if (generation !== pdfCinematicGeneration) return;
       cancelAnimationFrame(pdfCinematicAnimationFrame);
@@ -15672,12 +15683,16 @@ function preparePdfSpeechPlan(pageLines, pageCount, documentKey = "", fingerprin
       });
     });
   const chunks = buildPdfSpeechChunks(words);
+  chunks.forEach((chunk) => {
+    chunk.timingWeight = pdfSpeechChunkTimingWeight(chunk);
+  });
   pdfSpeechPlan = {
     chunks,
     wordCount: words.length,
     pageCount: Number(pageCount) || pageLines.size,
     documentKey,
-    fingerprint
+    fingerprint,
+    timingWeight: chunks.reduce((sum, chunk) => sum + chunk.timingWeight, 0)
   };
   pdfSpeechChunkDurations = new Array(pdfSpeechPlan.chunks.length).fill(0);
   rebuildPdfSpeechWordMetadata();
@@ -15955,6 +15970,16 @@ function pdfSpeechPlaybackRate() {
   return clampNumber(Number(pdfSpeechRate && pdfSpeechRate.value), 0.5, 2, 1);
 }
 
+function applyPdfSpeechAudioRate(audio) {
+  if (!audio) return;
+  const rate = pdfSpeechPlaybackRate();
+  const defaultRate = Number(audio.defaultPlaybackRate);
+  const playbackRate = Number(audio.playbackRate);
+  if (!Number.isFinite(defaultRate) || Math.abs(defaultRate - rate) > 0.001) audio.defaultPlaybackRate = rate;
+  if (!Number.isFinite(playbackRate) || Math.abs(playbackRate - rate) > 0.001) audio.playbackRate = rate;
+  if ("preservesPitch" in audio) audio.preservesPitch = true;
+}
+
 function updatePdfSpeechRateOutput() {
   if (!pdfSpeechRateOutput) return;
   pdfSpeechRateOutput.textContent = `${pdfSpeechPlaybackRate().toFixed(2).replace(/0$/, "")}×`;
@@ -15968,22 +15993,36 @@ function formatPdfSpeechTime(value) {
   return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${remainder}` : `${minutes}:${remainder}`;
 }
 
+function pdfSpeechChunkTimingWeight(chunk) {
+  const fallbackText = chunk && Array.isArray(chunk.words)
+    ? chunk.words.map((word) => word.spokenText || word.text || "").join(" ")
+    : "";
+  const speechText = applyPdfPronunciationRules(pdfMathToSpeech(chunk && chunk.text || fallbackText));
+  const spokenWords = speechText.match(/\S+/g) || [];
+  return spokenWords.reduce((sum, spokenText) => {
+    const normalizedLength = normalizePdfSpeechAlignment(spokenText).length;
+    const lengthWeight = 1 + Math.max(0, normalizedLength - 5) * 0.055;
+    const pauseWeight = /[.!?][\])}"'’”]*$/.test(spokenText)
+      ? 0.55
+      : (/[,;:][\])}"'’”]*$/.test(spokenText) ? 0.22 : 0);
+    return sum + lengthWeight + pauseWeight;
+  }, 0);
+}
+
 function pdfSpeechDurationEstimate() {
   let knownDuration = 0;
-  let knownWords = 0;
-  const secondsPerWordSamples = [];
-  const knownIndexes = [];
-  pdfSpeechChunkDurations.forEach((duration, index) => {
+  let knownWeight = 0;
+  const chunkWeights = pdfSpeechPlan.chunks.map((chunk) => (
+    Number(chunk.timingWeight) > 0 ? Number(chunk.timingWeight) : pdfSpeechChunkTimingWeight(chunk)
+  ));
+  pdfSpeechPlan.chunks.forEach((_chunk, index) => {
+    const duration = Number(pdfSpeechChunkDurations[index]) || 0;
     if (!(duration > 0)) return;
-    const chunkWords = pdfSpeechPlan.chunks[index] ? pdfSpeechPlan.chunks[index].words.length : 0;
-    if (chunkWords > 0) {
-      secondsPerWordSamples.push(duration / chunkWords);
-      knownIndexes.push(index);
-    }
     knownDuration += duration;
-    knownWords += chunkWords;
+    knownWeight += chunkWeights[index] || 0;
   });
-  const complete = pdfSpeechChunkDurations.length > 0 && pdfSpeechChunkDurations.every((duration) => duration > 0);
+  const complete = pdfSpeechPlan.chunks.length > 0
+    && pdfSpeechPlan.chunks.every((_chunk, index) => Number(pdfSpeechChunkDurations[index]) > 0);
   if (complete) return { duration: knownDuration, estimated: false };
 
   const voiceWordsPerMinute = {
@@ -15993,24 +16032,30 @@ function pdfSpeechDurationEstimate() {
     af_sarah: 160.2,
     af_heart: 166.5
   }[pdfSpeechVoiceId()] || 155;
-  const baselineDuration = pdfSpeechPlan.wordCount * 60 / voiceWordsPerMinute;
-  if (!knownWords || !secondsPerWordSamples.length) {
+  const totalWeight = Number(pdfSpeechPlan.timingWeight) > 0
+    ? Number(pdfSpeechPlan.timingWeight)
+    : chunkWeights.reduce((sum, weight) => sum + weight, 0);
+  const averageTimingWeight = totalWeight / Math.max(1, pdfSpeechPlan.wordCount);
+  const complexityAdjustment = clampNumber(averageTimingWeight / 1.12, 0.82, 1.35, 1);
+  const baselineDuration = pdfSpeechPlan.wordCount * 60 / voiceWordsPerMinute * complexityAdjustment;
+  if (!(knownWeight > 0) || !(totalWeight > 0)) {
     return { duration: baselineDuration, estimated: true };
   }
 
-  secondsPerWordSamples.sort((left, right) => left - right);
-  const middle = Math.floor(secondsPerWordSamples.length / 2);
-  const medianSecondsPerWord = secondsPerWordSamples.length % 2
-    ? secondsPerWordSamples[middle]
-    : (secondsPerWordSamples[middle - 1] + secondsPerWordSamples[middle]) / 2;
-  const sampledDuration = medianSecondsPerWord * pdfSpeechPlan.wordCount;
-  const sampleSpan = knownIndexes.length > 1
-    ? (Math.max(...knownIndexes) - Math.min(...knownIndexes)) / Math.max(1, pdfSpeechPlan.chunks.length - 1)
-    : 0;
-  const distributedSamplesReady = secondsPerWordSamples.length >= 5 && sampleSpan >= 0.45;
-  const confidence = distributedSamplesReady ? 1 : Math.min(0.22, knownWords / 900);
+  const baselineSecondsPerWeight = baselineDuration / totalWeight;
+  const averageChunkWeight = totalWeight / Math.max(1, pdfSpeechPlan.chunks.length);
+  const priorWeight = averageChunkWeight * 3;
+  const sampledSecondsPerWeight = (knownDuration + baselineSecondsPerWeight * priorWeight)
+    / (knownWeight + priorWeight);
+  const predictedSecondsPerWeight = clampNumber(
+    sampledSecondsPerWeight,
+    baselineSecondsPerWeight * 0.67,
+    baselineSecondsPerWeight * 1.5,
+    baselineSecondsPerWeight
+  );
+  const unknownWeight = Math.max(0, totalWeight - knownWeight);
   return {
-    duration: baselineDuration + (sampledDuration - baselineDuration) * confidence,
+    duration: knownDuration + unknownWeight * predictedSecondsPerWeight,
     estimated: true
   };
 }
@@ -16049,11 +16094,8 @@ function updatePdfSpeechProgress() {
   if (pdfSpeechChunkIndex < pdfSpeechPlan.chunks.length) completedWords += Math.max(0, pdfSpeechWordIndex);
   if (pdfSpeechChunkIndex >= pdfSpeechPlan.chunks.length && pdfSpeechPlan.wordCount) completedWords = pdfSpeechPlan.wordCount;
   const progress = pdfSpeechPlan.wordCount ? clampNumber(completedWords / pdfSpeechPlan.wordCount, 0, 1, 0) : 0;
-  const rate = pdfSpeechPlaybackRate();
-  const elapsed = rawElapsed / rate;
-  const totalDuration = total.duration / rate;
-  pdfSpeechProgressCurrent.textContent = formatPdfSpeechTime(elapsed);
-  pdfSpeechProgressTotal.textContent = `/ ${totalDuration ? formatPdfSpeechTime(totalDuration) : "--:--"}`;
+  pdfSpeechProgressCurrent.textContent = formatPdfSpeechTime(rawElapsed);
+  pdfSpeechProgressTotal.textContent = `/ ${total.duration ? formatPdfSpeechTime(total.duration) : "--:--"}`;
   if (pdfSpeechProgressDetail) {
     const percentLabel = `${(progress * 100).toFixed(progress < 0.1 ? 1 : 0)}%`;
     pdfSpeechProgressDetail.textContent = `${completedWords.toLocaleString()} of ${pdfSpeechPlan.wordCount.toLocaleString()} words · ${percentLabel}`;
@@ -16249,8 +16291,8 @@ async function queuePdfSpeechLookahead(startIndex) {
 function handlePdfSpeechRateChange() {
   updatePdfSpeechRateOutput();
   localStorage.setItem("openleafPdfSpeechRate", String(pdfSpeechPlaybackRate()));
-  if (pdfSpeechAudio) pdfSpeechAudio.playbackRate = pdfSpeechPlaybackRate();
-  if (pdfCinematicAudio) pdfCinematicAudio.playbackRate = pdfSpeechPlaybackRate();
+  applyPdfSpeechAudioRate(pdfSpeechAudio);
+  applyPdfSpeechAudioRate(pdfCinematicAudio);
   updatePdfSpeechProgress();
   if (pdfCinematicStage && !pdfCinematicStage.hidden) updatePdfCinematicProgress();
 }
@@ -16312,6 +16354,10 @@ function restartPdfSpeechPreprocessing() {
   pdfSpeechPreprocessActive = false;
   pdfSpeechBackgroundPreloadActive = false;
   pdfSpeechChunkDurations = new Array(pdfSpeechPlan.chunks.length).fill(0);
+  pdfSpeechPlan.chunks.forEach((chunk) => {
+    chunk.timingWeight = pdfSpeechChunkTimingWeight(chunk);
+  });
+  pdfSpeechPlan.timingWeight = pdfSpeechPlan.chunks.reduce((sum, chunk) => sum + chunk.timingWeight, 0);
   rebuildPdfSpeechWordMetadata();
   updatePdfSpeechProgress();
   startPdfSpeechPreprocessing();
@@ -16338,6 +16384,7 @@ function togglePdfSpeech() {
     return;
   }
   if (pdfSpeechPaused && pdfSpeechAudio) {
+    applyPdfSpeechAudioRate(pdfSpeechAudio);
     pdfSpeechAudio.play().then(() => {
       pdfSpeechPlaying = true;
       pdfSpeechPaused = false;
@@ -16383,8 +16430,18 @@ async function speakCurrentPdfChunk() {
     recordPdfSpeechChunkMetadata(pdfSpeechChunkIndex, pdfSpeechCurrentTimings, result.voice);
     pdfSpeechAudio = new Audio(result.audioUrl);
     pdfSpeechAudio.preload = "auto";
-    pdfSpeechAudio.playbackRate = pdfSpeechPlaybackRate();
-    pdfSpeechAudio.preservesPitch = true;
+    applyPdfSpeechAudioRate(pdfSpeechAudio);
+    const speechAudio = pdfSpeechAudio;
+    const speechChunkIndex = pdfSpeechChunkIndex;
+    speechAudio.addEventListener("loadedmetadata", () => {
+      if (generation !== pdfSpeechRequestGeneration || pdfSpeechAudio !== speechAudio) return;
+      applyPdfSpeechAudioRate(speechAudio);
+      const duration = Number(speechAudio.duration);
+      if (Number.isFinite(duration) && duration > 0) {
+        pdfSpeechChunkDurations[speechChunkIndex] = duration;
+        updatePdfSpeechProgress();
+      }
+    }, { once: true });
     pdfSpeechAudio.addEventListener("ended", () => {
       if (generation !== pdfSpeechRequestGeneration) return;
       cancelAnimationFrame(pdfSpeechAnimationFrame);
@@ -16849,6 +16906,7 @@ function monitorPdfSpeechAudio() {
   cancelAnimationFrame(pdfSpeechAnimationFrame);
   const update = () => {
     if (!pdfSpeechAudio || !pdfSpeechPlaying || pdfSpeechAudio.paused) return;
+    applyPdfSpeechAudioRate(pdfSpeechAudio);
     const time = pdfSpeechAudio.currentTime;
     let timing = pdfSpeechCurrentTimings[0];
     pdfSpeechCurrentTimings.forEach((candidate) => {

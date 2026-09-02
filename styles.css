@@ -6777,11 +6777,11 @@ body.transparent-theme #compileLog {
 
 /* Final current-turn overrides. */
 body.window-fullscreen .topbar {
-  padding-left: 120px !important;
+  padding-left: 96px !important;
 }
 
 body.window-fullscreen .pptx-topbar {
-  padding-left: 120px !important;
+  padding-left: 96px !important;
 }
 
 body.window-fullscreen,
