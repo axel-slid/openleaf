@@ -1346,6 +1346,10 @@ async function addHandwrittenProject(style, suppliedPaths = []) {
       project: decorateProject(project),
       importedFiles,
       compile,
+      transcription: {
+        style: isHomework ? "homework" : "notes",
+        importedFiles
+      },
       ...(await listProjects())
     };
   } catch (error) {
@@ -1504,17 +1508,23 @@ function handwrittenProjectTemplate(style = "notes", importedFiles = []) {
         "\\noindent\\textbf{Course:} Course name \\hfill \\textbf{Assignment:} Number or title\\\\[0.6em]",
         "\\textbf{Due date:} Add due date \\hfill \\textbf{Collaborators:} None",
         "",
-        "\\section*{Typed answers}",
-        "Add problem statements, final answers, or a short explanation here. Keep the original working pages in the section below.",
-        "",
-        "\\section*{Handwritten workings}"
+        "\\section*{Transcribed solutions}"
       ]
     : [
         "\\noindent\\textbf{Course / topic:} Add a course or topic\\\\[0.6em]",
         "\\textbf{Summary:} Add a short searchable summary of these notes.",
         "",
-        "\\section*{Imported pages}"
+        "\\section*{Transcription}"
       ];
+  const transcription = [
+    "% OPENLEAF_TRANSCRIPTION_START",
+    importedFiles.length
+      ? "\\emph{Openleaf has asked your preferred agent to transcribe the imported handwriting here.}"
+      : "\\emph{Import handwritten pages from New Project to start an automatic transcription.}",
+    "% OPENLEAF_TRANSCRIPTION_END",
+    "",
+    isHomework ? "\\section*{Original handwritten workings}" : "\\section*{Original handwritten pages}"
+  ];
   const pages = importedFiles.length
     ? importedFiles.flatMap((relativePath) => {
         if (path.extname(relativePath).toLowerCase() === ".pdf") {
@@ -1566,6 +1576,8 @@ function handwrittenProjectTemplate(style = "notes", importedFiles = []) {
     "\\maketitle",
     "",
     ...frontMatter,
+    "",
+    ...transcription,
     "",
     ...pages,
     "",
