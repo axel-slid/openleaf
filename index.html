@@ -1107,6 +1107,14 @@
             <span>Archive</span>
             <small>Import zip, tar, tar.gz, tgz</small>
           </button>
+          <button type="button" data-project-kind="handwritten-notes">
+            <span>Handwritten Notes</span>
+            <small>Import scans or photos into a notes template</small>
+          </button>
+          <button type="button" data-project-kind="homework-workings">
+            <span>HW + Workings</span>
+            <small>Add handwritten work to a homework template</small>
+          </button>
         </div>
         <div id="projectDropZone" class="project-drop-zone" role="button" tabindex="0">
           <span>Drop a project here</span>
@@ -1524,7 +1532,7 @@ cd openleaf
 npm install
 npm start</code></pre>
               <h3>Project workflow</h3>
-              <p>Use New Project for a blank paper, TeX entry file, folder, zip, tar, tar.gz, or tgz archive. The file toolbar can create files, create folders, upload files or folders into the current project, and export the whole project package.</p>
+              <p>Use New Project for a blank paper, TeX entry file, handwritten notes, homework with handwritten workings, folder, zip, tar, tar.gz, or tgz archive. Handwritten starters copy selected PDFs or page images into a portable project and place them in the matching LaTeX template. The file toolbar can create files, create folders, upload files or folders into the current project, and export the whole project package.</p>
               <h3>GitHub push</h3>
               <p>Push copies only LaTeX source files into the dedicated public documents repo at github.com/axel-slid/openleaf-latex-documents. It does not upload generated PDFs, figures, datasets, caches, or the full project folder unless those files are LaTeX source files.</p>
               <h3>Remote workspace</h3>

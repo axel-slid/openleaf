@@ -19,6 +19,7 @@ const latexDocumentsRemoteUrl = "https://github.com/axel-slid/openleaf-latex-doc
 const latexSourceExtensions = new Set([".tex", ".ltx", ".bib", ".bst", ".cls", ".sty"]);
 const presentationExtensions = new Set([".ppt", ".pptx"]);
 const editablePresentationExtensions = new Set([".pptx"]);
+const handwrittenSourceExtensions = new Set([".pdf", ".png", ".jpg", ".jpeg", ".heic", ".heif", ".tif", ".tiff"]);
 const appIconPngPath = path.join(repoRoot, "assets", "icon.png");
 
 let mainWindow;
@@ -1172,22 +1173,26 @@ async function addProject(_event, payload = {}) {
   if (kind === "presentation") return addPresentationProject();
   if (kind === "folder") return addFolderProject();
   if (kind === "archive") return addArchiveProject();
+  if (kind === "handwritten-notes") return addHandwrittenProject("notes", payload.paths);
+  if (kind === "homework-workings") return addHandwrittenProject("homework", payload.paths);
 
   const choice = await dialog.showMessageBox(mainWindow, {
     type: "question",
     title: "New Project",
     message: "How do you want to start?",
-    buttons: ["Blank Project", "Existing .tex", "PowerPoint", "Folder", "Archive", "Cancel"],
-    cancelId: 5,
+    buttons: ["Blank Project", "Existing .tex", "PowerPoint", "Folder", "Archive", "Handwritten Notes", "HW + Workings", "Cancel"],
+    cancelId: 7,
     defaultId: 0
   });
 
-  if (choice.response === 5) return { project: null, ...(await listProjects()) };
+  if (choice.response === 7) return { project: null, ...(await listProjects()) };
   if (choice.response === 0) return createBlankProject();
   if (choice.response === 1) return addTexProject();
   if (choice.response === 2) return addPresentationProject();
   if (choice.response === 3) return addFolderProject();
   if (choice.response === 4) return addArchiveProject();
+  if (choice.response === 5) return addHandwrittenProject("notes");
+  if (choice.response === 6) return addHandwrittenProject("homework");
   return { project: null, ...(await listProjects()) };
 }
 
@@ -1302,6 +1307,85 @@ async function addArchiveProject() {
   return registerProject(texPath);
 }
 
+async function addHandwrittenProject(style, suppliedPaths = []) {
+  const isHomework = style === "homework";
+  let sourcePaths = (Array.isArray(suppliedPaths) ? suppliedPaths : [])
+    .map((filePath) => String(filePath || "").trim())
+    .filter(Boolean);
+
+  if (!sourcePaths.length) {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: isHomework ? "Import Handwritten Homework Workings" : "Import Handwritten Notes",
+      buttonLabel: isHomework ? "Create Homework Project" : "Create Notes Project",
+      properties: ["openFile", "multiSelections"],
+      filters: [
+        { name: "Scans and photos", extensions: ["pdf", "png", "jpg", "jpeg", "heic", "heif", "tif", "tiff"] },
+        { name: "All files", extensions: ["*"] }
+      ]
+    });
+    if (result.canceled || !result.filePaths.length) {
+      return { project: null, ...(await listProjects()) };
+    }
+    sourcePaths = result.filePaths;
+  }
+
+  const unsupported = sourcePaths.filter((filePath) => !handwrittenSourceExtensions.has(path.extname(filePath).toLowerCase()));
+  if (unsupported.length) {
+    throw new Error(`Handwritten imports support PDF, PNG, JPEG, HEIC, HEIF, and TIFF files. Unsupported: ${unsupported.map((filePath) => path.basename(filePath)).join(", ")}`);
+  }
+
+  const projectName = isHomework ? "Homework with Handwritten Workings" : "Handwritten Notes";
+  const destination = await uniqueDirectory(projectLibraryRoot(), projectName);
+  try {
+    const importedFiles = await copyHandwrittenSources(sourcePaths, destination);
+    const texPath = path.join(destination, "main.tex");
+    await fsp.writeFile(texPath, handwrittenProjectTemplate(style, importedFiles), "utf8");
+    const project = await registerProjectRecord(texPath, projectName);
+    const compile = await compileProjectIfPossible(project.id);
+    return {
+      project: decorateProject(project),
+      importedFiles,
+      compile,
+      ...(await listProjects())
+    };
+  } catch (error) {
+    await fsp.rm(destination, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function copyHandwrittenSources(sourcePaths, destination) {
+  const assetDirectory = path.join(destination, "handwritten");
+  await fsp.mkdir(assetDirectory, { recursive: true });
+  const imported = [];
+
+  for (let index = 0; index < sourcePaths.length; index += 1) {
+    const sourcePath = path.resolve(sourcePaths[index]);
+    const stat = await fsp.stat(sourcePath);
+    if (!stat.isFile()) throw new Error(`Handwritten import is not a file: ${path.basename(sourcePath)}`);
+
+    const sourceExtension = path.extname(sourcePath).toLowerCase();
+    const needsConversion = [".heic", ".heif", ".tif", ".tiff"].includes(sourceExtension);
+    const extension = needsConversion ? ".png" : (sourceExtension === ".jpeg" ? ".jpg" : sourceExtension);
+    const baseName = sanitizeArchiveBaseName(path.basename(sourcePath, sourceExtension)) || `page-${index + 1}`;
+    const fileName = `${String(index + 1).padStart(2, "0")}-${baseName}${extension}`;
+    const targetPath = path.join(assetDirectory, fileName);
+
+    if (needsConversion) {
+      try {
+        await execFileAsync("sips", ["-s", "format", "png", sourcePath, "--out", targetPath]);
+      } catch (error) {
+        throw new Error(`Could not convert ${path.basename(sourcePath)} to PNG. Export it as PDF, PNG, or JPEG and try again.`);
+      }
+    } else {
+      await fsp.copyFile(sourcePath, targetPath);
+    }
+    imported.push(path.posix.join("handwritten", fileName));
+  }
+
+  return imported;
+}
+
 async function registerProjectFromPath(filePath) {
   const resolvedPath = path.resolve(filePath);
   const stat = await fsp.stat(resolvedPath);
@@ -1406,6 +1490,84 @@ function homeworkTemplate() {
     "",
     "\\section*{Problem 2}",
     "Show your work clearly.",
+    "",
+    "\\end{document}",
+    ""
+  ].join("\n");
+}
+
+function handwrittenProjectTemplate(style = "notes", importedFiles = []) {
+  const isHomework = style === "homework";
+  const title = isHomework ? "Homework with Handwritten Workings" : "Handwritten Notes";
+  const frontMatter = isHomework
+    ? [
+        "\\noindent\\textbf{Course:} Course name \\hfill \\textbf{Assignment:} Number or title\\\\[0.6em]",
+        "\\textbf{Due date:} Add due date \\hfill \\textbf{Collaborators:} None",
+        "",
+        "\\section*{Typed answers}",
+        "Add problem statements, final answers, or a short explanation here. Keep the original working pages in the section below.",
+        "",
+        "\\section*{Handwritten workings}"
+      ]
+    : [
+        "\\noindent\\textbf{Course / topic:} Add a course or topic\\\\[0.6em]",
+        "\\textbf{Summary:} Add a short searchable summary of these notes.",
+        "",
+        "\\section*{Imported pages}"
+      ];
+  const pages = importedFiles.length
+    ? importedFiles.flatMap((relativePath) => {
+        if (path.extname(relativePath).toLowerCase() === ".pdf") {
+          return [
+            "\\includepdf[pages=-,fitpaper=true,pagecommand={\\thispagestyle{openleaf}}]{\\detokenize{" + relativePath + "}}"
+          ];
+        }
+        return [
+          "\\clearpage",
+          "\\thispagestyle{openleaf}",
+          "\\begin{center}",
+          "  \\includegraphics[width=\\textwidth,height=0.86\\textheight,keepaspectratio]{\\detokenize{" + relativePath + "}}",
+          "\\end{center}"
+        ];
+      })
+    : [
+        "\\begin{center}",
+        "  \\fcolorbox{openleafline}{openleafpaper}{%",
+        "    \\begin{minipage}[c][0.52\\textheight][c]{0.86\\textwidth}",
+        "      \\centering\\large Import a PDF, PNG, JPEG, HEIC, or TIFF from New Project\\\\[0.75em]",
+        "      \\normalsize Your scanned handwritten pages will appear here.",
+        "    \\end{minipage}%",
+        "  }",
+        "\\end{center}"
+      ];
+
+  return [
+    "\\documentclass[11pt]{article}",
+    "\\usepackage[margin=0.75in,headheight=15pt]{geometry}",
+    "\\usepackage{graphicx}",
+    "\\usepackage{pdfpages}",
+    "\\usepackage{fancyhdr}",
+    "\\usepackage{xcolor}",
+    "\\definecolor{openleafline}{HTML}{CBD5E1}",
+    "\\definecolor{openleafpaper}{HTML}{F8FAFC}",
+    "\\fancypagestyle{openleaf}{%",
+    "  \\fancyhf{}",
+    `  \\fancyhead[L]{${title}}`,
+    "  \\fancyhead[R]{\\thepage}",
+    "  \\renewcommand{\\headrulewidth}{0.4pt}",
+    "}",
+    "\\pagestyle{openleaf}",
+    "",
+    `\\title{${title}}`,
+    "\\author{Your Name}",
+    "\\date{\\today}",
+    "",
+    "\\begin{document}",
+    "\\maketitle",
+    "",
+    ...frontMatter,
+    "",
+    ...pages,
     "",
     "\\end{document}",
     ""
@@ -1863,6 +2025,28 @@ function neuripsTemplate() {
 }
 
 const BUILT_IN_TEMPLATES = [
+  {
+    id: "handwritten-notes",
+    name: "Handwritten Notes",
+    description: "A searchable notes cover followed by imported scans or photos.",
+    sourceName: "Openleaf notes template",
+    sourceUrl: "",
+    entry: "main.tex",
+    files: {
+      "main.tex": handwrittenProjectTemplate("notes")
+    }
+  },
+  {
+    id: "homework-handwritten-workings",
+    name: "Homework + Handwritten Workings",
+    description: "Homework metadata and typed answers followed by handwritten solution pages.",
+    sourceName: "Openleaf homework template",
+    sourceUrl: "",
+    entry: "main.tex",
+    files: {
+      "main.tex": handwrittenProjectTemplate("homework")
+    }
+  },
   {
     id: "berkeley-cs170-homework",
     name: "Berkeley CS 170 Homework",

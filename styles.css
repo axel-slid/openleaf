@@ -768,7 +768,7 @@ body[data-theme] .startup-experience {
 .project-import-options {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
 }
 
 .project-import-options button {
@@ -781,6 +781,7 @@ body[data-theme] .startup-experience {
   min-height: 68px;
   padding: 10px;
   text-align: left;
+  white-space: normal;
 }
 
 .project-import-options span {
@@ -794,6 +795,10 @@ body[data-theme] .startup-experience {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.35;
+}
+
+.project-import-options small {
+  overflow-wrap: anywhere;
 }
 
 .project-drop-zone {
