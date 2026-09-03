@@ -3252,6 +3252,7 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   const rgb = hexToRgb(normalizedAccent);
 
   document.body.dataset.theme = normalizedTheme;
+  document.documentElement.dataset.startupTheme = normalizedTheme;
   document.body.dataset.themePreset = normalizedPreset;
   document.body.dataset.contrast = HIGH_CONTRAST_PRESETS.has(normalizedPreset) ? "high" : "normal";
   document.body.classList.toggle("high-contrast", HIGH_CONTRAST_PRESETS.has(normalizedPreset));

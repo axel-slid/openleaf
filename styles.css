@@ -138,13 +138,39 @@ p {
   width: 1px;
 }
 
+html[data-startup-theme="light"] {
+  --startup-bg: #e9edf2;
+  --startup-panel: #ffffff;
+  --startup-text: #16181d;
+  --startup-muted: #69717c;
+}
+
+html[data-startup-theme="dark"] {
+  --startup-bg: #11151d;
+  --startup-panel: #1a1f2a;
+  --startup-text: #eef2f7;
+  --startup-muted: #a7b0bd;
+}
+
+body[data-theme] .startup-experience {
+  --startup-bg: var(--bg);
+  --startup-panel: var(--panel);
+  --startup-text: var(--text);
+  --startup-muted: var(--muted);
+}
+
 .startup-experience {
   align-items: center;
   background:
-    radial-gradient(circle at 50% 43%, rgba(70, 231, 137, 0.13), transparent 27%),
-    radial-gradient(circle at 12% 8%, rgba(39, 161, 105, 0.13), transparent 30%),
-    linear-gradient(145deg, #071b17 0%, #06130f 52%, #030b09 100%);
-  color: #f4fbf7;
+    radial-gradient(circle at 50% 43%, rgba(var(--accent-rgb), 0.14), transparent 28%),
+    radial-gradient(circle at 12% 8%, rgba(var(--accent-rgb), 0.08), transparent 31%),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--startup-bg) 88%, var(--startup-panel)) 0%,
+      var(--startup-bg) 54%,
+      color-mix(in srgb, var(--startup-bg) 92%, #000000) 100%
+    );
+  color: var(--startup-text);
   display: grid;
   inset: 0;
   isolation: isolate;
@@ -156,7 +182,7 @@ p {
 }
 
 .startup-experience::before {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.2) 0.55px, transparent 0.55px);
+  background-image: radial-gradient(color-mix(in srgb, var(--startup-text) 20%, transparent) 0.55px, transparent 0.55px);
   background-size: 5px 5px;
   content: "";
   inset: 0;
@@ -187,39 +213,9 @@ p {
   transform: translateY(-8px) scale(0.985);
 }
 
-.startup-mark {
-  align-items: center;
-  display: flex;
-  height: 112px;
-  justify-content: center;
-  margin-bottom: 27px;
-  position: relative;
-  width: 112px;
-}
-
-.startup-mark-halo {
-  animation: startup-halo 2.8s ease-in-out infinite;
-  background: rgba(85, 234, 143, 0.14);
-  border: 1px solid rgba(115, 247, 169, 0.18);
-  border-radius: 34px;
-  box-shadow: 0 0 70px rgba(62, 220, 130, 0.18);
-  inset: 3px;
-  position: absolute;
-}
-
-.startup-mark img {
-  animation: startup-mark-arrive 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  border-radius: 29px;
-  filter: drop-shadow(0 20px 28px rgba(0, 0, 0, 0.28));
-  height: 96px;
-  position: relative;
-  width: 96px;
-  z-index: 1;
-}
-
 .startup-wordmark {
-  animation: startup-copy-arrive 700ms 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  font-size: 34px;
+  animation: startup-copy-arrive 760ms 80ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  font-size: 38px;
   font-weight: 680;
   letter-spacing: -1.25px;
   line-height: 1;
@@ -232,8 +228,8 @@ p {
 }
 
 .startup-progress-track {
-  background: rgba(231, 255, 240, 0.1);
-  border: 1px solid rgba(232, 255, 241, 0.08);
+  background: color-mix(in srgb, var(--startup-text) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--startup-text) 8%, transparent);
   border-radius: 999px;
   height: 6px;
   overflow: hidden;
@@ -242,9 +238,14 @@ p {
 }
 
 .startup-progress-fill {
-  background: linear-gradient(90deg, #2baf6e 0%, #65e99a 72%, #b4f7c9 100%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 78%, var(--startup-bg)) 0%,
+    var(--accent) 72%,
+    color-mix(in srgb, var(--accent) 58%, #ffffff) 100%
+  );
   border-radius: inherit;
-  box-shadow: 0 0 18px rgba(94, 236, 150, 0.42);
+  box-shadow: 0 0 18px rgba(var(--accent-rgb), 0.38);
   display: block;
   height: 100%;
   position: relative;
@@ -265,7 +266,7 @@ p {
 }
 
 .startup-progress-meta {
-  color: rgba(224, 239, 230, 0.64);
+  color: color-mix(in srgb, var(--startup-muted) 88%, transparent);
   display: flex;
   font-size: 12px;
   justify-content: space-between;
@@ -283,23 +284,13 @@ p {
 }
 
 #startupPercent {
-  color: rgba(183, 247, 207, 0.76);
+  color: color-mix(in srgb, var(--accent) 70%, var(--startup-text));
   font-variant-numeric: tabular-nums;
-}
-
-@keyframes startup-mark-arrive {
-  from { opacity: 0; transform: translateY(10px) scale(0.86); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes startup-copy-arrive {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes startup-halo {
-  0%, 100% { opacity: 0.72; transform: scale(0.96); }
-  50% { opacity: 1; transform: scale(1.06); }
 }
 
 @keyframes startup-progress-sheen {
@@ -310,8 +301,6 @@ p {
 @media (prefers-reduced-motion: reduce) {
   .startup-experience,
   .startup-content,
-  .startup-mark img,
-  .startup-mark-halo,
   .startup-wordmark,
   .startup-progress-wrap,
   .startup-progress-fill,
