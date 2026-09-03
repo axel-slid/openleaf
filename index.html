@@ -12,6 +12,25 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="startupExperience" class="startup-experience" role="status" aria-live="polite" aria-label="Openleaf is starting">
+    <div class="startup-content">
+      <div class="startup-mark" aria-hidden="true">
+        <span class="startup-mark-halo"></span>
+        <img src="assets/icon.png" alt="">
+      </div>
+      <div class="startup-wordmark">Openleaf</div>
+      <p class="startup-tagline">A quieter place to think.</p>
+      <div class="startup-progress-wrap">
+        <div id="startupProgressTrack" class="startup-progress-track" role="progressbar" aria-label="Starting Openleaf" aria-valuemin="0" aria-valuemax="100" aria-valuenow="8">
+          <span id="startupProgressFill" class="startup-progress-fill"></span>
+        </div>
+        <div class="startup-progress-meta">
+          <span id="startupStatus">Preparing your workspace</span>
+          <span id="startupPercent" aria-hidden="true">8%</span>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="app">
     <section class="project-screen" id="projectScreen">
       <div class="project-shell">

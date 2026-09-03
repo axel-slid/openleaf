@@ -1,4 +1,10 @@
 const projectScreen = document.getElementById("projectScreen");
+const startupExperience = document.getElementById("startupExperience");
+const startupProgressTrack = document.getElementById("startupProgressTrack");
+const startupProgressFill = document.getElementById("startupProgressFill");
+const startupStatus = document.getElementById("startupStatus");
+const startupPercent = document.getElementById("startupPercent");
+const appRoot = document.querySelector(".app");
 const editorScreen = document.getElementById("editorScreen");
 const presentationScreen = document.getElementById("presentationScreen");
 const pptxMenubar = document.getElementById("pptxMenubar");
@@ -2684,6 +2690,10 @@ const pendingTerminalExits = new Map();
 init();
 
 async function init() {
+  const startupStartedAt = performance.now();
+  const firstStartup = localStorage.getItem("openleafStartupExperienceSeen") !== "true";
+  if (appRoot && startupExperience) appRoot.inert = true;
+  updateStartupExperience(12, "Preparing your workspace");
   relativeLineNumbersEnabled = localStorage.getItem("latexStudioRelativeLineNumbers") === "true";
   hiddenBuiltInTemplates = readHiddenBuiltInTemplates();
   defineBibtexMode();
@@ -2695,8 +2705,48 @@ async function init() {
   setupTerminalPanel();
   setupPdfSpeech();
   wireEvents();
-  await loadProjects();
+  const projectsReady = loadProjects();
+  if (firstStartup) await wait(520);
+  updateStartupExperience(42, "Warming up the editor");
+  if (firstStartup) await wait(620);
+  updateStartupExperience(64, "Gathering your projects");
+  await projectsReady;
+  if (firstStartup) await wait(540);
+  updateStartupExperience(86, "Restoring your workspace");
+  await finishStartupExperience({ startedAt: startupStartedAt, firstStartup });
   maybeStartOpenleafTour();
+}
+
+function updateStartupExperience(progress, message) {
+  if (!startupExperience || startupExperience.hidden) return;
+  const value = clampNumber(Number(progress), 0, 100, 0);
+  if (startupProgressTrack) startupProgressTrack.setAttribute("aria-valuenow", String(Math.round(value)));
+  if (startupProgressFill) startupProgressFill.style.transform = `scaleX(${value / 100})`;
+  if (startupPercent) startupPercent.textContent = `${Math.round(value)}%`;
+  if (!startupStatus || startupStatus.textContent === message) return;
+  startupStatus.classList.add("is-changing");
+  setTimeout(() => {
+    if (!startupStatus) return;
+    startupStatus.textContent = message;
+    startupStatus.classList.remove("is-changing");
+  }, 150);
+}
+
+async function finishStartupExperience({ startedAt, firstStartup }) {
+  if (!startupExperience) return;
+  const minimumDuration = firstStartup ? 4400 : 900;
+  const finishLeadTime = firstStartup ? 720 : 220;
+  const remaining = Math.max(0, minimumDuration - finishLeadTime - (performance.now() - startedAt));
+  if (remaining) await wait(remaining);
+  updateStartupExperience(96, "Finishing touches");
+  await wait(firstStartup ? 460 : 120);
+  updateStartupExperience(100, "Ready to create");
+  await wait(firstStartup ? 360 : 100);
+  localStorage.setItem("openleafStartupExperienceSeen", "true");
+  if (appRoot) appRoot.inert = false;
+  startupExperience.classList.add("is-complete");
+  await wait(700);
+  startupExperience.hidden = true;
 }
 
 function setupFullscreenNotchTitle() {
