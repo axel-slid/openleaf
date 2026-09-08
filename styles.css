@@ -16152,3 +16152,89 @@ body[data-theme="dark"] .project-division-preview img {
   background: #ffffff !important;
   filter: var(--pdf-dark-filter) !important;
 }
+
+/* Home is a shelf of pages, with no surrounding cards or thumbnail widgets. */
+#projectGrid .project-card,
+#projectGrid .project-collection-card {
+  backdrop-filter: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  transform: none !important;
+}
+
+#projectGrid:not(.rows-view) .project-home-section-grid {
+  gap: 30px 24px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+
+#projectGrid:not(.rows-view) .project-card {
+  display: block;
+  height: auto;
+  min-height: 0;
+}
+
+#projectGrid:not(.rows-view) .project-card-open {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#projectGrid .project-preview,
+#projectGrid .project-collection-preview,
+#projectGrid .project-collection-preview [data-project-preview] {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  padding: 0;
+}
+
+#projectGrid:not(.rows-view) .project-preview {
+  height: 230px;
+  width: 100%;
+}
+
+#projectGrid .project-preview img {
+  height: auto;
+  max-height: 100%;
+  max-width: 100%;
+  width: auto;
+}
+
+#projectGrid .project-preview img,
+#projectGrid .project-collection-preview img {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+#projectGrid:not(.rows-view) .project-card-copy {
+  width: 100%;
+}
+
+#projectGrid .project-collection-card {
+  grid-template-columns: minmax(0, 1fr);
+  height: auto;
+  gap: 12px;
+}
+
+#projectGrid .project-collection-preview {
+  justify-self: center;
+}
+
+#projectGrid .project-card-open:hover .project-name,
+#projectGrid .project-collection-card:hover strong {
+  color: var(--accent);
+}
+
+#projectGrid .project-card-open:focus-visible,
+#projectGrid .project-collection-card:focus-visible,
+#projectGrid .is-drop-target {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 4px;
+}
