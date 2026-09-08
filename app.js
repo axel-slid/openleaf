@@ -2714,7 +2714,16 @@ async function init() {
   if (firstStartup) await wait(540);
   updateStartupExperience(86, "Restoring your workspace");
   await finishStartupExperience({ startedAt: startupStartedAt, firstStartup });
-  maybeStartOpenleafTour();
+  const initialProjectId = new URLSearchParams(window.location.search).get("projectId");
+  if (initialProjectId) {
+    try {
+      await openProject(initialProjectId);
+    } catch (error) {
+      window.alert(`Could not open project: ${formatError(error)}`);
+    }
+  } else {
+    maybeStartOpenleafTour();
+  }
 }
 
 function updateStartupExperience(progress, message) {
@@ -8846,6 +8855,20 @@ function showProjectContextMenu(event, project) {
   const menu = document.createElement("div");
   menu.className = "project-context-segment";
   menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", "Project actions");
+
+  const openTabButton = document.createElement("button");
+  openTabButton.type = "button";
+  openTabButton.textContent = window.localOverleaf.supportsNativeTabs ? "Open in New Tab" : "Open in New Window";
+  openTabButton.addEventListener("click", async (clickEvent) => {
+    clickEvent.stopPropagation();
+    closeProjectContextMenu();
+    try {
+      await window.localOverleaf.openProjectInTab(project.id);
+    } catch (error) {
+      window.alert(`Could not open project: ${formatError(error)}`);
+    }
+  });
 
   const renameButton = document.createElement("button");
   renameButton.type = "button";
@@ -8872,7 +8895,21 @@ function showProjectContextMenu(event, project) {
     removeProject(project);
   });
 
-  menu.append(renameButton, favoriteButton, removeButton);
+  const items = [openTabButton, renameButton, favoriteButton, removeButton];
+  items.forEach((item) => item.setAttribute("role", "menuitem"));
+  menu.append(...items);
+  menu.addEventListener("keydown", (keyEvent) => {
+    const index = items.indexOf(document.activeElement);
+    if (keyEvent.key === "Escape") {
+      keyEvent.preventDefault();
+      closeProjectContextMenu();
+    } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(keyEvent.key)) {
+      keyEvent.preventDefault();
+      const next = keyEvent.key === "Home" ? 0 : keyEvent.key === "End" ? items.length - 1
+        : (index + (keyEvent.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items[next].focus();
+    }
+  });
   document.body.appendChild(menu);
 
   const margin = 8;
@@ -8882,6 +8919,7 @@ function showProjectContextMenu(event, project) {
   menu.style.left = `${Math.max(margin, left)}px`;
   menu.style.top = `${Math.max(margin, top)}px`;
   projectContextMenu = menu;
+  openTabButton.focus();
 }
 
 function closeProjectContextMenu() {
@@ -12079,6 +12117,7 @@ async function openProject(projectId, { pdfRelativePath = "", sourceRelativePath
   setSshConnectionState("disconnected");
   const project = projects.find((item) => item.id === projectId);
   activeProject = project || { id: projectId, name: "Project", texName: "main.tex" };
+  document.title = activeProject.displayName || activeProject.name || "Openleaf";
   if (activeProject.kind === "presentation" || /\.pptx$/i.test(activeProject.texName || activeProject.texPath || "")) {
     await openPresentationProject(activeProject);
     return;
@@ -12119,6 +12158,7 @@ async function showProjects({ discardChanges = false } = {}) {
   stopExternalSourcePolling();
   stopPresentationCollaborationPolling();
   updateProjectHeroGreeting({ rotate: true });
+  document.title = "Projects — Openleaf";
   projectScreen.hidden = false;
   editorScreen.hidden = true;
   presentationScreen.classList.remove("pptx-presenting");

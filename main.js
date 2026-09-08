@@ -232,7 +232,7 @@ function applyDisplayFrameBounds(window, display) {
   [50, 250, 750].forEach((delay) => setTimeout(apply, delay));
 }
 
-function createWindow() {
+function createWindow({ projectId = "", tabParent = null } = {}) {
   const windowBounds = widestDisplayWindowBounds(1520, 980);
   const window = new BrowserWindow({
     ...windowBounds,
@@ -240,16 +240,18 @@ function createWindow() {
     minHeight: 700,
     title: "Openleaf",
     ...(fs.existsSync(appIconPngPath) ? { icon: appIconPngPath } : {}),
-    backgroundColor: "#00000000",
-    transparent: true,
+    // Native Mac tabs require an opaque, framed window. The default title bar
+    // keeps the tab strip outside the web content and its top controls.
+    backgroundColor: process.platform === "darwin" ? "#202020" : "#00000000",
+    transparent: process.platform !== "darwin",
     ...(process.platform === "darwin"
       ? {
-          titleBarStyle: "hiddenInset",
+          titleBarStyle: "default",
+          tabbingIdentifier: "openleaf-projects",
           fullscreenable: true,
           enableLargerThanScreen: true,
           vibrancy: "under-window",
-          visualEffectState: "active",
-          trafficLightPosition: { x: 14, y: 13 }
+          visualEffectState: "active"
         }
       : {}),
     show: false,
@@ -278,12 +280,22 @@ function createWindow() {
     // the launch bounds after Cocoa restores state so the green control and
     // the whole window are always reachable.
     window.setBounds(windowBounds, false);
+    if (process.platform === "darwin" && tabParent && !tabParent.isDestroyed()) {
+      tabParent.addTabbedWindow(window);
+    }
     window.show();
     window.focus();
   };
   window.once("ready-to-show", revealWindow);
   window.webContents.once("did-finish-load", revealWindow);
-  window.loadFile(path.join(__dirname, "index.html"));
+  window.loadFile(path.join(__dirname, "index.html"), { query: projectId ? { projectId } : {} });
+  window.on("new-window-for-tab", () => createWindow({ tabParent: window }));
+  window.webContents.on("before-input-event", (event, input) => {
+    if (input.type === "keyDown" && input.control && !input.alt && !input.meta && !input.shift && input.key.toLowerCase() === "t") {
+      event.preventDefault();
+      createWindow({ tabParent: window });
+    }
+  });
   revealTimer = setTimeout(revealWindow, 1500);
 
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -385,6 +397,11 @@ function buildMenu() {
           label: "New Window",
           accelerator: "CommandOrControl+N",
           click: () => createWindow()
+        },
+        {
+          label: "New Tab",
+          accelerator: "CommandOrControl+T",
+          click: () => createWindow({ tabParent: activeWindow() })
         },
         { type: "separator" },
         {
@@ -505,6 +522,14 @@ function toggleFullscreen(event, requestedState) {
 
   if (window.isFullScreen() !== next) window.setFullScreen(next);
   return { fullscreen: next, mode: "native" };
+}
+
+async function openProjectInTab(event, projectId) {
+  const parent = BrowserWindow.fromWebContents(event.sender);
+  if (!parent || parent.isDestroyed()) throw new Error("The originating window is no longer available.");
+  const project = await getProject(projectId);
+  const tab = createWindow({ projectId: project.id, tabParent: parent });
+  return { windowId: tab.id };
 }
 
 function closeWindow(event) {
@@ -5092,6 +5117,7 @@ ipcMain.handle("push-project-to-github", pushProjectToGithub);
 ipcMain.handle("pull-project-from-github", pullProjectFromGithub);
 ipcMain.handle("list-ssh-hosts", listSshHosts);
 ipcMain.handle("close-window", closeWindow);
+ipcMain.handle("open-project-in-tab", openProjectInTab);
 ipcMain.handle("minimize-window", minimizeWindow);
 ipcMain.handle("toggle-fullscreen", toggleFullscreen);
 ipcMain.handle("open-external-link", openExternalLink);
