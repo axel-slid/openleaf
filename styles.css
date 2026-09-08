@@ -16056,6 +16056,10 @@ body[data-theme="dark"] .project-division-preview img {
 }
 
 #projectGrid .project-collection-card {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  padding: 18px !important;
   grid-template-columns: minmax(0, 1fr);
   height: auto;
   gap: 12px;
