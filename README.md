@@ -16,13 +16,6 @@ Openleaf is a local desktop workspace for writing papers, running Python, and ma
 | --- | --- | --- |
 | Edit LaTeX in source or visual mode, compile locally, and read the PDF alongside your manuscript. | Open scripts and notebooks, choose a Python interpreter, and run cells with a persistent kernel. | Open native PowerPoint files, edit text and slide elements, and present your deck. |
 
-The same workspace also includes:
-
-- **Shell and agents:** local terminals, Codex, and Claude sessions, with project instructions in `AGENTS.md`.
-- **Remote projects:** SSH workspaces with remote files and a terminal beside the document.
-- **Review tools:** project history, GitHub push and pull, compile diagnostics, notes, and a whiteboard.
-- **Your preferred setup:** themes, Vim shortcuts, and adjustable editor, preview, and terminal panes.
-
 See the [feature reference](docs/features.md) for the full list.
 
 ## Install on macOS
@@ -30,10 +23,6 @@ See the [feature reference](docs/features.md) for the full list.
 ```sh
 curl -fsSL https://alex-dils.com/openleaf/install.sh | bash
 ```
-
-The installer creates `Openleaf.app` in Applications and checks for a LaTeX compiler. See the [installation docs](https://www.alex-dils.com/openleaf/docs#install) for prerequisites and other installation options.
-
-Once Openleaf opens, import an existing project or create one. Open a `.tex`, `.py`, `.ipynb`, or `.pptx` file to start working.
 
 ## Run from source
 
@@ -45,8 +34,6 @@ cd openleaf
 npm install
 npm start
 ```
-
-For LaTeX compilation, install `tectonic`, `latexmk`, or `pdflatex`. Python execution needs a Python interpreter. Codex and Claude are optional; install and sign in to their CLIs separately if you want to use them.
 
 ## Contributing
 
