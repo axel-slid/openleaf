@@ -8302,7 +8302,7 @@ function renderProjectGrid() {
     card.innerHTML = `
       <button class="project-card-open" type="button" aria-label="Open ${escapeHtml(displayName)}">
         <span class="project-preview" aria-hidden="true">
-          <span class="project-preview-message">${escapeHtml((displayName[0] || "P").toUpperCase())}</span>
+          <span class="project-preview-message">${project.pdfExists ? "Loading preview…" : "No PDF yet"}</span>
         </span>
         <span class="project-card-copy">
           <span class="project-card-title-row">
@@ -8555,11 +8555,7 @@ function renderProjectCollectionCard(collection) {
   card.className = "project-collection-card";
   card.setAttribute("aria-label", `Open ${collection.name}`);
   card.dataset.collectionId = collection.id;
-  const tiles = members.slice(0, 4).map((project) => project.previewImageUrl
-    ? `<img src="${escapeHtml(project.previewImageUrl)}" alt="">`
-    : project.readingFiles && project.readingFiles.find((reading) => reading.previewImageUrl)
-      ? `<img src="${escapeHtml(project.readingFiles.find((reading) => reading.previewImageUrl).previewImageUrl)}" alt="">`
-    : `<span>${escapeHtml((projectDisplaySortName(project)[0] || "P").toUpperCase())}</span>`).join("");
+  const tiles = members.slice(0, 4).map(() => '<span data-project-preview></span>').join("");
   card.innerHTML = `
     <span class="project-collection-preview" aria-hidden="true">${tiles}</span>
     <span class="project-collection-copy">
@@ -8567,6 +8563,14 @@ function renderProjectCollectionCard(collection) {
       <small>${itemCount} ${readingCount ? (itemCount === 1 ? "reading" : "readings") : (itemCount === 1 ? "project" : "projects")}${readingMinutes ? ` · ${escapeHtml(formatReadingTime(readingMinutes, { total: true }))}` : ""} · ${collection.divisions.length} ${collection.divisions.length === 1 ? "division" : "divisions"}</small>
     </span>
   `;
+  card.querySelectorAll("[data-project-preview]").forEach((tile, index) => {
+    const project = members[index];
+    const reading = !project.pdfExists && project.readingFiles?.[0];
+    scheduleProjectPreview(tile, reading ? {
+      ...project, pdfExists: true, previewRelativePath: reading.relativePath,
+      previewImageUrl: reading.previewImageUrl
+    } : project, projectPreviewGeneration);
+  });
   card.addEventListener("click", () => openProjectCollection(collection.id));
   card.addEventListener("dragover", (event) => {
     if (!Array.from(event.dataTransfer.types || []).includes("application/x-openleaf-project")) return;
@@ -8910,25 +8914,66 @@ async function toggleProjectFavorite(project) {
 }
 
 async function renderProjectPreview(card, project) {
-  const preview = card.querySelector(".project-preview");
+  const preview = card.matches("[data-project-preview]") ? card : card.querySelector(".project-preview");
   if (!preview) return;
-  const canUseCachedPreview = Boolean(project.previewImageUrl);
-  preview.classList.toggle("pdf-dark-render", pdfDarkMode && pdfRenderMode !== "original");
-  preview.classList.toggle("pdf-invert-pages", pdfDarkMode && pdfRenderMode === "invert");
-  if (canUseCachedPreview) {
+  if (project.previewImageUrl) {
     const image = previewImageElement(project.previewImageUrl, `${project.name} preview`);
+    // A lazy image offscreen can stall the entire serial preview queue.
+    image.loading = "eager";
     image.classList.add("project-preview-raster");
     preview.replaceChildren(image);
     try {
       await image.decode();
       return;
     } catch (error) {
-      // Home never decodes the source PDF. Opening the project refreshes this
-      // lightweight cache from the already-rendered first page instead.
+      // Regenerate stale or unreadable cache entries from the actual PDF.
+      preview.replaceChildren();
     }
     if (!card.isConnected) return;
   }
-  preview.innerHTML = `<span class="project-preview-message">${escapeHtml(((project.displayName || project.name || "P")[0] || "P").toUpperCase())}</span>`;
+  if (!project.pdfExists || !window.localOverleaf.readPdf) {
+    preview.innerHTML = '<span class="project-preview-message">No PDF yet</span>';
+    return;
+  }
+  let loadingTask;
+  try {
+    const [pdfjsLib, pdfBuffer] = await Promise.all([
+      loadPdfJs(), window.localOverleaf.readPdf(project.id, project.previewRelativePath || "")
+    ]);
+    if (!card.isConnected) return;
+    loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) });
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+    if (!card.isConnected) return;
+    const baseViewport = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: 720 / Math.max(baseViewport.width, baseViewport.height) });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport, background: "#ffffff" }).promise;
+    // Store one neutral PNG; CSS applies the current theme immediately, even
+    // when the PDF reader itself is configured to show original page colors.
+    const dataUrl = canvas.toDataURL("image/png");
+    if (card.isConnected) {
+      const image = previewImageElement(dataUrl, `${project.name} first page`);
+      image.classList.add("project-preview-raster");
+      preview.replaceChildren(image);
+    }
+    if (project.previewRelativePath && window.localOverleaf.cachePdfViewPreview) {
+      const result = await window.localOverleaf.cachePdfViewPreview(project.id, project.previewRelativePath, canvas.toDataURL("image/webp"));
+      if (result?.previewImageUrl) project.previewImageUrl = result.previewImageUrl;
+    } else if (window.localOverleaf.cacheProjectPreview) {
+      const result = await window.localOverleaf.cacheProjectPreview(project.id, dataUrl);
+      if (result?.previewImageUrl) project.previewImageUrl = result.previewImageUrl;
+    }
+  } catch (error) {
+    if (card.isConnected && !preview.querySelector("img")) {
+      preview.innerHTML = '<span class="project-preview-message">Preview unavailable</span>';
+    }
+    preview.dataset.previewError = formatError(error);
+  } finally {
+    await loadingTask?.destroy();
+  }
 }
 
 function cacheActiveProjectPreview(sourceCanvas) {

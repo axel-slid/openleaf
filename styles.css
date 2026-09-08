@@ -5529,35 +5529,6 @@ body[data-theme-preset="light-plus"] .CodeMirror-gutters {
 }
 
 @media (max-width: 980px) {
-  body {
-    overflow: auto;
-  }
-
-  .app {
-    height: auto;
-    min-height: 100vh;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-    height: auto;
-  }
-
-  .workspace {
-    display: block;
-    height: auto;
-  }
-
-  .splitter {
-    display: none;
-  }
-
-  .source-pane,
-  .preview-pane {
-    height: 70vh;
-  }
-
   .visual-page {
     padding: 34px 28px 48px;
   }
@@ -12565,11 +12536,12 @@ body.is-resizing-notes .notes-resize-handle::before {
 
 /* Definitive workspace templates: every state ends with an explicit notes column. */
 .workspace {
-  grid-template-columns: var(--file-width) 8px minmax(320px, var(--editor-width)) 8px minmax(0, 1fr) auto !important;
+  overflow-x: auto;
+  grid-template-columns: var(--file-width) 8px minmax(320px, min(var(--editor-width), 45%)) 8px minmax(240px, 1fr) auto !important;
 }
 
 .workspace.files-hidden {
-  grid-template-columns: 42px minmax(320px, var(--editor-width)) 8px minmax(0, 1fr) auto !important;
+  grid-template-columns: 42px minmax(320px, min(var(--editor-width), 55%)) 8px minmax(240px, 1fr) auto !important;
 }
 
 .workspace.source-hidden {
@@ -15955,4 +15927,51 @@ body[data-contrast="high"] .preview-pane .pane-header {
 .is-resizing-log .log-resize-handle::before,
 body.is-resizing-notes .notes-panel.notes-open .notes-resize-handle::before {
   background: var(--accent) !important;
+}
+
+/* The scrollable home surface must receive wheel/trackpad events. Only the
+   header remains a native window drag target. */
+.project-screen,
+.project-shell {
+  -webkit-app-region: no-drag;
+}
+
+.project-hero {
+  -webkit-app-region: drag;
+}
+
+.preview-pane .pane-header {
+  overflow-x: auto;
+}
+
+.preview-pane .pane-header .pdf-title-block {
+  flex: 0 0 auto !important;
+  min-width: 64px !important;
+  max-width: 160px;
+}
+
+.project-preview-message {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.project-collection-preview [data-project-preview] img {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+}
+
+.project-collection-preview [data-project-preview],
+.project-collection-preview .project-preview-message {
+  background: var(--panel);
+}
+
+/* Home thumbnails follow the application theme, independently of the reader's
+   original-color setting. The cached PNG always remains theme-neutral. */
+body[data-theme="dark"] .project-preview img,
+body[data-theme="dark"] .project-collection-preview img,
+body[data-theme="dark"] .project-division-preview img {
+  background: #ffffff !important;
+  filter: var(--pdf-dark-filter) !important;
 }
