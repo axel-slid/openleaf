@@ -16003,6 +16003,15 @@ body[data-theme="dark"] .project-division-preview img {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  align-items: stretch;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  width: 100%;
 }
 
 #projectGrid .project-preview,
@@ -16017,6 +16026,7 @@ body[data-theme="dark"] .project-division-preview img {
 }
 
 #projectGrid:not(.rows-view) .project-preview {
+  flex: 0 0 230px;
   height: 230px;
   width: 100%;
 }
@@ -16037,7 +16047,12 @@ body[data-theme="dark"] .project-division-preview img {
 }
 
 #projectGrid:not(.rows-view) .project-card-copy {
+  padding-right: 0 !important;
   width: 100%;
+}
+
+#projectGrid:not(.rows-view) .project-card-title-row {
+  padding-right: 0;
 }
 
 #projectGrid .project-collection-card {
