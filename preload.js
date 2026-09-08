@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 contextBridge.exposeInMainWorld("localOverleaf", {
   isTestRuntime: process.env.OPENLEAF_SKIP_LATEX_CHECK === "1",
   listProjects: () => ipcRenderer.invoke("list-projects"),
-  addProject: (kind) => ipcRenderer.invoke("add-project", { kind }),
+  addProject: (kind, paths = []) => ipcRenderer.invoke("add-project", { kind, paths }),
   addProjectFromPath: (paths) => ipcRenderer.invoke("add-project-from-path", { paths }),
   listTemplates: () => ipcRenderer.invoke("list-templates"),
   templatePreviewPdf: (templateId) => ipcRenderer.invoke("template-preview-pdf", templateId),
