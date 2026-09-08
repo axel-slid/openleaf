@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 contextBridge.exposeInMainWorld("localOverleaf", {
   isTestRuntime: process.env.OPENLEAF_SKIP_LATEX_CHECK === "1",
   listProjects: () => ipcRenderer.invoke("list-projects"),
+  supportsNativeTabs: process.platform === "darwin",
+  openProjectInTab: (projectId) => ipcRenderer.invoke("open-project-in-tab", projectId),
   addProject: (kind) => ipcRenderer.invoke("add-project", { kind }),
   addProjectFromPath: (paths) => ipcRenderer.invoke("add-project-from-path", { paths }),
   listTemplates: () => ipcRenderer.invoke("list-templates"),
