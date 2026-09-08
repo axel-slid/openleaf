@@ -3757,9 +3757,8 @@ function greetingAllowedForHour(greeting, hour) {
 function updateProjectHeroGreeting({ rotate = false } = {}) {
   if (!projectHeroTitle) return;
   const firstName = String(aiProfile.name || "").trim().split(/\s+/)[0] || "";
-  projectHeroTitle.hidden = !firstName;
-  projectHeroTitle.style.display = firstName ? "" : "none";
-  if (!firstName) return;
+  projectHeroTitle.hidden = false;
+  projectHeroTitle.style.display = "";
   const now = new Date();
   const hour = now.getHours();
   const bucket = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
@@ -8462,7 +8461,9 @@ function formatReadingTime(value, { total = false } = {}) {
 
 function ensureCourseReadingCollections() {
   const grouped = new Map();
+  const dismissedProjects = readDismissedSubjectProjects();
   projects.forEach((project) => {
+    if (dismissedProjects.has(project.id)) return;
     const subject = String(project.readingCollection && project.readingCollection.subject || "").trim();
     if (!subject || !Array.isArray(project.readingFiles) || !project.readingFiles.length) return;
     if (!grouped.has(subject)) grouped.set(subject, []);
@@ -8499,6 +8500,29 @@ function ensureCourseReadingCollections() {
 
 function ensureDemogReadingCollection() {
   ensureCourseReadingCollections();
+}
+
+function readDismissedSubjectProjects() {
+  try {
+    const ids = JSON.parse(localStorage.getItem("openleafDismissedSubjectProjects") || "[]");
+    return new Set(Array.isArray(ids) ? ids : []);
+  } catch (_error) {
+    return new Set();
+  }
+}
+
+function deleteProjectCollection(collectionId) {
+  const collection = projectCollections.find((item) => item.id === collectionId);
+  if (!collection) return;
+  const dismissedProjects = readDismissedSubjectProjects();
+  collection.divisions.forEach((division) => {
+    division.projectIds.forEach((id) => dismissedProjects.add(id));
+  });
+  localStorage.setItem("openleafDismissedSubjectProjects", JSON.stringify([...dismissedProjects]));
+  projectCollections = projectCollections.filter((item) => item.id !== collectionId);
+  saveProjectCollections();
+  if (openProjectCollectionId === collectionId) closeProjectCollection();
+  renderProjectGrid();
 }
 
 function projectCollectionMembership(projectId) {
@@ -8601,18 +8625,19 @@ function renderProjectCollectionCard(collection) {
     ? project.readingFiles.reduce((sum, reading) => sum + (Number(reading.readingMinutes) || 0), 0)
     : 0), 0);
   const itemCount = readingCount || members.length;
-  const card = document.createElement("button");
-  card.type = "button";
+  const card = document.createElement("article");
   card.className = "project-collection-card";
-  card.setAttribute("aria-label", `Open ${collection.name}`);
   card.dataset.collectionId = collection.id;
   const tiles = members.slice(0, 4).map(() => '<span data-project-preview></span>').join("");
   card.innerHTML = `
+    <button class="project-collection-open" type="button" aria-label="Open ${escapeHtml(collection.name)}">
     <span class="project-collection-preview" aria-hidden="true">${tiles}</span>
     <span class="project-collection-copy">
       <strong>${escapeHtml(collection.name)}</strong>
       <small>${itemCount} ${readingCount ? (itemCount === 1 ? "reading" : "readings") : (itemCount === 1 ? "project" : "projects")}${readingMinutes ? ` · ${escapeHtml(formatReadingTime(readingMinutes, { total: true }))}` : ""} · ${collection.divisions.length} ${collection.divisions.length === 1 ? "division" : "divisions"}</small>
     </span>
+    </button>
+    <button class="project-collection-delete" type="button" aria-label="Delete subject ${escapeHtml(collection.name)}" title="Delete subject; keep its documents">${TRASH_ICON_SVG}</button>
   `;
   card.querySelectorAll("[data-project-preview]").forEach((tile, index) => {
     const project = members[index];
@@ -8622,7 +8647,8 @@ function renderProjectCollectionCard(collection) {
       previewImageUrl: reading.previewImageUrl
     } : project, projectPreviewGeneration);
   });
-  card.addEventListener("click", () => openProjectCollection(collection.id));
+  card.querySelector(".project-collection-open").addEventListener("click", () => openProjectCollection(collection.id));
+  card.querySelector(".project-collection-delete").addEventListener("click", () => deleteProjectCollection(collection.id));
   card.addEventListener("dragover", (event) => {
     if (!Array.from(event.dataTransfer.types || []).includes("application/x-openleaf-project")) return;
     event.preventDefault();
