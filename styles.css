@@ -17734,17 +17734,13 @@ body #historyPanel[hidden] {
   color: var(--muted) !important;
 }
 
-/* Home page accent: a soft gradient wash, the active view toggle, and search focus. */
+/* Home page accent: a soft gradient wash and the active view toggle. */
 #projectGridButton.active,
 #projectRowsButton.active {
   background: rgba(var(--accent-rgb), 0.18) !important;
   color: var(--accent) !important;
 }
 
-.project-tools:focus-within {
-  border-color: rgba(var(--accent-rgb), 0.55) !important;
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14) !important;
-}
 
 #projectSearch:focus {
   outline: none !important;
@@ -17775,4 +17771,22 @@ body #projectScreen {
     radial-gradient(90% 60% at 100% 0%, rgba(var(--accent-rgb), 0.18), transparent 58%),
     linear-gradient(180deg, rgba(var(--accent-rgb), 0.06), transparent 45%) !important;
   background-repeat: no-repeat !important;
+}
+
+/* The search row sits directly on the page, with no surrounding box. */
+.project-tools,
+.project-tools:focus-within,
+body.transparent-theme .project-tools {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+#projectSearch,
+#projectSearch:focus {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
