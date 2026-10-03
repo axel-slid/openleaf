@@ -17442,11 +17442,6 @@ body #historyPanel[hidden] {
   font: 11.5px/1.95 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
 }
 
-#projectHeroTitle .project-hero-name {
-  color: var(--accent);
-  -webkit-text-fill-color: var(--accent);
-}
-
 /* Keep the Code/Visual pill in the same place in both modes. */
 .source-pane .pane-header .source-heading {
   flex: 0 0 190px !important;
@@ -17737,4 +17732,51 @@ body #historyPanel[hidden] {
 .automation-step-chip[data-type="agent"] {
   border-color: var(--border) !important;
   color: var(--muted) !important;
+}
+
+/* Home page accent: the primary action, the active view toggle, and search focus. */
+.hero-actions #addProjectButton {
+  background: rgba(var(--accent-rgb), 0.16) !important;
+  border: 1px solid rgba(var(--accent-rgb), 0.38) !important;
+  border-radius: 999px !important;
+  color: color-mix(in srgb, var(--accent) 80%, var(--text)) !important;
+  padding: 0 16px !important;
+}
+
+.hero-actions #addProjectButton:hover {
+  background: rgba(var(--accent-rgb), 0.26) !important;
+}
+
+#projectGridButton.active,
+#projectRowsButton.active {
+  background: rgba(var(--accent-rgb), 0.18) !important;
+  color: var(--accent) !important;
+}
+
+.project-tools:focus-within {
+  border-color: rgba(var(--accent-rgb), 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14) !important;
+}
+
+#projectSearch:focus {
+  outline: none !important;
+}
+
+/* List view: subjects and projects share the same columns and baseline. */
+#projectGrid.rows-view .project-collection-copy {
+  width: 100% !important;
+}
+
+#projectGrid.rows-view .project-name,
+#projectGrid.rows-view .project-file,
+#projectGrid.rows-view .project-meta,
+#projectGrid.rows-view .project-card-meta-row,
+#projectGrid.rows-view .project-card-title-row,
+#projectGrid.rows-view .project-collection-copy strong,
+#projectGrid.rows-view .project-collection-copy small {
+  line-height: 20px !important;
+}
+
+#projectGrid.rows-view .project-card-copy {
+  padding: 0 !important;
 }
