@@ -17790,3 +17790,14 @@ body.transparent-theme .project-tools {
   box-shadow: none !important;
   outline: none !important;
 }
+
+/* A single underline marks the search field; it takes the accent while typing. */
+body .project-tools {
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+  transition: border-color 0.15s ease;
+}
+
+body .project-tools:focus-within {
+  border-bottom-color: rgba(var(--accent-rgb), 0.7) !important;
+}
