@@ -3108,13 +3108,19 @@ function shouldSkipFile(name) {
   return [".aux", ".bbl", ".blg", ".fdb_latexmk", ".fls", ".out", ".synctex.gz", ".toc"].some((ext) => name.endsWith(ext));
 }
 
-async function walkProjectFiles(project, dir = projectRootFor(project), depth = 0) {
-  if (depth > 5) return [];
+// Projects can sit in large folders (a .tex file directly in ~/Downloads
+// makes Downloads the project root), so the walk skips tooling folders and
+// stops after a fixed number of entries.
+const PROJECT_FILE_LIMIT = 3000;
+const SKIPPED_PROJECT_DIRS = new Set(["node_modules", "__pycache__", ".git", ".venv", "venv", ".volume_venv", "dist", "build", ".next", ".cache", "Library"]);
+
+async function walkProjectFiles(project, dir = projectRootFor(project), depth = 0, budget = { remaining: PROJECT_FILE_LIMIT }) {
+  if (depth > 5 || budget.remaining <= 0) return [];
 
   const entries = await fsp.readdir(dir, { withFileTypes: true });
   const visible = entries
     .filter((entry) => !shouldSkipFile(entry.name))
-    .filter((entry) => !["node_modules", "__pycache__", ".git"].includes(entry.name))
+    .filter((entry) => !SKIPPED_PROJECT_DIRS.has(entry.name))
     .sort((a, b) => {
       if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
       return a.name.localeCompare(b.name);
@@ -3122,6 +3128,8 @@ async function walkProjectFiles(project, dir = projectRootFor(project), depth = 
 
   const nodes = [];
   for (const entry of visible) {
+    if (budget.remaining <= 0) break;
+    budget.remaining -= 1;
     const absolutePath = path.join(dir, entry.name);
     const relativePath = relativeProjectPath(project, absolutePath);
     const node = {
@@ -3135,7 +3143,7 @@ async function walkProjectFiles(project, dir = projectRootFor(project), depth = 
     };
 
     if (entry.isDirectory()) {
-      node.children = await walkProjectFiles(project, absolutePath, depth + 1);
+      node.children = await walkProjectFiles(project, absolutePath, depth + 1, budget);
     }
 
     nodes.push(node);
@@ -3885,6 +3893,7 @@ function resolvePdfSpeechLine(session, line) {
   if (!pending) return;
   clearTimeout(pending.timer);
   session.pending.delete(String(response.id));
+  schedulePdfSpeechIdleStop(session);
   if (response.ok) pending.resolve(response);
   else pending.reject(new Error(response.error || "Local neural speech generation failed."));
 }
@@ -3892,12 +3901,28 @@ function resolvePdfSpeechLine(session, line) {
 function closePdfSpeechSession(session, error = new Error("Local voice stopped.")) {
   if (!session || session.closed) return;
   session.closed = true;
+  clearTimeout(session.idleTimer);
   if (pdfSpeechSession === session) pdfSpeechSession = null;
   session.pending.forEach((pending) => {
     clearTimeout(pending.timer);
     pending.reject(error);
   });
   session.pending.clear();
+}
+
+// The voice model holds hundreds of MB to GBs while loaded, so stop the
+// worker once read-aloud has been idle for a while; it restarts on demand.
+const PDF_SPEECH_IDLE_MS = 90 * 1000;
+
+function schedulePdfSpeechIdleStop(session) {
+  clearTimeout(session.idleTimer);
+  if (session.closed || session.pending.size) return;
+  session.idleTimer = setTimeout(() => {
+    if (!session.closed && !session.pending.size) {
+      session.child.kill("SIGTERM");
+      closePdfSpeechSession(session, new Error("Local voice stopped while idle."));
+    }
+  }, PDF_SPEECH_IDLE_MS);
 }
 
 function killPdfSpeechSession() {
@@ -3927,10 +3952,12 @@ async function synthesizePdfSpeech(_event, payload = {}) {
   }
   let session = pdfSpeechSession;
   if (!session || session.closed || session.child.stdin.destroyed) session = createPdfSpeechSession();
+  clearTimeout(session.idleTimer);
   const id = crypto.randomUUID();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       session.pending.delete(id);
+      schedulePdfSpeechIdleStop(session);
       reject(new Error("The local neural voice took too long to generate audio."));
     }, 180000);
     session.pending.set(id, {

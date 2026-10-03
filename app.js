@@ -13318,14 +13318,26 @@ function renderFileNode(node, depth) {
     attachFileContextMenu(summary, node);
     details.appendChild(summary);
 
+    // Children render the first time a folder opens, so large collapsed
+    // folders don't put thousands of rows in the page.
     const children = document.createElement("div");
     children.className = "file-children";
     children.style.setProperty("--depth-indent", depthIndent);
-    (node.children || []).forEach((child) => children.appendChild(renderFileNode(child, depth + 1)));
+    let childrenRendered = false;
+    const renderChildren = () => {
+      if (childrenRendered) return;
+      childrenRendered = true;
+      (node.children || []).forEach((child) => children.appendChild(renderFileNode(child, depth + 1)));
+    };
+    if (details.open) renderChildren();
     details.appendChild(children);
     details.addEventListener("toggle", () => {
-      if (details.open) expandedFileFolders.add(node.relativePath);
-      else expandedFileFolders.delete(node.relativePath);
+      if (details.open) {
+        renderChildren();
+        expandedFileFolders.add(node.relativePath);
+      } else {
+        expandedFileFolders.delete(node.relativePath);
+      }
     });
     return details;
   }

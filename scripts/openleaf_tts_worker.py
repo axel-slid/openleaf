@@ -6,6 +6,7 @@ redirected to stderr so the Electron bridge always receives valid JSON.
 """
 
 import contextlib
+import gc
 import json
 import os
 import sys
@@ -22,6 +23,21 @@ SAMPLE_WIDTH = 2
 model = None
 pipeline = None
 
+# MLX keeps freed GPU buffers in a cache for reuse. Every speech chunk has a
+# different length, so without a cap the cache grows with each request (this
+# reached 12 GB). Cap it, and clear it after every chunk.
+CACHE_LIMIT_BYTES = 256 * 1024 * 1024
+
+
+def release_memory():
+    gc.collect()
+    try:
+        import mlx.core as mx
+
+        mx.clear_cache()
+    except Exception:
+        pass
+
 
 def ensure_model():
     global model, pipeline
@@ -30,6 +46,9 @@ def ensure_model():
     with contextlib.redirect_stdout(sys.stderr):
         from mlx_audio.tts.utils import load_model
 
+        import mlx.core as mx
+
+        mx.set_cache_limit(CACHE_LIMIT_BYTES)
         model = load_model(MODEL_ID)
         pipeline = model._get_pipeline("a")
 
@@ -60,9 +79,13 @@ def synthesize(text, speed, voice, output_path):
             )
         )
 
-    duration = write_wav(result.audio, model.sample_rate, output_path)
+    try:
+        duration = write_wav(result.audio, model.sample_rate, output_path)
+    finally:
+        audio_tokens = result.tokens
+        del result
     timings = []
-    for token in result.tokens or []:
+    for token in audio_tokens or []:
         token_text = str(getattr(token, "text", "") or "")
         start = getattr(token, "start_ts", None)
         end = getattr(token, "end_ts", None)
@@ -70,6 +93,7 @@ def synthesize(text, speed, voice, output_path):
             continue
         timings.append({"text": token_text, "start": float(start), "end": float(end)})
 
+    release_memory()
     return {
         "duration": duration,
         "sampleRate": int(model.sample_rate),
