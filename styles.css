@@ -17801,3 +17801,67 @@ body .project-tools {
 body .project-tools:focus-within {
   border-bottom-color: rgba(var(--accent-rgb), 0.7) !important;
 }
+
+/* Narrow panes: header controls drop out in order of importance instead of
+   being clipped. Least essential first; the mode pill and compile stay longest. */
+.source-pane > .pane-header {
+  container: source-toolbar / inline-size;
+  overflow: hidden !important;
+}
+
+.preview-pane > .pane-header,
+#previewPaneHeader {
+  overflow: hidden !important;
+}
+
+@container source-toolbar (max-width: 520px) {
+  #vimModeIndicator { display: none !important; }
+  .source-pane .pane-header .source-heading {
+    flex-basis: 150px !important;
+    max-width: 150px !important;
+    width: 150px !important;
+  }
+}
+
+@container source-toolbar (max-width: 440px) {
+  #sourceStats { display: none !important; }
+  .source-mode-actions .mode-button { padding: 0 11px !important; }
+}
+
+@container source-toolbar (max-width: 360px) {
+  .source-pane .pane-header .source-heading { display: none !important; }
+}
+
+@container source-toolbar (max-width: 260px) {
+  #editorFullscreenButton { display: none !important; }
+}
+
+@container source-toolbar (max-width: 170px) {
+  .source-pane .pane-header .source-mode-actions { display: none !important; }
+}
+
+@container pdf-toolbar (max-width: 740px) {
+  #pdfCinematicButton,
+  #pdfReaderButton { display: none !important; }
+}
+
+@container pdf-toolbar (max-width: 480px) {
+  #previewPaneHeader .pdf-action-segment,
+  #pdfSidebarButton { display: none !important; }
+}
+
+@container pdf-toolbar (max-width: 400px) {
+  #pdfPageIndicator { display: none !important; }
+}
+
+@container pdf-toolbar (max-width: 330px) {
+  #previewPaneHeader .pdf-controls { display: none !important; }
+}
+
+@container pdf-toolbar (max-width: 250px) {
+  #previewPaneHeader .pdf-title-block { display: none !important; }
+}
+
+@container pdf-toolbar (max-width: 160px) {
+  #pdfSpeechControls { display: none !important; }
+}
