@@ -17865,3 +17865,11 @@ body .project-tools:focus-within {
 @container pdf-toolbar (max-width: 160px) {
   #pdfSpeechControls { display: none !important; }
 }
+
+@container pdf-toolbar (max-width: 650px) {
+  .pdf-speech-pill .pdf-speech-button {
+    box-shadow: none !important;
+    height: 32px !important;
+    width: 32px !important;
+  }
+}
