@@ -17715,3 +17715,26 @@ body #historyPanel[hidden] {
   font-size: 0.9em !important;
   text-align: justify;
 }
+
+/* Automation steps: neutral cards, no per-type color strips or tinted icons. */
+.automation-node,
+.automation-node[data-type] {
+  border-left-color: var(--border-strong, var(--border)) !important;
+  border-left-width: 1px !important;
+}
+
+.automation-node[data-type] .automation-node-icon,
+.automation-node-dialog .automation-node-icon {
+  background: color-mix(in srgb, var(--text) 7%, transparent) !important;
+  color: var(--text) !important;
+}
+
+.automation-step-chip .automation-icon,
+.automation-step-chip[data-type] .automation-icon {
+  color: inherit !important;
+}
+
+.automation-step-chip[data-type="agent"] {
+  border-color: var(--border) !important;
+  color: var(--muted) !important;
+}
