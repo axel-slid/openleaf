@@ -17734,19 +17734,7 @@ body #historyPanel[hidden] {
   color: var(--muted) !important;
 }
 
-/* Home page accent: the primary action, the active view toggle, and search focus. */
-.hero-actions #addProjectButton {
-  background: rgba(var(--accent-rgb), 0.16) !important;
-  border: 1px solid rgba(var(--accent-rgb), 0.38) !important;
-  border-radius: 999px !important;
-  color: color-mix(in srgb, var(--accent) 80%, var(--text)) !important;
-  padding: 0 16px !important;
-}
-
-.hero-actions #addProjectButton:hover {
-  background: rgba(var(--accent-rgb), 0.26) !important;
-}
-
+/* Home page accent: a soft gradient wash, the active view toggle, and search focus. */
 #projectGridButton.active,
 #projectRowsButton.active {
   background: rgba(var(--accent-rgb), 0.18) !important;
@@ -17779,4 +17767,12 @@ body #historyPanel[hidden] {
 
 #projectGrid.rows-view .project-card-copy {
   padding: 0 !important;
+}
+
+body #projectScreen {
+  background-image:
+    radial-gradient(120% 70% at 0% 0%, rgba(var(--accent-rgb), 0.32), transparent 62%),
+    radial-gradient(90% 60% at 100% 0%, rgba(var(--accent-rgb), 0.18), transparent 58%),
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.06), transparent 45%) !important;
+  background-repeat: no-repeat !important;
 }
