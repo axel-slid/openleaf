@@ -91,6 +91,22 @@ const projectGridButton = document.getElementById("projectGridButton");
 const projectRowsButton = document.getElementById("projectRowsButton");
 const addProjectButton = document.getElementById("addProjectButton");
 const templatesButton = document.getElementById("templatesButton");
+const automationsButton = document.getElementById("automationsButton");
+const automationsPanel = document.getElementById("automationsPanel");
+const automationsList = document.getElementById("automationsList");
+const automationsAgentNote = document.getElementById("automationsAgentNote");
+const newAutomationButton = document.getElementById("newAutomationButton");
+const automationEditor = document.getElementById("automationEditor");
+const automationNameInput = document.getElementById("automationNameInput");
+const automationDescriptionInput = document.getElementById("automationDescriptionInput");
+const automationCanvas = document.getElementById("automationCanvas");
+const automationEdges = document.getElementById("automationEdges");
+const automationNodeDialog = document.getElementById("automationNodeDialog");
+const deleteAutomationSelectionButton = document.getElementById("deleteAutomationSelectionButton");
+const automationEditorError = document.getElementById("automationEditorError");
+const automationRun = document.getElementById("automationRun");
+const automationRunStatus = document.getElementById("automationRunStatus");
+const automationRunLog = document.getElementById("automationRunLog");
 const remoteWorkspaceButton = document.getElementById("remoteWorkspaceButton");
 const helpButton = document.getElementById("helpButton");
 const newProjectPanel = document.getElementById("newProjectPanel");
@@ -189,6 +205,16 @@ const compileButton = document.getElementById("compileButton");
 const openPdfButton = document.getElementById("openPdfButton");
 const downloadPdfButton = document.getElementById("downloadPdfButton");
 const historyButton = document.getElementById("historyButton");
+const commitFileButton = document.getElementById("commitFileButton");
+const commitFileDialog = document.getElementById("commitFileDialog");
+const commitFileMessage = document.getElementById("commitFileMessage");
+const commitFileTarget = document.getElementById("commitFileTarget");
+const commitFileDiff = document.getElementById("commitFileDiff");
+const commitFileStatus = document.getElementById("commitFileStatus");
+const confirmFileCommit = document.getElementById("confirmFileCommit");
+const cancelFileCommit = document.getElementById("cancelFileCommit");
+let fileCommitContext = null;
+let fileCommitRunning = false;
 const pushGithubButton = document.getElementById("pushGithubButton");
 const pullGithubButton = document.getElementById("pullGithubButton");
 const pdfReaderButton = document.getElementById("pdfReaderButton");
@@ -2653,7 +2679,6 @@ let presentationPasteShortcutAt = 0;
 let presentationUndoStack = [];
 let presentationRedoStack = [];
 let presentationHistorySuspended = false;
-let historyPanelOpen = false;
 let sourceMinimapFrame = 0;
 let sourceMinimapDragging = false;
 let findHighlightMarks = [];
@@ -2664,10 +2689,8 @@ let selectionCodexTimer = null;
 let spellIssueMarks = [];
 let spellCheckTimer = null;
 let spellContextMenu = null;
-let historyEvents = [];
 let historyCaptureTimer = null;
 let lastHistoryText = "";
-let historySelectedIndex = 0;
 let selectedThemeCategory = "";
 let lastPythonLayoutFileKey = "";
 let activeFileRenameInput = null;
@@ -2692,6 +2715,7 @@ async function init() {
   setupSettings();
   setupSourceEditor();
   setupFullscreenNotchTitle();
+  setupTopTitleFit();
   setupTerminalPanel();
   setupPdfSpeech();
   wireEvents();
@@ -2706,6 +2730,28 @@ async function init() {
   } else {
     maybeStartOpenleafTour();
   }
+}
+
+// The title is centered on the window, so a long name can run under the
+// toolbar buttons. Cap its width to the free space on the narrower side.
+function setupTopTitleFit() {
+  const wrap = activeDocumentTitle?.closest(".top-document-title-wrap");
+  const topbar = wrap?.closest(".topbar");
+  if (!wrap || !topbar) return;
+  const left = topbar.querySelector(".topbar-left");
+  const actions = topbar.querySelector(".topbar-actions");
+  const fit = () => {
+    const center = window.innerWidth / 2;
+    const leftEdge = left ? left.getBoundingClientRect().right : 0;
+    const rightEdge = actions ? actions.getBoundingClientRect().left : window.innerWidth;
+    // Leave room for the rename button that sits just right of the title.
+    const halfWidth = Math.min(center - leftEdge, rightEdge - center) - 46;
+    wrap.style.setProperty("max-width", `${Math.max(80, Math.floor(halfWidth * 2))}px`, "important");
+  };
+  fit();
+  window.addEventListener("resize", fit);
+  const resizeObserver = new ResizeObserver(fit);
+  [left, actions].filter(Boolean).forEach((element) => resizeObserver.observe(element));
 }
 
 function setupFullscreenNotchTitle() {
@@ -2781,11 +2827,15 @@ function setupSourceEditor() {
     updateRelativeLineNumbers();
     scheduleSpellGrammarCheck();
   });
+  editor.on("viewportChange", updateRelativeLineNumbers);
+  editor.on("refresh", updateRelativeLineNumbers);
+  new ResizeObserver(updateRelativeLineNumbers).observe(editor.getWrapperElement());
   editor.on("scroll", () => {
     updateSourceMinimapViewport();
     positionSelectionCodexPopover();
   });
   editor.on("cursorActivity", () => {
+    renderSourceStats();
     updateRelativeLineNumbers();
     updateVimModeIndicator();
     scheduleSelectionCodexPopover();
@@ -3728,7 +3778,15 @@ function updateProjectHeroGreeting({ rotate = false } = {}) {
     index = (index + 1) % greetings.length;
     localStorage.setItem(storageKey, String(index));
   }
-  projectHeroTitle.textContent = (greetings[index] || "Hello!").replace("{name}", firstName);
+  // The name takes the theme accent so the greeting carries some color.
+  const [before, after = ""] = (greetings[index] || "Hello!").split("{name}");
+  projectHeroTitle.replaceChildren(document.createTextNode(before));
+  if ((greetings[index] || "").includes("{name}")) {
+    const name = document.createElement("span");
+    name.className = "project-hero-name";
+    name.textContent = firstName;
+    projectHeroTitle.append(name, document.createTextNode(after));
+  }
 }
 
 function profilePromptContext() {
@@ -4122,28 +4180,42 @@ function setRelativeLineNumbers(enabled) {
   applyRelativeLineNumberSetting();
 }
 
+// Relative numbers count screen rows, so a long source line that wraps gets
+// one number per row. The cursor's row shows its absolute source line number.
+// Row positions come from line heights, which assumes a uniform row height.
+let relativeLineFrame = 0;
+
 function updateRelativeLineNumbers() {
   if (!editor) return;
-  editor.operation(() => {
-    for (let line = 0; line < editor.lineCount(); line += 1) {
-      editor.setGutterMarker(line, "relative-line-gutter", null);
-    }
-  });
-  if (!relativeLineNumbersEnabled) {
-    return;
-  }
+  cancelAnimationFrame(relativeLineFrame);
+  relativeLineFrame = requestAnimationFrame(renderRelativeLineNumbers);
+}
 
-  const viewport = editor.getViewport();
-  const from = viewport.from;
-  const to = Math.min(editor.lineCount() - 1, viewport.to);
-  const cursorLine = editor.getCursor().line;
-
+function renderRelativeLineNumbers() {
   editor.operation(() => {
-    for (let line = from; line <= to; line += 1) {
+    editor.clearGutter("relative-line-gutter");
+    if (!relativeLineNumbersEnabled) return;
+    const rowHeight = editor.defaultTextHeight();
+    const viewport = editor.getViewport();
+    const to = Math.min(editor.lineCount() - 1, viewport.to);
+    const cursor = editor.getCursor();
+    const cursorRow = Math.round(editor.cursorCoords(cursor, "local").top / rowHeight);
+    for (let line = viewport.from; line <= to; line += 1) {
+      const firstRow = Math.round(editor.heightAtLine(line, "local") / rowHeight);
+      const handle = editor.getLineHandle(line);
+      const rows = Math.max(1, Math.round((handle?.height || rowHeight) / rowHeight));
       const marker = document.createElement("span");
       marker.className = "relative-line-number";
-      const distance = Math.abs(line - cursorLine);
-      marker.textContent = String(distance);
+      for (let row = 0; row < rows; row += 1) {
+        const cell = document.createElement("span");
+        cell.className = "relative-line-row";
+        cell.style.height = `${rowHeight}px`;
+        cell.style.lineHeight = `${rowHeight}px`;
+        const distance = Math.abs(firstRow + row - cursorRow);
+        cell.textContent = distance === 0 ? String(line + 1) : String(distance);
+        if (distance === 0) cell.classList.add("current");
+        marker.appendChild(cell);
+      }
       editor.setGutterMarker(line, "relative-line-gutter", marker);
     }
   });
@@ -4327,6 +4399,51 @@ function activeFileExtension() {
   return name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
 }
 
+let htmlPreviewController = null;
+let htmlVisualController = null;
+let htmlPreviewTimer = null;
+
+function isHtmlFile(file = activeFile) {
+  return /\.html?$/i.test(String(file && (file.name || file.relativePath) || ""));
+}
+
+function syncHtmlPreview() {
+  const wasHtml = previewPane.classList.contains("html-preview-active");
+  const html = isHtmlFile();
+  previewPane.classList.toggle("html-preview-active", html);
+  if (!html) {
+    clearTimeout(htmlPreviewTimer);
+    if (wasHtml) {
+      pdfTitle.textContent = activeProject && activeProject.pdfName || "main.pdf";
+      pdfMeta.textContent = "";
+      void setPdf();
+    }
+    return;
+  }
+  clearTimeout(autoCompileTimer);
+  if (!htmlPreviewController) {
+    htmlPreviewController = OpenleafHtmlEditor.create();
+    previewPane.append(htmlPreviewController.frame);
+  }
+  pdfTitle.textContent = "HTML Preview";
+  pdfMeta.textContent = activeFile.name;
+  htmlPreviewController.update(getSourceText(), activeFile.fileUrl);
+}
+
+function renderHtmlVisualEditor() {
+  if (!htmlVisualController) {
+    htmlVisualController = OpenleafHtmlEditor.create({ editable: true, onChange(html) {
+      if (!isHtmlFile()) return;
+      suppressSourceChange = true;
+      editor.setValue(html);
+      suppressSourceChange = false;
+      handleSourceChanged({ renderVisual: false });
+    } });
+  }
+  visualEditor.replaceChildren(htmlVisualController.frame);
+  htmlVisualController.update(getSourceText(), activeFile.fileUrl);
+}
+
 function isMarkdownFile(file = activeFile) {
   const name = String((file && file.name) || "").toLowerCase();
   return name.endsWith(".md") || name.endsWith(".markdown");
@@ -4355,6 +4472,7 @@ function applyEditorModeForFile(file = activeFile) {
     ".tsx": { name: "javascript", typescript: true, jsx: true },
     ".css": "css",
     ".html": "htmlmixed",
+    ".htm": "htmlmixed",
     ".xml": "xml",
     ".sh": "shell",
     ".bash": "shell",
@@ -5892,6 +6010,8 @@ function wireEvents() {
   settingsBackdrop.addEventListener("click", closeOverlayModals);
   closeNewProjectButton.addEventListener("click", closeNewProjectPanel);
   templatesButton.addEventListener("click", openTemplatesPanel);
+  setupAutomations();
+  setupHistoryPanel();
   closeTemplatesButton.addEventListener("click", closeTemplatesPanel);
   importTemplateButton.addEventListener("click", importCustomTemplate);
   closeCommandPaletteButton.addEventListener("click", closeCommandPalette);
@@ -6148,6 +6268,20 @@ function wireEvents() {
   if (pdfTitle) pdfTitle.addEventListener("click", togglePdfFileMenu);
   if (pdfMeta) pdfMeta.addEventListener("click", togglePdfFileMenu);
   historyButton.addEventListener("click", openHistoryWindow);
+  if (commitFileButton) commitFileButton.addEventListener("click", openFileCommitDialog);
+  if (commitFileDialog) {
+    document.getElementById("chooseCommitCodeFile").addEventListener("click", async () => {
+      if (fileCommitRunning || !activeProject) return;
+      try {
+        const info = await window.localOverleaf.chooseCommitCodeFile(activeProject.id);
+        if (info) await openFileCommitDialog(true);
+      } catch (error) { commitFileStatus.textContent = formatError(error); }
+    });
+    document.getElementById("commitFileForm").addEventListener("submit", submitFileCommit);
+    commitFileMessage.addEventListener("input", () => { confirmFileCommit.disabled = fileCommitRunning || !fileCommitContext?.changed || !commitFileMessage.value.trim(); });
+    cancelFileCommit.addEventListener("click", () => { if (!fileCommitRunning) commitFileDialog.close(); });
+    commitFileDialog.addEventListener("cancel", (event) => { if (fileCommitRunning) event.preventDefault(); });
+  }
   if (pushGithubButton) pushGithubButton.addEventListener("click", pushActiveProjectToGithub);
   if (pullGithubButton) pullGithubButton.addEventListener("click", pullActiveProjectFromGithub);
   if (pdfReaderButton) pdfReaderButton.addEventListener("click", togglePdfReaderMode);
@@ -6406,6 +6540,18 @@ function handleGlobalShortcut(event) {
       return;
     }
 
+    if (historyPanel && !historyPanel.hidden) {
+      event.preventDefault();
+      setHistoryPanelOpen(false);
+      return;
+    }
+
+    if (automationsPanel && !automationsPanel.hidden) {
+      event.preventDefault();
+      closeAutomationsPanel();
+      return;
+    }
+
     if (!templatesPanel.hidden) {
       event.preventDefault();
       closeTemplatesPanel();
@@ -6529,6 +6675,7 @@ function exitWindowFullscreen() {
 
 function openSettings() {
   closeCommandPalette();
+  closeAutomationsPanel({ keepBackdrop: true });
   closeNewProjectPanel({ keepBackdrop: true });
   closeTemplatesPanel({ keepBackdrop: true });
   closeSshProjectPanel({ keepBackdrop: true });
@@ -6548,19 +6695,566 @@ function closeSettings({ keepBackdrop = false } = {}) {
 
 function closeOverlayModals() {
   closeCommandPalette();
+  closeAutomationsPanel({ keepBackdrop: true });
   closeSettings({ keepBackdrop: true });
   closeNewProjectPanel({ keepBackdrop: true });
   closeTemplatesPanel({ keepBackdrop: true });
   closeSshProjectPanel({ keepBackdrop: true });
+  if (historyPanel && !historyPanel.hidden) {
+    historyPanel.hidden = true;
+    historyButton?.classList.remove("active");
+  }
   updateOverlayBackdrop();
 }
 
 function updateOverlayBackdrop() {
-  settingsBackdrop.hidden = settingsDrawer.hidden && newProjectPanel.hidden && templatesPanel.hidden && commandPalette.hidden && sshProjectPanel.hidden;
+  settingsBackdrop.hidden = settingsDrawer.hidden && newProjectPanel.hidden && templatesPanel.hidden && commandPalette.hidden && sshProjectPanel.hidden
+    && (!automationsPanel || automationsPanel.hidden) && (!historyPanel || historyPanel.hidden);
+}
+
+// Automations are DAGs of steps (choose files, template, agent, compile) that
+// the main process runs in order. A run keeps going if the panel is closed.
+const AUTOMATION_NODE_WIDTH = 196;
+const AUTOMATION_NODE_HEIGHT = 66;
+const AUTOMATION_ICONS = {
+  input: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path><path d="M12 17v-6"></path><path d="m9 13 3-3 3 3"></path>',
+  template: '<rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h8"></path><path d="M8 15h5"></path>',
+  agent: '<path d="M12 3v3"></path><path d="M12 18v3"></path><path d="M3 12h3"></path><path d="M18 12h3"></path><path d="m12 8 1.2 2.8L16 12l-2.8 1.2L12 16l-1.2-2.8L8 12l2.8-1.2z"></path>',
+  compile: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path><path d="m9 15 2 2 4-4"></path>',
+  run: '<path d="M7 5v14l11-7z"></path>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"></path><path d="m13 7 4 4"></path>',
+  remove: '<path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"></path><path d="M9 7V4h6v3"></path>',
+  reset: '<path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>',
+  check: '<path d="m5 12 5 5L20 7"></path>'
+};
+
+function automationIcon(name) {
+  return `<svg class="automation-icon" viewBox="0 0 24 24" aria-hidden="true">${AUTOMATION_ICONS[name] || ""}</svg>`;
+}
+let automationsData = { automations: [], templates: [], nodeTypes: {} };
+let activeAutomationRunId = "";
+let automationDraft = null;
+let automationSelection = null;
+let automationConnect = null;
+
+function setupAutomations() {
+  if (!automationsButton || !automationsPanel) return;
+  automationsButton.addEventListener("click", () => {
+    if (automationsPanel.hidden) openAutomationsPanel();
+    else closeAutomationsPanel();
+  });
+  document.getElementById("closeAutomationsButton").addEventListener("click", () => closeAutomationsPanel());
+  document.getElementById("editorAutomationsButton")?.addEventListener("click", () => {
+    if (automationsPanel.hidden) openAutomationsPanel();
+    else closeAutomationsPanel();
+  });
+  newAutomationButton.addEventListener("click", () => openAutomationEditor(null));
+  document.getElementById("cancelAutomationEditButton").addEventListener("click", () => closeAutomationEditor());
+  document.getElementById("saveAutomationButton").addEventListener("click", saveAutomationDraft);
+  document.getElementById("stopAutomationButton").addEventListener("click", () => {
+    if (activeAutomationRunId) window.localOverleaf.cancelAutomation(activeAutomationRunId);
+  });
+  automationEditor.querySelectorAll("[data-add-node]").forEach((button) => {
+    button.addEventListener("click", () => addAutomationNode(button.dataset.addNode));
+  });
+  automationNodeDialog.addEventListener("pointerdown", (event) => event.stopPropagation());
+  document.addEventListener("pointerdown", (event) => {
+    if (automationNodeDialog.hidden || automationNodeDialog.contains(event.target)) return;
+    if (event.target.closest?.(".automation-node")) return;
+    closeAutomationNodeDialog();
+  });
+  deleteAutomationSelectionButton.addEventListener("click", deleteAutomationSelection);
+  automationNameInput.addEventListener("input", () => { if (automationDraft) automationDraft.name = automationNameInput.value; });
+  automationDescriptionInput.addEventListener("input", () => { if (automationDraft) automationDraft.description = automationDescriptionInput.value; });
+  automationCanvas.addEventListener("pointerdown", (event) => {
+    if (event.target === automationCanvas || event.target === automationEdges) {
+      closeAutomationNodeDialog();
+      selectAutomationItem(null);
+    }
+  });
+  automationCanvas.addEventListener("keydown", (event) => {
+    if (automationNodeDialog.contains(event.target)) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeAutomationNodeDialog();
+        automationCanvas.focus();
+      }
+      return;
+    }
+    if ((event.key === "Delete" || event.key === "Backspace") && automationSelection) {
+      event.preventDefault();
+      deleteAutomationSelection();
+    }
+  });
+  window.localOverleaf.onAutomationProgress(({ runId, message, output }) => {
+    if (runId !== activeAutomationRunId) return;
+    if (message) automationRunStatus.textContent = message;
+    if (output) {
+      automationRunLog.textContent = (automationRunLog.textContent + output).slice(-20000);
+      automationRunLog.scrollTop = automationRunLog.scrollHeight;
+    }
+  });
+}
+
+async function openAutomationsPanel() {
+  closeCommandPalette();
+  closeSettings({ keepBackdrop: true });
+  closeNewProjectPanel({ keepBackdrop: true });
+  closeTemplatesPanel({ keepBackdrop: true });
+  closeSshProjectPanel({ keepBackdrop: true });
+  settingsBackdrop.hidden = false;
+  automationsPanel.hidden = false;
+  automationsButton.classList.add("active");
+  await refreshAutomations();
+}
+
+async function refreshAutomations() {
+  try {
+    automationsData = await window.localOverleaf.listAutomations();
+  } catch (error) {
+    automationsAgentNote.textContent = formatError(error);
+  }
+  renderAutomations();
+}
+
+function closeAutomationsPanel({ keepBackdrop = false } = {}) {
+  if (!automationsPanel) return;
+  automationsPanel.hidden = true;
+  automationsButton.classList.remove("active");
+  closeAutomationEditor();
+  if (!keepBackdrop) updateOverlayBackdrop();
+}
+
+function automationAgentLabel() {
+  const agent = normalizeAgentChoice(selectionAgentChoice);
+  return agent === "claude" ? "Claude" : agent === "codex" ? "Codex" : "";
+}
+
+// Mirrors automationStepOrder in automations.js so cards list steps in run order.
+function automationStepOrderPreview(automation) {
+  const nodes = [...automation.nodes].sort((a, b) => a.x - b.x || a.y - b.y);
+  const indegree = new Map(nodes.map((node) => [node.id, 0]));
+  automation.edges.forEach((edge) => indegree.set(edge.to, (indegree.get(edge.to) || 0) + 1));
+  const ready = nodes.filter((node) => indegree.get(node.id) === 0);
+  const order = [];
+  while (ready.length) {
+    const node = ready.shift();
+    order.push(node);
+    automation.edges.filter((edge) => edge.from === node.id).forEach((edge) => {
+      indegree.set(edge.to, indegree.get(edge.to) - 1);
+      if (indegree.get(edge.to) === 0) ready.push(nodes.find((item) => item.id === edge.to));
+    });
+  }
+  return order;
+}
+
+function renderAutomations() {
+  const agentLabel = automationAgentLabel();
+  automationsAgentNote.textContent = agentLabel ? "" : "Choose Codex or Claude as the preferred agent in Settings to run automations.";
+  automationsAgentNote.hidden = Boolean(agentLabel);
+  automationsList.innerHTML = "";
+  automationsData.automations.forEach((automation) => {
+    const card = document.createElement("article");
+    card.className = "automation-card";
+    const steps = automationStepOrderPreview(automation)
+      .map((node) => `<span class="automation-step-chip" data-type="${escapeHtml(node.type)}">${automationIcon(node.type)}${escapeHtml(node.label)}</span>`)
+      .join('<span class="automation-step-arrow" aria-hidden="true">→</span>');
+    const removeLabel = automation.builtIn ? (automation.edited ? "Reset" : "") : "Delete";
+    card.innerHTML = `
+      <div class="automation-card-copy">
+        <span class="automation-card-name">${escapeHtml(automation.name)}</span>
+        ${automation.description ? `<small>${escapeHtml(automation.description)}</small>` : ""}
+        <div class="automation-step-chain">${steps}</div>
+      </div>
+      <div class="automation-card-actions">
+        ${removeLabel ? `<button class="automation-icon-button" type="button" data-action="remove" title="${removeLabel}" aria-label="${removeLabel}">${automationIcon(automation.builtIn ? "reset" : "remove")}</button>` : ""}
+        <button class="automation-icon-button" type="button" data-action="edit" title="Edit steps" aria-label="Edit steps">${automationIcon("edit")}</button>
+        <button class="automation-run-button" type="button" data-action="run" title="Run on files" aria-label="Run on files">${automationIcon("run")}<span>Run</span></button>
+      </div>
+    `;
+    const runButton = card.querySelector('[data-action="run"]');
+    runButton.disabled = !agentLabel || Boolean(activeAutomationRunId);
+    runButton.addEventListener("click", () => runAutomation(automation));
+    card.querySelector('[data-action="edit"]').addEventListener("click", () => openAutomationEditor(automation));
+    card.querySelector('[data-action="remove"]')?.addEventListener("click", async () => {
+      const prompt = automation.builtIn
+        ? `Reset "${automation.name}" to its original steps?`
+        : `Delete the automation "${automation.name}"?`;
+      if (!window.confirm(prompt)) return;
+      automationsData = await window.localOverleaf.removeAutomation(automation.id);
+      renderAutomations();
+    });
+    automationsList.appendChild(card);
+  });
+}
+
+function openAutomationEditor(automation) {
+  automationDraft = automation
+    ? JSON.parse(JSON.stringify({ id: automation.id, name: automation.name, description: automation.description || "", nodes: automation.nodes, edges: automation.edges }))
+    : {
+        id: "",
+        name: "",
+        description: "",
+        nodes: [
+          { id: "files", type: "input", label: "Choose files", x: 24, y: 120 },
+          { id: "template", type: "template", label: "Template", template: "plain-notes", x: 254, y: 120 },
+          { id: "agent", type: "agent", label: "Agent step", instructions: "", x: 484, y: 120 },
+          { id: "compile", type: "compile", label: "Compile PDF", x: 714, y: 120 }
+        ],
+        edges: [
+          { from: "files", to: "template" },
+          { from: "template", to: "agent" },
+          { from: "agent", to: "compile" }
+        ]
+      };
+  automationSelection = null;
+  automationNameInput.value = automationDraft.name;
+  automationDescriptionInput.value = automationDraft.description;
+  automationEditorError.textContent = "";
+  automationEditor.querySelectorAll("[data-add-node]").forEach((button) => {
+    button.innerHTML = automationIcon(button.dataset.addNode);
+  });
+  deleteAutomationSelectionButton.innerHTML = automationIcon("remove");
+  automationsPanel.classList.add("editing");
+  automationEditor.hidden = false;
+  automationsList.hidden = true;
+  newAutomationButton.hidden = true;
+  closeAutomationNodeDialog();
+  renderAutomationGraph();
+  if (!automation) openAutomationNodeDialog("agent");
+}
+
+function closeAutomationEditor() {
+  if (!automationEditor) return;
+  closeAutomationNodeDialog();
+  automationDraft = null;
+  automationSelection = null;
+  automationsPanel.classList.remove("editing");
+  automationEditor.hidden = true;
+  automationsList.hidden = false;
+  newAutomationButton.hidden = false;
+}
+
+async function saveAutomationDraft() {
+  if (!automationDraft) return;
+  try {
+    automationsData = await window.localOverleaf.saveAutomation(automationDraft);
+    closeAutomationEditor();
+    renderAutomations();
+  } catch (error) {
+    automationEditorError.textContent = formatError(error);
+  }
+}
+
+function automationNode(id) {
+  return automationDraft?.nodes.find((node) => node.id === id) || null;
+}
+
+function automationEdgeWouldCycle(from, to) {
+  const stack = [to];
+  const seen = new Set();
+  while (stack.length) {
+    const id = stack.pop();
+    if (id === from) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    automationDraft.edges.filter((edge) => edge.from === id).forEach((edge) => stack.push(edge.to));
+  }
+  return false;
+}
+
+function addAutomationEdge(from, to) {
+  const target = automationNode(to);
+  if (!target || from === to || target.type === "input") return;
+  if (automationDraft.edges.some((edge) => edge.from === from && edge.to === to)) return;
+  if (automationEdgeWouldCycle(from, to)) {
+    automationEditorError.textContent = "That edge would create a loop. Steps must flow one way.";
+    return;
+  }
+  automationEditorError.textContent = "";
+  automationDraft.edges.push({ from, to });
+}
+
+function addAutomationNode(type) {
+  if (!automationDraft) return;
+  const labels = automationsData.nodeTypes || {};
+  const id = `${type}-${Math.random().toString(36).slice(2, 8)}`;
+  const rightmost = Math.max(0, ...automationDraft.nodes.map((node) => node.x));
+  const node = { id, type, label: labels[type] || "Step", x: rightmost + 230, y: 120 + (automationDraft.nodes.length % 3) * 90 };
+  if (type === "template") node.template = automationsData.templates[0]?.id || "plain-notes";
+  if (type === "agent") node.instructions = "";
+  automationDraft.nodes.push(node);
+  automationSelection = { kind: "node", id };
+  renderAutomationGraph();
+  automationCanvas.scrollLeft = Math.max(0, node.x - 200);
+  openAutomationNodeDialog(id);
+}
+
+function deleteAutomationSelection() {
+  if (!automationDraft || !automationSelection) return;
+  if (automationSelection.kind === "edge") {
+    const [from, to] = automationSelection.id.split("->");
+    automationDraft.edges = automationDraft.edges.filter((edge) => !(edge.from === from && edge.to === to));
+  } else {
+    const node = automationNode(automationSelection.id);
+    if (!node || node.type === "input") return;
+    automationDraft.nodes = automationDraft.nodes.filter((item) => item.id !== node.id);
+    automationDraft.edges = automationDraft.edges.filter((edge) => edge.from !== node.id && edge.to !== node.id);
+  }
+  automationSelection = null;
+  closeAutomationNodeDialog();
+  renderAutomationGraph();
+}
+
+function selectAutomationItem(selection) {
+  automationSelection = selection;
+  renderAutomationGraph();
+}
+
+function automationEdgePath(x1, y1, x2, y2) {
+  const bend = Math.max(40, Math.abs(x2 - x1) / 2);
+  return `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`;
+}
+
+function automationNodeSummary(node) {
+  if (node.type === "input") return "PDF or images";
+  if (node.type === "template") {
+    return automationsData.templates.find((template) => template.id === node.template)?.label || "Template";
+  }
+  if (node.type === "agent") return node.instructions ? node.instructions.split("\n")[0] : "No instructions yet";
+  return "main.tex → main.pdf";
+}
+
+function renderAutomationGraph() {
+  if (!automationDraft) return;
+  automationCanvas.querySelectorAll(".automation-node").forEach((element) => element.remove());
+  const width = Math.max(900, ...automationDraft.nodes.map((node) => node.x + AUTOMATION_NODE_WIDTH + 60));
+  const height = Math.max(320, ...automationDraft.nodes.map((node) => node.y + AUTOMATION_NODE_HEIGHT + 60));
+  automationEdges.setAttribute("width", width);
+  automationEdges.setAttribute("height", height);
+  automationEdges.querySelectorAll("path:not(marker path)").forEach((element) => element.remove());
+
+  automationDraft.edges.forEach((edge) => {
+    const from = automationNode(edge.from);
+    const to = automationNode(edge.to);
+    if (!from || !to) return;
+    const key = `${edge.from}->${edge.to}`;
+    const d = automationEdgePath(from.x + AUTOMATION_NODE_WIDTH, from.y + AUTOMATION_NODE_HEIGHT / 2, to.x - 7, to.y + AUTOMATION_NODE_HEIGHT / 2);
+    const selected = automationSelection?.kind === "edge" && automationSelection.id === key;
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    line.setAttribute("d", d);
+    line.setAttribute("class", `automation-edge${selected ? " selected" : ""}`);
+    line.setAttribute("marker-end", "url(#automationArrow)");
+    const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    hit.setAttribute("d", d);
+    hit.setAttribute("class", "automation-edge-hit");
+    hit.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      selectAutomationItem({ kind: "edge", id: key });
+      automationCanvas.focus();
+    });
+    automationEdges.append(line, hit);
+  });
+
+  if (automationConnect) {
+    const from = automationNode(automationConnect.from);
+    const preview = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    preview.setAttribute("d", automationEdgePath(from.x + AUTOMATION_NODE_WIDTH, from.y + AUTOMATION_NODE_HEIGHT / 2, automationConnect.x, automationConnect.y));
+    preview.setAttribute("class", "automation-edge preview");
+    automationEdges.append(preview);
+  }
+
+  automationDraft.nodes.forEach((node) => {
+    const element = document.createElement("div");
+    const selected = automationSelection?.kind === "node" && automationSelection.id === node.id;
+    element.className = `automation-node${selected ? " selected" : ""}`;
+    element.dataset.type = node.type;
+    element.dataset.nodeId = node.id;
+    element.style.left = `${node.x}px`;
+    element.style.top = `${node.y}px`;
+    element.style.width = `${AUTOMATION_NODE_WIDTH}px`;
+    element.style.height = `${AUTOMATION_NODE_HEIGHT}px`;
+    element.innerHTML = `
+      ${node.type === "input" ? "" : '<span class="automation-port in" aria-hidden="true"></span>'}
+      <span class="automation-node-icon">${automationIcon(node.type)}</span>
+      <span class="automation-node-label">${escapeHtml(node.label)}</span>
+      <span class="automation-node-summary">${escapeHtml(automationNodeSummary(node))}</span>
+      <span class="automation-port out" title="Drag to connect" aria-hidden="true"></span>
+    `;
+    element.addEventListener("pointerdown", (event) => startAutomationNodeDrag(event, node));
+    element.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      openAutomationNodeDialog(node.id);
+    });
+    element.querySelector(".automation-port.out").addEventListener("pointerdown", (event) => startAutomationConnect(event, node));
+    automationCanvas.appendChild(element);
+  });
+
+  updateAutomationSelectionControls();
+}
+
+function automationCanvasPoint(event) {
+  const rect = automationCanvas.getBoundingClientRect();
+  return { x: event.clientX - rect.left + automationCanvas.scrollLeft, y: event.clientY - rect.top + automationCanvas.scrollTop };
+}
+
+function startAutomationNodeDrag(event, node) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  automationCanvas.focus();
+  const start = automationCanvasPoint(event);
+  const origin = { x: node.x, y: node.y };
+  let moved = false;
+  if (!(automationSelection?.kind === "node" && automationSelection.id === node.id)) selectAutomationItem({ kind: "node", id: node.id });
+  const element = automationCanvas.querySelector(`[data-node-id="${CSS.escape(node.id)}"]`);
+  const onMove = (moveEvent) => {
+    const point = automationCanvasPoint(moveEvent);
+    node.x = Math.max(0, Math.round(origin.x + point.x - start.x));
+    node.y = Math.max(0, Math.round(origin.y + point.y - start.y));
+    moved = true;
+    if (element) {
+      element.style.left = `${node.x}px`;
+      element.style.top = `${node.y}px`;
+    }
+    renderAutomationEdgesOnly();
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    if (moved) renderAutomationGraph();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+function renderAutomationEdgesOnly() {
+  automationEdges.querySelectorAll(".automation-edge, .automation-edge-hit").forEach((pathElement, index) => {
+    const edge = automationDraft.edges[Math.floor(index / 2)];
+    if (!edge || pathElement.classList.contains("preview")) return;
+    const from = automationNode(edge.from);
+    const to = automationNode(edge.to);
+    pathElement.setAttribute("d", automationEdgePath(from.x + AUTOMATION_NODE_WIDTH, from.y + AUTOMATION_NODE_HEIGHT / 2, to.x - 7, to.y + AUTOMATION_NODE_HEIGHT / 2));
+  });
+}
+
+function startAutomationConnect(event, node) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  automationConnect = { from: node.id, ...automationCanvasPoint(event) };
+  const onMove = (moveEvent) => {
+    Object.assign(automationConnect, automationCanvasPoint(moveEvent));
+    renderAutomationGraph();
+  };
+  const onUp = (upEvent) => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest(".automation-node");
+    if (target) addAutomationEdge(node.id, target.dataset.nodeId);
+    automationConnect = null;
+    renderAutomationGraph();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+function updateAutomationSelectionControls() {
+  const node = automationSelection?.kind === "node" ? automationNode(automationSelection.id) : null;
+  deleteAutomationSelectionButton.hidden = !automationSelection || node?.type === "input";
+}
+
+function closeAutomationNodeDialog() {
+  if (!automationNodeDialog) return;
+  automationNodeDialog.hidden = true;
+  automationNodeDialog.innerHTML = "";
+}
+
+// Double-clicking a step opens this popover beside it; edits apply live.
+function openAutomationNodeDialog(nodeId) {
+  const node = automationNode(nodeId);
+  if (!node) return;
+  automationSelection = { kind: "node", id: node.id };
+  renderAutomationGraph();
+  const typeLabel = (automationsData.nodeTypes || {})[node.type] || node.type;
+  const templateOptions = automationsData.templates
+    .map((template) => `<option value="${escapeHtml(template.id)}"${template.id === node.template ? " selected" : ""}>${escapeHtml(template.label)}</option>`)
+    .join("");
+  const detail = {
+    input: "",
+    template: `<select class="automation-dialog-select" data-field="template" aria-label="Template">${templateOptions}</select>`,
+    agent: `<textarea class="automation-dialog-instructions" data-field="instructions" aria-label="Instructions" placeholder="What should the agent do in this step?">${escapeHtml(node.instructions || "")}</textarea>`,
+    compile: ""
+  }[node.type] || "";
+  automationNodeDialog.innerHTML = `
+    <div class="automation-dialog-header">
+      <span class="automation-node-icon">${automationIcon(node.type)}</span>
+      <input class="automation-dialog-label" data-field="label" maxlength="60" value="${escapeHtml(node.label)}" aria-label="${escapeHtml(typeLabel)} label">
+      ${node.type === "input" ? "" : `<button class="automation-icon-button" type="button" data-dialog="delete" title="Delete step" aria-label="Delete step">${automationIcon("remove")}</button>`}
+      <button class="automation-icon-button" type="button" data-dialog="done" title="Done" aria-label="Done">${automationIcon("check")}</button>
+    </div>
+    ${detail}
+  `;
+  const wide = node.type === "agent";
+  const dialogWidth = wide ? 420 : 300;
+  const left = Math.min(node.x, Math.max(0, automationCanvas.scrollWidth - dialogWidth - 12));
+  automationNodeDialog.style.width = `${dialogWidth}px`;
+  automationNodeDialog.style.left = `${left}px`;
+  automationNodeDialog.style.top = `${node.y + AUTOMATION_NODE_HEIGHT + 10}px`;
+  automationNodeDialog.hidden = false;
+  automationNodeDialog.querySelectorAll("[data-field]").forEach((field) => {
+    const update = () => {
+      node[field.dataset.field] = field.value;
+      const element = automationCanvas.querySelector(`[data-node-id="${CSS.escape(node.id)}"]`);
+      if (element) {
+        element.querySelector(".automation-node-label").textContent = node.label;
+        element.querySelector(".automation-node-summary").textContent = automationNodeSummary(node);
+      }
+    };
+    field.addEventListener("input", update);
+    field.addEventListener("change", update);
+  });
+  automationNodeDialog.querySelector('[data-dialog="done"]').addEventListener("click", () => {
+    closeAutomationNodeDialog();
+    automationCanvas.focus();
+  });
+  automationNodeDialog.querySelector('[data-dialog="delete"]')?.addEventListener("click", deleteAutomationSelection);
+  (automationNodeDialog.querySelector("textarea, select") || automationNodeDialog.querySelector("input")).focus();
+  automationNodeDialog.scrollIntoView({ block: "nearest" });
+}
+
+async function runAutomation(automation) {
+  const runId = crypto.randomUUID();
+  activeAutomationRunId = runId;
+  automationRunLog.textContent = "";
+  automationRunStatus.textContent = "Choose the files to process…";
+  automationRun.hidden = false;
+  renderAutomations();
+  try {
+    const result = await window.localOverleaf.runAutomation(automation.id, normalizeAgentChoice(selectionAgentChoice), runId);
+    if (result.canceled) {
+      automationRun.hidden = true;
+      return;
+    }
+    projects = result.projects || projects;
+    renderProjectGrid();
+    automationRunStatus.textContent = result.compile?.ok
+      ? "Done. Opening the project…"
+      : "The steps finished, but the PDF did not compile. Opening the project so you can fix it…";
+    closeAutomationsPanel();
+    if (result.project) await openProject(result.project.id);
+    automationRun.hidden = true;
+  } catch (error) {
+    automationRunStatus.textContent = formatError(error);
+  } finally {
+    activeAutomationRunId = "";
+    renderAutomations();
+  }
 }
 
 async function openTemplatesPanel() {
   closeCommandPalette();
+  closeAutomationsPanel({ keepBackdrop: true });
   closeSettings({ keepBackdrop: true });
   closeNewProjectPanel({ keepBackdrop: true });
   closeSshProjectPanel({ keepBackdrop: true });
@@ -8051,36 +8745,46 @@ async function waitForTerminalReady(session) {
   await wait(120);
 }
 
+// History is stored per file by the main process (history-store.js). Edits
+// are captured shortly after typing stops and merge into one entry; saves,
+// opens, and restores always add one. Git commits for the file appear in the
+// same timeline.
+let historyEntries = [];
+let historySelectedId = "";
+let historyView = "previous";
+let historyLoadToken = 0;
+const historyTextCache = new Map();
+
+function historyTarget() {
+  if (!activeProject || !activeFile || activeMediaFile || activeProject.remote) return null;
+  return { projectId: activeProject.id, relativePath: activeFile.relativePath };
+}
+
 function resetHistoryEvents(text = "") {
   clearTimeout(historyCaptureTimer);
   lastHistoryText = String(text || "");
-  historyEvents = [];
-  try {
-    const stored = JSON.parse(localStorage.getItem(historyStorageKey()) || "[]");
-    if (Array.isArray(stored)) historyEvents = stored.filter((entry) => entry && typeof entry.text === "string");
-  } catch (error) {
-    historyEvents = [];
-  }
-  if (!historyEvents.length) {
-    historyEvents = [makeHistoryEntry("Opened", "Loaded the current document.", lastHistoryText, lastHistoryText)];
-  } else if (historyEvents[0].text !== lastHistoryText) {
-    historyEvents.unshift(makeHistoryEntry("Opened", summarizeTextChange(historyEvents[0].text, lastHistoryText), historyEvents[0].text, lastHistoryText));
-  }
-  persistHistoryEvents();
+  const target = historyTarget();
+  if (!target) return;
+  importLegacyHistory(target).finally(() => {
+    window.localOverleaf.recordHistorySnapshot(target.projectId, target.relativePath, lastHistoryText, "Opened").catch(() => {});
+  });
 }
 
-function historyStorageKey(projectId = activeProject && activeProject.id, relativePath = activeFile && activeFile.relativePath) {
-  if (!projectId || !relativePath) return "";
-  return `openleafHistory:${encodeURIComponent(String(projectId))}:${encodeURIComponent(String(relativePath))}`;
-}
-
-function persistHistoryEvents() {
-  const key = historyStorageKey();
-  if (!key) return;
+// History used to live in localStorage; move it to disk the first time a file opens.
+async function importLegacyHistory(target) {
+  const key = `openleafHistory:${encodeURIComponent(String(target.projectId))}:${encodeURIComponent(String(target.relativePath))}`;
+  let legacy = null;
   try {
-    localStorage.setItem(key, JSON.stringify(historyEvents));
+    legacy = JSON.parse(localStorage.getItem(key) || "null");
   } catch (error) {
-    console.warn("Could not persist document history.", error);
+    legacy = null;
+  }
+  if (!Array.isArray(legacy)) return;
+  try {
+    await window.localOverleaf.importHistorySnapshots(target.projectId, target.relativePath, legacy);
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.warn("Could not import earlier history.", error);
   }
 }
 
@@ -8090,114 +8794,364 @@ function scheduleHistoryCapture(reason = "Edited") {
 }
 
 function recordHistoryEvent(reason = "Edited", { force = false } = {}) {
-  if (!editor || activeMediaFile) return;
+  if (!editor || activeMediaFile) return Promise.resolve();
+  const target = historyTarget();
   const currentText = getSourceText();
-  if (!force && currentText === lastHistoryText) return;
-
-  historyEvents.unshift(makeHistoryEntry(reason, summarizeTextChange(lastHistoryText, currentText), lastHistoryText, currentText));
+  if (!target || (!force && currentText === lastHistoryText)) return Promise.resolve();
   lastHistoryText = currentText;
-  persistHistoryEvents();
-}
-
-function makeHistoryEntry(title, summary, previousText, currentText) {
-  const diff = historyDiffStats(previousText, currentText);
-  return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    title,
-    summary,
-    fileName: (activeFile && activeFile.name) || (activeProject && activeProject.texName) || "document",
-    time: new Date().toLocaleString([], {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit"
-    }),
-    added: diff.added,
-    removed: diff.removed,
-    text: String(currentText || "")
-  };
-}
-
-function historyDiffStats(previousText, currentText) {
-  const previousLines = String(previousText || "").split("\n");
-  const currentLines = String(currentText || "").split("\n");
-  const previousSet = new Map();
-  previousLines.forEach((line) => previousSet.set(line, (previousSet.get(line) || 0) + 1));
-  let added = 0;
-
-  currentLines.forEach((line) => {
-    const count = previousSet.get(line) || 0;
-    if (count > 0) previousSet.set(line, count - 1);
-    else added += 1;
+  return window.localOverleaf.recordHistorySnapshot(target.projectId, target.relativePath, currentText, reason).catch((error) => {
+    console.warn("Could not record history.", error);
   });
-
-  const removed = Array.from(previousSet.values()).reduce((total, count) => total + count, 0);
-  return { added, removed };
-}
-
-function summarizeTextChange(previousText, currentText) {
-  const stats = historyDiffStats(previousText, currentText);
-  if (!stats.added && !stats.removed) return "No visible text changes.";
-  const parts = [];
-  if (stats.added) parts.push(`${stats.added} line${stats.added === 1 ? "" : "s"} added`);
-  if (stats.removed) parts.push(`${stats.removed} line${stats.removed === 1 ? "" : "s"} removed`);
-  return parts.join(", ");
 }
 
 async function openHistoryWindow() {
-  recordHistoryEvent("Current version");
-  const currentText = activeMediaFile ? "" : getSourceText();
-  if (!historyEvents.length) resetHistoryEvents(currentText);
-  historySelectedIndex = 0;
+  await recordHistoryEvent("Edited");
   setHistoryPanelOpen(true);
 }
 
 function toggleHistoryPanel() {
-  setHistoryPanelOpen(!historyPanelOpen);
+  setHistoryPanelOpen(historyPanel.hidden);
 }
 
 function setHistoryPanelOpen(open) {
-  historyPanelOpen = Boolean(open);
-  historyPanel.hidden = !historyPanelOpen;
-  previewPane.classList.toggle("history-open", historyPanelOpen);
-  if (historyPanelOpen) renderHistoryPanel();
+  if (!historyPanel) return;
+  historyPanel.hidden = !open;
+  historyButton?.classList.toggle("active", Boolean(open));
+  if (open) {
+    settingsBackdrop.hidden = false;
+    loadHistoryPanel();
+  } else {
+    updateOverlayBackdrop();
+  }
 }
 
-function renderHistoryPanel() {
-  if (!historyPanelBody) return;
-  const currentText = activeMediaFile ? "" : getSourceText();
-  const entries = historyEvents.length
-    ? historyEvents
-    : [makeHistoryEntry("Current version", "No recorded edits in this session.", currentText, currentText)];
-  historySelectedIndex = clampNumber(historySelectedIndex, 0, entries.length - 1, 0);
-  const selected = entries[historySelectedIndex] || entries[0];
-  const previewLines = String(selected.text || "")
-    .split("\n");
+async function loadHistoryPanel() {
+  const token = ++historyLoadToken;
+  const target = historyTarget();
+  document.getElementById("historyFileName").textContent = activeFile ? activeFile.relativePath : "";
+  const timeline = document.getElementById("historyTimeline");
+  const diff = document.getElementById("historyDiff");
+  if (!target) {
+    historyEntries = [];
+    timeline.innerHTML = "";
+    diff.innerHTML = '<p class="history-empty">History is available for text files in local projects.</p>';
+    updateHistoryControls();
+    return;
+  }
+  try {
+    const result = await window.localOverleaf.listFileHistory(target.projectId, target.relativePath);
+    if (token !== historyLoadToken) return;
+    historyEntries = result.entries || [];
+  } catch (error) {
+    historyEntries = [];
+    diff.innerHTML = `<p class="history-empty">${escapeHtml(formatError(error))}</p>`;
+  }
+  historyTextCache.clear();
+  if (!historyEntries.some((entry) => entry.id === historySelectedId)) {
+    historySelectedId = historyEntries[0]?.id || "";
+  }
+  renderHistoryTimeline();
+  renderHistoryDiff();
+}
 
-  historyPanelBody.innerHTML = `
-    <div class="history-entry-list" role="listbox" aria-label="History entries">
-      ${entries.map((entry, index) => `
-        <button class="history-entry ${index === historySelectedIndex ? "active" : ""}" type="button" data-history-index="${index}">
-          <strong>${escapeHtml(entry.time || entry.title)}</strong>
-          <span>${escapeHtml(entry.summary || entry.title)}</span>
-          <small>${escapeHtml(entry.fileName || "")}${entry.added || entry.removed ? ` · +${entry.added || 0} -${entry.removed || 0}` : ""}</small>
-        </button>
-      `).join("")}
-    </div>
-    <article class="history-document-preview">
-      <header>
-        <strong>${escapeHtml(selected.title || "History")}</strong>
-        <span>${escapeHtml(selected.time || "")}</span>
-      </header>
-      <pre>${escapeHtml(previewLines.join("\n"))}</pre>
-    </article>
-  `;
+function historyDayLabel(date) {
+  const today = new Date();
+  const startOfDay = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const days = Math.round((startOfDay(today) - startOfDay(date)) / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return date.toLocaleDateString([], {
+    weekday: days < 7 ? "long" : undefined,
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() === today.getFullYear() ? undefined : "numeric"
+  });
+}
 
-  historyPanelBody.querySelectorAll("[data-history-index]").forEach((button) => {
+const HISTORY_ICONS = {
+  Saved: '<path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"></path><path d="M8 3v5h7V3"></path><path d="M8 21v-7h8v7"></path>',
+  Opened: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>',
+  Edited: '<path d="M4 20h4L19 9l-4-4L4 16z"></path>',
+  Restored: '<path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>',
+  commit: '<circle cx="12" cy="12" r="3.5"></circle><path d="M3 12h5.5"></path><path d="M15.5 12H21"></path>'
+};
+
+function historyEntryIcon(entry) {
+  let key = "Edited";
+  if (entry.kind === "commit") key = "commit";
+  else if (HISTORY_ICONS[entry.reason]) key = entry.reason;
+  else if (String(entry.reason || "").startsWith("Before")) key = "Restored";
+  return `<svg class="history-entry-icon" viewBox="0 0 24 24" aria-hidden="true">${HISTORY_ICONS[key]}</svg>`;
+}
+
+function renderHistoryTimeline() {
+  const timeline = document.getElementById("historyTimeline");
+  timeline.innerHTML = "";
+  let currentDay = "";
+  historyEntries.forEach((entry) => {
+    const date = new Date(entry.time);
+    const day = historyDayLabel(date);
+    if (day !== currentDay) {
+      currentDay = day;
+      const heading = document.createElement("h4");
+      heading.className = "history-day";
+      heading.textContent = day;
+      timeline.appendChild(heading);
+    }
+    const total = Math.max(1, (entry.added || 0) + (entry.removed || 0));
+    const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const detail = entry.kind === "commit" ? `${entry.hash.slice(0, 7)} · ${entry.author || ""}` : entry.reason;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `history-entry${entry.id === historySelectedId ? " active" : ""}`;
+    button.dataset.kind = entry.kind;
+    button.innerHTML = `
+      ${historyEntryIcon(entry)}
+      <span class="history-entry-main">
+        <span class="history-entry-title">${escapeHtml(entry.kind === "commit" ? entry.reason : time)}</span>
+        <span class="history-entry-time">${escapeHtml(entry.kind === "commit" ? `${time} · ${detail}` : detail)}</span>
+      </span>
+      <span class="history-entry-stats">
+        <span class="history-entry-counts">${entry.added ? `<span class="add">+${entry.added}</span>` : ""}${entry.removed ? `<span class="remove">−${entry.removed}</span>` : ""}</span>
+        <span class="history-entry-bar" aria-hidden="true"><i class="add" style="flex:${(entry.added || 0) / total}"></i><i class="remove" style="flex:${(entry.removed || 0) / total}"></i></span>
+      </span>
+    `;
     button.addEventListener("click", () => {
-      historySelectedIndex = Number(button.dataset.historyIndex) || 0;
-      renderHistoryPanel();
+      historySelectedId = entry.id;
+      timeline.querySelectorAll(".history-entry").forEach((item) => item.classList.toggle("active", item === button));
+      renderHistoryDiff();
     });
+    timeline.appendChild(button);
+  });
+  timeline.querySelector(".history-entry.active")?.scrollIntoView({ block: "nearest" });
+}
+
+async function historyEntryText(entry) {
+  if (!entry) return "";
+  if (historyTextCache.has(entry.id)) return historyTextCache.get(entry.id);
+  const target = historyTarget();
+  const result = await window.localOverleaf.readHistoryEntry(target.projectId, target.relativePath, entry.id);
+  historyTextCache.set(entry.id, result.text);
+  return result.text;
+}
+
+function updateHistoryControls() {
+  document.querySelectorAll("[data-history-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.historyView === historyView);
+  });
+  const restore = document.getElementById("restoreHistoryButton");
+  const selectedIndex = historyEntries.findIndex((entry) => entry.id === historySelectedId);
+  restore.disabled = selectedIndex < 0 || (selectedIndex === 0 && historyEntries[0]?.kind !== "commit");
+}
+
+async function renderHistoryDiff() {
+  updateHistoryControls();
+  const container = document.getElementById("historyDiff");
+  const index = historyEntries.findIndex((entry) => entry.id === historySelectedId);
+  const entry = historyEntries[index];
+  if (!entry) {
+    container.innerHTML = '<p class="history-empty">No history for this file yet.</p>';
+    return;
+  }
+  const token = historyLoadToken;
+  const selectedId = historySelectedId;
+  try {
+    const text = await historyEntryText(entry);
+    let baseText = "";
+    let baseLabel = "";
+    if (historyView === "previous") {
+      const previous = historyEntries.slice(index + 1).find((item) => item.kind === entry.kind) || historyEntries[index + 1];
+      baseText = previous ? await historyEntryText(previous) : "";
+      baseLabel = previous ? "previous version" : "empty file";
+    } else if (historyView === "current") {
+      baseText = text;
+    }
+    if (token !== historyLoadToken || selectedId !== historySelectedId) return;
+    if (historyView === "full") {
+      const rows = text.split("\n").map((line, lineIndex) => ({ type: "same", oldNo: lineIndex + 1, newNo: lineIndex + 1, text: line }));
+      container.innerHTML = `<div class="history-diff-lines">${renderHistoryLines(rows, { collapse: false })}</div>`;
+      return;
+    }
+    const after = historyView === "current" ? getSourceText() : text;
+    const rows = diffHistoryLines(baseText, after);
+    if (!rows.some((row) => row.type !== "same")) {
+      container.innerHTML = `<p class="history-empty">${historyView === "current" ? "Identical to the current text." : `No changes from the ${escapeHtml(baseLabel)}.`}</p>`;
+      return;
+    }
+    container.innerHTML = `<div class="history-diff-lines">${renderHistoryLines(rows, { collapse: true })}</div>`;
+    container.querySelectorAll("[data-expand]").forEach((button) => {
+      button.addEventListener("click", () => {
+        container.querySelectorAll(`[data-fold="${button.dataset.expand}"]`).forEach((row) => row.removeAttribute("hidden"));
+        button.closest(".history-fold").remove();
+      });
+    });
+    const firstChange = container.querySelector(".history-line.add, .history-line.remove");
+    if (firstChange) container.scrollTop = Math.max(0, firstChange.offsetTop - container.clientHeight / 3);
+  } catch (error) {
+    container.innerHTML = `<p class="history-empty">${escapeHtml(formatError(error))}</p>`;
+  }
+}
+
+// Line diff: trim the shared prefix and suffix, then an LCS edit script on
+// the middle (or a block replace when the middle is huge).
+function diffHistoryLines(beforeText, afterText) {
+  const a = beforeText ? beforeText.split("\n") : [];
+  const b = afterText ? afterText.split("\n") : [];
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start += 1;
+  let endA = a.length;
+  let endB = b.length;
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
+    endA -= 1;
+    endB -= 1;
+  }
+  const ops = [
+    ...a.slice(0, start).map((line) => ["same", line]),
+    ...lcsEditScript(a.slice(start, endA), b.slice(start, endB)),
+    ...a.slice(endA).map((line) => ["same", line])
+  ];
+  const rows = [];
+  let oldNo = 0;
+  let newNo = 0;
+  ops.forEach(([type, text]) => {
+    if (type === "same") rows.push({ type, text, oldNo: ++oldNo, newNo: ++newNo });
+    else if (type === "remove") rows.push({ type, text, oldNo: ++oldNo });
+    else rows.push({ type, text, newNo: ++newNo });
+  });
+  pairHistoryWordChanges(rows);
+  return rows;
+}
+
+function lcsEditScript(a, b) {
+  if (!a.length) return b.map((line) => ["add", line]);
+  if (!b.length) return a.map((line) => ["remove", line]);
+  if (a.length * b.length > 4000000) {
+    return [...a.map((line) => ["remove", line]), ...b.map((line) => ["add", line])];
+  }
+  const width = b.length + 1;
+  const table = new Uint32Array((a.length + 1) * width);
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      table[i * width + j] = a[i] === b[j]
+        ? table[(i + 1) * width + j + 1] + 1
+        : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
+    }
+  }
+  const ops = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      ops.push(["same", a[i]]);
+      i += 1;
+      j += 1;
+    } else if (table[(i + 1) * width + j] >= table[i * width + j + 1]) {
+      ops.push(["remove", a[i]]);
+      i += 1;
+    } else {
+      ops.push(["add", b[j]]);
+      j += 1;
+    }
+  }
+  while (i < a.length) ops.push(["remove", a[i++]]);
+  while (j < b.length) ops.push(["add", b[j++]]);
+  return ops;
+}
+
+// Pair each run of removed lines with the added lines after it and mark the
+// words that changed inside each pair.
+function pairHistoryWordChanges(rows) {
+  const split = (text) => text.split(/(\s+|[{}\\[\]().,;:$])/).filter(Boolean);
+  for (let index = 0; index < rows.length; index += 1) {
+    if (rows[index].type !== "remove") continue;
+    let removeEnd = index;
+    while (rows[removeEnd + 1]?.type === "remove") removeEnd += 1;
+    let addEnd = removeEnd;
+    while (rows[addEnd + 1]?.type === "add") addEnd += 1;
+    const removed = rows.slice(index, removeEnd + 1);
+    const added = rows.slice(removeEnd + 1, addEnd + 1);
+    for (let k = 0; k < Math.min(removed.length, added.length); k += 1) {
+      const tokensA = split(removed[k].text);
+      const tokensB = split(added[k].text);
+      if (tokensA.length * tokensB.length > 40000) continue;
+      const ops = lcsEditScript(tokensA, tokensB);
+      removed[k].html = ops.filter(([type]) => type !== "add").map(([type, token]) => (type === "remove" ? `<mark>${escapeHtml(token)}</mark>` : escapeHtml(token))).join("");
+      added[k].html = ops.filter(([type]) => type !== "remove").map(([type, token]) => (type === "add" ? `<mark>${escapeHtml(token)}</mark>` : escapeHtml(token))).join("");
+    }
+    index = addEnd;
+  }
+}
+
+function renderHistoryLines(rows, { collapse }) {
+  const CONTEXT = 3;
+  const keep = rows.map(() => !collapse);
+  if (collapse) {
+    rows.forEach((row, index) => {
+      if (row.type === "same") return;
+      for (let k = Math.max(0, index - CONTEXT); k <= Math.min(rows.length - 1, index + CONTEXT); k += 1) keep[k] = true;
+    });
+  }
+  let html = "";
+  let foldId = 0;
+  for (let index = 0; index < rows.length; index += 1) {
+    if (!keep[index]) {
+      let end = index;
+      while (end + 1 < rows.length && !keep[end + 1]) end += 1;
+      foldId += 1;
+      const count = end - index + 1;
+      html += `<div class="history-fold"><button type="button" data-expand="${foldId}">${count} unchanged line${count === 1 ? "" : "s"}</button></div>`;
+      for (let k = index; k <= end; k += 1) html += historyLineHtml(rows[k], foldId);
+      index = end;
+      continue;
+    }
+    html += historyLineHtml(rows[index]);
+  }
+  return html;
+}
+
+function historyLineHtml(row, foldId = 0) {
+  const sign = row.type === "add" ? "+" : row.type === "remove" ? "−" : "";
+  return `<div class="history-line ${row.type}"${foldId ? ` data-fold="${foldId}" hidden` : ""}><span class="history-line-no">${row.oldNo || ""}</span><span class="history-line-no">${row.newNo || ""}</span><span class="history-line-sign">${sign}</span><span class="history-line-text">${row.html ?? escapeHtml(row.text)}</span></div>`;
+}
+
+async function restoreHistoryEntry() {
+  const entry = historyEntries.find((item) => item.id === historySelectedId);
+  if (!entry || !editor) return;
+  const label = entry.kind === "commit"
+    ? `commit ${entry.hash.slice(0, 7)}`
+    : new Date(entry.time).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  if (!window.confirm(`Replace the current text with the version from ${label}? The current text stays in history.`)) return;
+  try {
+    const text = await historyEntryText(entry);
+    await recordHistoryEvent("Before restore", { force: true });
+    editor.operation(() => {
+      editor.replaceRange(text, { line: 0, ch: 0 }, { line: editor.lastLine(), ch: editor.getLine(editor.lastLine()).length });
+    });
+    await recordHistoryEvent("Restored", { force: true });
+    setHistoryPanelOpen(false);
+  } catch (error) {
+    window.alert(formatError(error));
+  }
+}
+
+function setupHistoryPanel() {
+  document.querySelectorAll("[data-history-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      historyView = button.dataset.historyView;
+      renderHistoryDiff();
+    });
+  });
+  document.getElementById("restoreHistoryButton").addEventListener("click", restoreHistoryEntry);
+  document.getElementById("historyTimeline").addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const index = historyEntries.findIndex((entry) => entry.id === historySelectedId);
+    const next = historyEntries[index + (event.key === "ArrowDown" ? 1 : -1)];
+    if (!next) return;
+    historySelectedId = next.id;
+    renderHistoryTimeline();
+    document.querySelector("#historyTimeline .history-entry.active")?.focus();
+    renderHistoryDiff();
   });
 }
 
@@ -8285,16 +9239,8 @@ function renderProjectGrid() {
   projectGrid.innerHTML = "";
   projectEmpty.hidden = visibleProjects.length + visibleCollections.length > 0;
 
-  const subjectsSection = createProjectHomeSection(
-    "Subjects",
-    "Collections organized into readings, notes, assignments, and other divisions.",
-    "subjects"
-  );
-  const projectsSection = createProjectHomeSection(
-    "Projects",
-    "Documents and presentations that are not inside a subject.",
-    "projects"
-  );
+  const subjectsSection = createProjectHomeSection("Subjects", "subjects");
+  const projectsSection = createProjectHomeSection("Projects", "projects");
   if (visibleCollections.length) projectGrid.appendChild(subjectsSection.section);
   if (visibleProjects.length) projectGrid.appendChild(projectsSection.section);
 
@@ -8355,7 +9301,7 @@ function renderProjectGrid() {
   });
 }
 
-function createProjectHomeSection(title, description, kind) {
+function createProjectHomeSection(title, kind) {
   const section = document.createElement("section");
   section.className = `project-home-section project-home-${kind}`;
   section.setAttribute("aria-labelledby", `project-home-${kind}-title`);
@@ -8363,7 +9309,6 @@ function createProjectHomeSection(title, description, kind) {
     <header class="project-home-section-header">
       <div>
         <h2 id="project-home-${kind}-title">${escapeHtml(title)}</h2>
-        <p>${escapeHtml(description)}</p>
       </div>
     </header>
     <div class="project-home-section-grid"></div>
@@ -9118,6 +10063,7 @@ function toggleNewProjectPanel(force) {
 
 function openNewProjectPanel() {
   closeCommandPalette();
+  closeAutomationsPanel({ keepBackdrop: true });
   closeSettings({ keepBackdrop: true });
   closeTemplatesPanel({ keepBackdrop: true });
   closeSshProjectPanel({ keepBackdrop: true });
@@ -12093,7 +13039,7 @@ async function loadManuscript(projectId = activeProject && activeProject.id, { p
     renderVisualEditor();
     await setPdf();
     setSaveState("Saved", "ok");
-    setCompileState("PDF loaded", "ok");
+    setCompileState(isHtmlFile() ? "HTML preview ready" : "PDF loaded", "ok");
     setPdfStale(false);
     compileLog.textContent = `Loaded ${activeProject.name}.`;
   } catch (error) {
@@ -13196,6 +14142,7 @@ async function saveManuscript({ auto = false } = {}) {
 
 async function compileManuscript({ manual = false } = {}) {
   if (!activeProject) return;
+  if (isHtmlFile()) { syncHtmlPreview(); return saveManuscript(); }
   if (isPythonExecutionFile()) {
     if (manual) return runActivePythonCell();
     return false;
@@ -13380,6 +14327,65 @@ async function downloadProjectPackage() {
     compileLog.textContent = formatError(error);
   } finally {
     setBusy(false);
+  }
+}
+
+async function openFileCommitDialog(keepMessage = false) {
+  if (!activeProject || activeMediaFile || isRemoteProject()) return;
+  if (getSourceText() !== savedText && !(await saveManuscript())) return;
+  const projectId = activeProject.id;
+  const relativePath = activeFile && activeFile.relativePath;
+  fileCommitContext = null;
+  commitFileTarget.textContent = relativePath || "Current file";
+  if (keepMessage !== true) commitFileMessage.value = "";
+  commitFileDiff.textContent = "";
+  commitFileStatus.textContent = "Loading changes…";
+  confirmFileCommit.disabled = true;
+  if (!commitFileDialog.open) commitFileDialog.showModal();
+  commitFileMessage.focus();
+  try {
+    const info = await window.localOverleaf.projectFileCommitInfo(projectId, relativePath);
+    if (!commitFileDialog.open) return;
+    fileCommitContext = { ...info, projectId, relativePath };
+    commitFileTarget.textContent = `${info.relativePath} · ${info.branch}\n${info.repo}`;
+    document.getElementById("commitFileHelp").textContent = info.linkedCode
+      ? "Save your code in VS Code first. Commit creates a local Git commit of this code file."
+      : "Save this file and create a local Git commit.";
+    commitFileButton.title = info.linkedCode ? `Commit ${info.relativePath} locally` : "Commit the current file locally";
+    commitFileDiff.textContent = info.diff || "No changes to commit.";
+    commitFileStatus.textContent = info.changed ? "Ready to commit this file." : "No changes to commit.";
+    confirmFileCommit.disabled = !info.changed || !commitFileMessage.value.trim();
+  } catch (error) { commitFileStatus.textContent = formatError(error); }
+}
+
+async function submitFileCommit(event) {
+  event.preventDefault();
+  const context = fileCommitContext;
+  if (!context?.changed || fileCommitRunning || !commitFileMessage.value.trim()) return;
+  if (activeProject?.id !== context.projectId || activeFile?.relativePath !== context.relativePath) {
+    commitFileStatus.textContent = "The active file changed. Reopen Commit.";
+    return;
+  }
+  fileCommitRunning = true;
+  confirmFileCommit.disabled = true;
+  cancelFileCommit.disabled = true;
+  commitFileMessage.disabled = true;
+  document.getElementById("chooseCommitCodeFile").disabled = true;
+  commitFileStatus.textContent = "Committing…";
+  try {
+    if (getSourceText() !== savedText && !(await saveManuscript())) throw new Error("Save failed. The file was not committed.");
+    const result = await window.localOverleaf.commitProjectFile(context.projectId, context.relativePath, commitFileMessage.value, context.head, context.targetFile);
+    if (!result.committed) { commitFileStatus.textContent = "No changes to commit."; context.changed = false; return; }
+    setSaveState(`Committed ${result.commit.slice(0, 7)}`, "ok");
+    compileLog.textContent = `Committed ${result.relativePath} on ${result.branch}: ${result.commit.slice(0, 7)}\n${result.output || ""}`;
+    commitFileDialog.close();
+  } catch (error) { commitFileStatus.textContent = formatError(error); }
+  finally {
+    fileCommitRunning = false;
+    cancelFileCommit.disabled = false;
+    commitFileMessage.disabled = false;
+    document.getElementById("chooseCommitCodeFile").disabled = false;
+    confirmFileCommit.disabled = !context.changed || !commitFileMessage.value.trim();
   }
 }
 
@@ -13941,7 +14947,10 @@ function handleSourceChanged({ renderVisual = false } = {}) {
   setSaveState(getSourceText() === savedText ? "Saved" : "Unsaved changes");
   if (renderVisual) renderVisualEditor();
   scheduleAutoSave();
-  if (!isPythonExecutionFile()) {
+  if (isHtmlFile()) {
+    clearTimeout(htmlPreviewTimer);
+    htmlPreviewTimer = setTimeout(syncHtmlPreview, 150);
+  } else if (!isPythonExecutionFile()) {
     setPdfStale(true);
     scheduleAutoCompile("Waiting for edits to settle...");
   }
@@ -14093,7 +15102,7 @@ function setPdfStale(stale) {
 }
 
 function scheduleAutoCompile(message) {
-  if (!activeProject || !autoCompileToggle.checked || isLoading || isPythonExecutionFile()) return;
+  if (!activeProject || !autoCompileToggle.checked || isLoading || isPythonExecutionFile() || isHtmlFile()) return;
 
   if (isCompiling) {
     pendingCompile = true;
@@ -14109,6 +15118,7 @@ function scheduleAutoCompile(message) {
 }
 
 function setMode(mode) {
+  syncHtmlPreview();
   if (activeMediaFile) {
     editor.getWrapperElement().hidden = true;
     visualEditor.hidden = true;
@@ -14141,8 +15151,18 @@ function setMode(mode) {
 
 function renderVisualEditor() {
   const tex = getSourceText();
+  if (isHtmlFile()) {
+    if (!visualEditor.hidden) renderHtmlVisualEditor();
+    return;
+  }
   if (isMarkdownFile()) {
+    visualEditor.classList.remove("typeset-mode");
     renderMarkdownPreview(tex);
+    return;
+  }
+
+  if (typeof renderTypesetVisualEditor === "function") {
+    renderTypesetVisualEditor(tex);
     return;
   }
 
@@ -14780,6 +15800,7 @@ function restorePdfViewState(state) {
 }
 
 async function setPdf(options = {}) {
+  if (isHtmlFile()) { syncHtmlPreview(); return true; }
   return renderPdf(options);
 }
 
@@ -14832,6 +15853,7 @@ async function processPdfLazyRenderQueue() {
 }
 
 async function renderPdf({ showLoading = true, preserveView = false, preserveLogOnError = false } = {}) {
+  if (isHtmlFile()) { syncHtmlPreview(); return true; }
   if (!activeProject || editorScreen.hidden || previewPane.classList.contains("python-output-active")) return false;
 
   const token = ++pdfRenderToken;
@@ -17792,10 +18814,30 @@ function updateStats() {
     return;
   }
   const text = getSourceText();
-  const lines = text ? text.split("\n").length : 0;
-  const words = (text.match(/\b[\w'-]+\b/g) || []).length;
-  sourceStats.textContent = `${lines.toLocaleString()} lines · ${words.toLocaleString()} words`;
+  sourceStatsTotals = {
+    lines: text ? text.split("\n").length : 0,
+    words: countStatsWords(text)
+  };
+  renderSourceStats();
   updateRelativeLineNumbers();
+}
+
+let sourceStatsTotals = { lines: 0, words: 0 };
+
+function countStatsWords(text) {
+  return (String(text || "").match(/\b[\w'-]+\b/g) || []).length;
+}
+
+// While text is selected, the banner shows the selection's word count
+// against the document total.
+function renderSourceStats() {
+  if (activeMediaFile) return;
+  const { lines, words } = sourceStatsTotals;
+  const selected = editor && editor.somethingSelected() ? countStatsWords(editor.getSelections().join("\n")) : 0;
+  const wordsLabel = selected
+    ? `${selected.toLocaleString()} words selected`
+    : `${words.toLocaleString()} words`;
+  sourceStats.textContent = `${lines.toLocaleString()} lines · ${wordsLabel}`;
 }
 
 function setSaveState(message, type) {
@@ -17839,6 +18881,7 @@ function setBusy(value) {
   downloadPdfButton.disabled = value;
   if (downloadPackageButton) downloadPackageButton.disabled = value;
   if (pushGithubButton) pushGithubButton.disabled = value;
+  if (commitFileButton) commitFileButton.disabled = value;
   if (pullGithubButton) pullGithubButton.disabled = value;
   if (saveProjectSettingsButton) saveProjectSettingsButton.disabled = value;
   if (pullProjectGithubButton) pullProjectGithubButton.disabled = value;

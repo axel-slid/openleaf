@@ -21,6 +21,7 @@
           </div>
           <div class="hero-actions">
           <button id="addProjectButton" class="hero-action" type="button">New Project</button>
+          <button id="automationsButton" class="hero-action" type="button">Automations</button>
           <button id="templatesButton" class="hero-action" type="button">Templates</button>
           <button id="remoteWorkspaceButton" class="hero-action" type="button">New SSH Project</button>
           <button class="settingsButton" type="button">Settings</button>
@@ -114,6 +115,17 @@
             <span class="refresh-glyph" aria-hidden="true">&#8635;</span>
             <span>Refresh Project</span>
           </button>
+          <button id="editorAutomationsButton" class="topbar-action-button" type="button" title="Automations">
+            <svg class="topbar-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="6" height="5" rx="1.5"></rect>
+              <rect x="15" y="4" width="6" height="5" rx="1.5"></rect>
+              <rect x="9" y="15" width="6" height="5" rx="1.5"></rect>
+              <path d="M9 6.5h6"></path>
+              <path d="M6 9v2.5a2 2 0 0 0 2 2h1.5"></path>
+              <path d="M18 9v2.5a2 2 0 0 1-2 2h-1.5"></path>
+            </svg>
+            <span>Automations</span>
+          </button>
           <button id="historyButton" class="topbar-action-button" type="button" title="History">
             <svg class="topbar-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M3 12a9 9 0 1 0 3-6.7"></path>
@@ -121,6 +133,10 @@
               <path d="M12 7v5l3 2"></path>
             </svg>
             <span>History</span>
+          </button>
+          <button id="commitFileButton" class="topbar-action-button" type="button" title="Commit the current file locally">
+            <svg class="topbar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h5m8 0h5"></path><circle cx="12" cy="12" r="4"></circle></svg>
+            <span>Commit</span>
           </button>
           <button id="pushGithubButton" class="topbar-action-button" type="button" title="Push active project to GitHub">
             <svg class="topbar-icon github-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -518,17 +534,29 @@
               <textarea id="pythonScratchInput" rows="1" spellcheck="false" placeholder="Press Enter to execute."></textarea>
             </footer>
           </section>
-          <aside id="historyPanel" class="history-panel" hidden>
-            <header>
-              <h3>History</h3>
-              <button id="closeHistoryButton" class="history-close-button" type="button" aria-label="Close history" title="Close history">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="m6 6 12 12"></path>
-                  <path d="m18 6-12 12"></path>
-                </svg>
+          <aside id="historyPanel" class="history-panel" role="dialog" aria-modal="true" aria-labelledby="historyTitle" hidden>
+            <header class="history-header">
+              <button id="closeHistoryButton" class="settings-close-button" type="button" aria-label="Close history" title="Close">
+                <svg class="icon icon-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+              </button>
+              <div class="history-heading">
+                <h3 id="historyTitle">History</h3>
+                <span id="historyFileName"></span>
+              </div>
+              <div class="history-view-toggle source-mode-actions" role="group" aria-label="Compare">
+                <button class="mode-button active" type="button" data-history-view="previous" title="Changes made in this version">Changes</button>
+                <button class="mode-button" type="button" data-history-view="current" title="Differences from the current text">Since</button>
+                <button class="mode-button" type="button" data-history-view="full" title="This version's full text">Full</button>
+              </div>
+              <button id="restoreHistoryButton" class="history-restore-button" type="button" title="Replace the current text with this version">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+                <span>Restore</span>
               </button>
             </header>
-            <div id="historyPanelBody" class="history-panel-body"></div>
+            <div id="historyPanelBody" class="history-panel-body">
+              <nav id="historyTimeline" class="history-timeline" aria-label="Versions"></nav>
+              <section id="historyDiff" class="history-diff" aria-live="polite"></section>
+            </div>
           </aside>
           <section class="log-panel" id="compileLogPanel">
             <div id="compileLogResizeHandle" class="log-resize-handle" role="separator" aria-label="Resize log" tabindex="0"></div>
@@ -1066,6 +1094,7 @@
             <span>TeX File</span>
             <small>Open an existing entry file</small>
           </button>
+          <button type="button" data-project-kind="html"><strong>HTML page</strong><span>Open a local webpage with a live preview.</span></button>
           <button type="button" data-project-kind="presentation">
             <span>PowerPoint</span>
             <small>Open and edit a .pptx deck</small>
@@ -1078,10 +1107,71 @@
             <span>Archive</span>
             <small>Import zip, tar, tar.gz, tgz</small>
           </button>
+          <button type="button" data-project-kind="handwritten-notes">
+            <span>Handwritten Notes</span>
+            <small>Import scans or photos into a notes template</small>
+          </button>
+          <button type="button" data-project-kind="homework-workings">
+            <span>HW + Workings</span>
+            <small>Add handwritten work to a homework template</small>
+          </button>
         </div>
         <div id="projectDropZone" class="project-drop-zone" role="button" tabindex="0">
           <span>Drop a project here</span>
-          <small>.tex, .pptx, folder, .zip, .tar, .tar.gz, or .tgz</small>
+          <small>.tex, .html, .htm, .pptx, folder, .zip, .tar, .tar.gz, or .tgz</small>
+        </div>
+      </div>
+    </section>
+    <section id="automationsPanel" class="new-project-panel automations-panel" role="dialog" aria-modal="true" aria-labelledby="automationsTitle" hidden>
+      <header class="new-project-header">
+        <div>
+          <h2 id="automationsTitle">Automations</h2>
+          <div class="automation-editor-meta">
+            <input id="automationNameInput" class="automation-title-input" type="text" maxlength="80" placeholder="Untitled automation" aria-label="Automation name">
+            <input id="automationDescriptionInput" class="automation-description-input" type="text" maxlength="200" placeholder="Add a description" aria-label="Description">
+          </div>
+        </div>
+        <button id="closeAutomationsButton" class="settings-close-button" type="button" aria-label="Close automations" title="Close">
+          <svg class="icon icon-x" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="new-project-body automations-body">
+        <p id="automationsAgentNote" class="automations-agent-note"></p>
+        <div id="automationsList" class="automations-list" aria-label="Automations"></div>
+        <button id="newAutomationButton" class="settings-action-button" type="button">New automation</button>
+        <div id="automationEditor" class="automation-editor" hidden>
+          <div class="automation-editor-main">
+            <div class="automation-canvas-toolbar" role="toolbar" aria-label="Add step">
+              <button class="automation-tool" type="button" data-add-node="agent" title="Add agent step" aria-label="Add agent step"></button>
+              <button class="automation-tool" type="button" data-add-node="template" title="Add template" aria-label="Add template"></button>
+              <button class="automation-tool" type="button" data-add-node="compile" title="Add compile" aria-label="Add compile"></button>
+              <button id="deleteAutomationSelectionButton" class="automation-tool" type="button" title="Delete selected step or edge" aria-label="Delete selected" hidden></button>
+            </div>
+            <div id="automationCanvas" class="automation-canvas" tabindex="0" aria-label="Automation steps">
+              <svg id="automationEdges" class="automation-edges" aria-hidden="true">
+                <defs>
+                  <marker id="automationArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0 0 10 5 0 10z"></path>
+                  </marker>
+                </defs>
+              </svg>
+              <div id="automationNodeDialog" class="automation-node-dialog" role="dialog" aria-label="Edit step" hidden></div>
+            </div>
+          </div>
+          <div class="automation-editor-footer">
+            <span id="automationEditorError" class="automation-editor-error" role="alert"></span>
+            <button id="cancelAutomationEditButton" class="settings-action-button" type="button">Cancel</button>
+            <button id="saveAutomationButton" class="settings-action-button primary" type="button">Save</button>
+          </div>
+        </div>
+        <div id="automationRun" class="automation-run" hidden>
+          <div class="automation-run-header">
+            <span id="automationRunStatus"></span>
+            <button id="stopAutomationButton" class="settings-action-button" type="button">Stop</button>
+          </div>
+          <pre id="automationRunLog" class="automation-run-log"></pre>
         </div>
       </div>
     </section>
@@ -1354,7 +1444,10 @@
               <input id="settingsExtraFeaturesToggle" type="checkbox">
             </label>
             <label class="setting-row">
-              <span>Selection edit agent</span>
+              <span>
+                Preferred agent
+                <small>Used for selection edits and automations.</small>
+              </span>
               <select id="settingsAgentChoice">
                 <option value="codex">Codex</option>
                 <option value="claude">Claude</option>
@@ -1495,7 +1588,7 @@ cd openleaf
 npm install
 npm start</code></pre>
               <h3>Project workflow</h3>
-              <p>Use New Project for a blank paper, TeX entry file, folder, zip, tar, tar.gz, or tgz archive. The file toolbar can create files, create folders, upload files or folders into the current project, and export the whole project package.</p>
+              <p>Use New Project for a blank paper, TeX entry file, handwritten notes, homework with handwritten workings, folder, zip, tar, tar.gz, or tgz archive. Handwritten starters copy selected PDFs or page images into a portable project and place them in the matching LaTeX template. The file toolbar can create files, create folders, upload files or folders into the current project, and export the whole project package.</p>
               <h3>GitHub push</h3>
               <p>Push copies only LaTeX source files into the dedicated public documents repo at github.com/axel-slid/openleaf-latex-documents. It does not upload generated PDFs, figures, datasets, caches, or the full project folder unless those files are LaTeX source files.</p>
               <h3>Remote workspace</h3>
@@ -1599,6 +1692,21 @@ tectonic main.tex</code></pre>
   <script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
   <script src="node_modules/katex/dist/katex.min.js"></script>
   <script src="node_modules/plotly.js-dist-min/plotly.min.js"></script>
+  <dialog id="commitFileDialog" class="commit-file-dialog" aria-labelledby="commitFileTitle">
+    <form id="commitFileForm">
+      <h2 id="commitFileTitle">Commit changes</h2>
+      <p id="commitFileTarget"></p>
+      <p id="commitFileHelp" class="commit-file-help">Save this file and create a local Git commit.</p>
+      <button id="chooseCommitCodeFile" type="button">Choose code file…</button>
+      <label for="commitFileMessage">Commit message</label>
+      <textarea id="commitFileMessage" rows="3" placeholder="Describe your changes" required></textarea>
+      <details><summary>Review changes</summary><pre id="commitFileDiff"></pre></details>
+      <p id="commitFileStatus" role="status"></p>
+      <div class="commit-file-actions"><button id="cancelFileCommit" type="button">Cancel</button><button id="confirmFileCommit" type="submit" disabled>Commit file</button></div>
+    </form>
+  </dialog>
+  <script src="html-editor.js"></script>
+  <script src="visual-typeset.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

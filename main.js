@@ -7,6 +7,20 @@ const os = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const pty = require("node-pty");
+const { fileCommitInfo, commitFile } = require("./git-file-commit");
+const {
+  BUILT_IN_AUTOMATIONS,
+  AUTOMATION_SOURCE_EXTENSIONS,
+  automationTemplateTex,
+  automationTemplateOptions,
+  NODE_TYPES,
+  graphFromLegacy,
+  automationStepOrder,
+  normalizeAutomation,
+  automationPrompt,
+  automationAgentCommand
+} = require("./automations");
+const historyStore = require("./history-store");
 const {
   loadPresentationEditor: loadPresentationEditorFile,
   savePresentationEditor: savePresentationEditorFile
@@ -19,6 +33,7 @@ const latexDocumentsRemoteUrl = "https://github.com/axel-slid/openleaf-latex-doc
 const latexSourceExtensions = new Set([".tex", ".ltx", ".bib", ".bst", ".cls", ".sty"]);
 const presentationExtensions = new Set([".ppt", ".pptx"]);
 const editablePresentationExtensions = new Set([".pptx"]);
+const handwrittenSourceExtensions = new Set([".pdf", ".png", ".jpg", ".jpeg", ".heic", ".heif", ".tif", ".tiff"]);
 const appIconPngPath = path.join(repoRoot, "assets", "icon.png");
 
 let mainWindow;
@@ -239,13 +254,14 @@ function createWindow({ projectId = "", tabParent = null } = {}) {
     minHeight: 700,
     title: "Openleaf",
     ...(fs.existsSync(appIconPngPath) ? { icon: appIconPngPath } : {}),
-    // Native Mac tabs require an opaque, framed window. The default title bar
-    // keeps the tab strip outside the web content and its top controls.
-    backgroundColor: process.platform === "darwin" ? "#202020" : "#00000000",
-    transparent: process.platform !== "darwin",
+    // A clear window lets the transparent themes show the desktop through the
+    // app. The inset title bar keeps the traffic lights in the app's top bar.
+    backgroundColor: "#00000000",
+    transparent: true,
     ...(process.platform === "darwin"
       ? {
-          titleBarStyle: "default",
+          titleBarStyle: "hiddenInset",
+          trafficLightPosition: { x: 14, y: 13 },
           tabbingIdentifier: "openleaf-projects",
           fullscreenable: true,
           enableLargerThanScreen: true,
@@ -482,7 +498,8 @@ function buildMenu() {
         { type: "separator" },
         { role: "togglefullscreen" }
       ]
-    }
+    },
+    { role: "windowMenu" }
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -567,6 +584,9 @@ function templateRootPath() {
 }
 
 function projectLibraryRoot() {
+  if (process.env.OPENLEAF_PROJECT_LIBRARY_ROOT) {
+    return path.resolve(process.env.OPENLEAF_PROJECT_LIBRARY_ROOT);
+  }
   return path.join(app.getPath("documents"), "Openleaf");
 }
 
@@ -1194,25 +1214,30 @@ async function addProject(_event, payload = {}) {
 
   if (kind === "blank") return createBlankProject();
   if (kind === "tex") return addTexProject();
+  if (kind === "html") return addHtmlProject();
   if (kind === "presentation") return addPresentationProject();
   if (kind === "folder") return addFolderProject();
   if (kind === "archive") return addArchiveProject();
+  if (kind === "handwritten-notes") return addHandwrittenProject("notes", payload.paths);
+  if (kind === "homework-workings") return addHandwrittenProject("homework", payload.paths);
 
   const choice = await dialog.showMessageBox(mainWindow, {
     type: "question",
     title: "New Project",
     message: "How do you want to start?",
-    buttons: ["Blank Project", "Existing .tex", "PowerPoint", "Folder", "Archive", "Cancel"],
-    cancelId: 5,
+    buttons: ["Blank Project", "Existing .tex", "PowerPoint", "Folder", "Archive", "Handwritten Notes", "HW + Workings", "Cancel"],
+    cancelId: 7,
     defaultId: 0
   });
 
-  if (choice.response === 5) return { project: null, ...(await listProjects()) };
+  if (choice.response === 7) return { project: null, ...(await listProjects()) };
   if (choice.response === 0) return createBlankProject();
   if (choice.response === 1) return addTexProject();
   if (choice.response === 2) return addPresentationProject();
   if (choice.response === 3) return addFolderProject();
   if (choice.response === 4) return addArchiveProject();
+  if (choice.response === 5) return addHandwrittenProject("notes");
+  if (choice.response === 6) return addHandwrittenProject("homework");
   return { project: null, ...(await listProjects()) };
 }
 
@@ -1245,6 +1270,15 @@ async function createBlankProject() {
     project: decorateProject(project),
     ...(await listProjects())
   };
+}
+
+async function addHtmlProject() {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Open HTML Page", buttonLabel: "Open HTML", properties: ["openFile"],
+    filters: [{ name: "HTML pages", extensions: ["html", "htm"] }]
+  });
+  if (result.canceled || !result.filePaths.length) return { project: null, ...(await listProjects()) };
+  return registerProject(result.filePaths[0]);
 }
 
 async function addTexProject() {
@@ -1303,7 +1337,7 @@ async function addFolderProject() {
   }
 
   const entryPath = await findProjectEntryFile(result.filePaths[0]);
-  if (!entryPath) throw new Error("No .tex or .txt file found in that folder.");
+  if (!entryPath) throw new Error("No .tex, .txt, or HTML file found in that folder.");
   return registerProject(entryPath);
 }
 
@@ -1327,17 +1361,311 @@ async function addArchiveProject() {
   return registerProject(texPath);
 }
 
+async function addHandwrittenProject(style, suppliedPaths = []) {
+  const isHomework = style === "homework";
+  let sourcePaths = (Array.isArray(suppliedPaths) ? suppliedPaths : [])
+    .map((filePath) => String(filePath || "").trim())
+    .filter(Boolean);
+
+  if (!sourcePaths.length) {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: isHomework ? "Import Handwritten Homework Workings" : "Import Handwritten Notes",
+      buttonLabel: isHomework ? "Create Homework Project" : "Create Notes Project",
+      properties: ["openFile", "multiSelections"],
+      filters: [
+        { name: "Scans and photos", extensions: ["pdf", "png", "jpg", "jpeg", "heic", "heif", "tif", "tiff"] },
+        { name: "All files", extensions: ["*"] }
+      ]
+    });
+    if (result.canceled || !result.filePaths.length) {
+      return { project: null, ...(await listProjects()) };
+    }
+    sourcePaths = result.filePaths;
+  }
+
+  const unsupported = sourcePaths.filter((filePath) => !handwrittenSourceExtensions.has(path.extname(filePath).toLowerCase()));
+  if (unsupported.length) {
+    throw new Error(`Handwritten imports support PDF, PNG, JPEG, HEIC, HEIF, and TIFF files. Unsupported: ${unsupported.map((filePath) => path.basename(filePath)).join(", ")}`);
+  }
+
+  const projectName = isHomework ? "Homework with Handwritten Workings" : "Handwritten Notes";
+  const destination = await uniqueDirectory(projectLibraryRoot(), projectName);
+  try {
+    const importedFiles = await copyHandwrittenSources(sourcePaths, destination);
+    const texPath = path.join(destination, "main.tex");
+    await fsp.writeFile(texPath, handwrittenProjectTemplate(style, importedFiles), "utf8");
+    const project = await registerProjectRecord(texPath, projectName);
+    const compile = await compileProjectIfPossible(project.id);
+    return {
+      project: decorateProject(project),
+      importedFiles,
+      compile,
+      ...(await listProjects())
+    };
+  } catch (error) {
+    await fsp.rm(destination, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function copyHandwrittenSources(sourcePaths, destination) {
+  const assetDirectory = path.join(destination, "handwritten");
+  await fsp.mkdir(assetDirectory, { recursive: true });
+  const imported = [];
+
+  for (let index = 0; index < sourcePaths.length; index += 1) {
+    const sourcePath = path.resolve(sourcePaths[index]);
+    const stat = await fsp.stat(sourcePath);
+    if (!stat.isFile()) throw new Error(`Handwritten import is not a file: ${path.basename(sourcePath)}`);
+
+    const sourceExtension = path.extname(sourcePath).toLowerCase();
+    const needsConversion = [".heic", ".heif", ".tif", ".tiff"].includes(sourceExtension);
+    const extension = needsConversion ? ".png" : (sourceExtension === ".jpeg" ? ".jpg" : sourceExtension);
+    const baseName = sanitizeArchiveBaseName(path.basename(sourcePath, sourceExtension)) || `page-${index + 1}`;
+    const fileName = `${String(index + 1).padStart(2, "0")}-${baseName}${extension}`;
+    const targetPath = path.join(assetDirectory, fileName);
+
+    if (needsConversion) {
+      try {
+        await execFileAsync("sips", ["-s", "format", "png", sourcePath, "--out", targetPath]);
+      } catch (error) {
+        throw new Error(`Could not convert ${path.basename(sourcePath)} to PNG. Export it as PDF, PNG, or JPEG and try again.`);
+      }
+    } else {
+      await fsp.copyFile(sourcePath, targetPath);
+    }
+    imported.push(path.posix.join("handwritten", fileName));
+  }
+
+  return imported;
+}
+
+function automationsFilePath() {
+  return path.join(app.getPath("userData"), "automations.json");
+}
+
+async function readCustomAutomations() {
+  try {
+    const parsed = JSON.parse(await fsp.readFile(automationsFilePath(), "utf8"));
+    return Array.isArray(parsed.automations) ? parsed.automations : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+async function writeCustomAutomations(automations) {
+  await fsp.mkdir(path.dirname(automationsFilePath()), { recursive: true });
+  await fsp.writeFile(automationsFilePath(), JSON.stringify({ automations }, null, 2), "utf8");
+}
+
+// Saved edits to a built-in automation replace it under the same id.
+async function listAutomations() {
+  const custom = (await readCustomAutomations()).map(graphFromLegacy);
+  const builtIns = BUILT_IN_AUTOMATIONS.map((automation) => {
+    const override = custom.find((item) => item.id === automation.id);
+    return override ? { ...override, builtIn: true, edited: true } : automation;
+  });
+  const builtInIds = new Set(BUILT_IN_AUTOMATIONS.map((automation) => automation.id));
+  return {
+    automations: [...builtIns, ...custom.filter((item) => !builtInIds.has(item.id))],
+    templates: automationTemplateOptions(),
+    nodeTypes: NODE_TYPES
+  };
+}
+
+async function saveAutomation(_event, payload = {}) {
+  const automation = normalizeAutomation(payload);
+  const custom = await readCustomAutomations();
+  const index = custom.findIndex((item) => item.id === automation.id);
+  const isBuiltIn = BUILT_IN_AUTOMATIONS.some((item) => item.id === automation.id);
+  if (index >= 0) {
+    custom[index] = automation;
+  } else {
+    if (!isBuiltIn) automation.id = crypto.randomUUID();
+    custom.push(automation);
+  }
+  await writeCustomAutomations(custom);
+  return listAutomations();
+}
+
+async function removeAutomation(_event, automationId) {
+  const custom = await readCustomAutomations();
+  await writeCustomAutomations(custom.filter((item) => item.id !== automationId));
+  return listAutomations();
+}
+
+const automationRuns = new Map();
+
+// Split PDFs into one PNG per page so either agent can look at every page.
+async function automationPageImages(projectDir, importedFiles) {
+  const pagesDir = path.join(projectDir, "pages");
+  await fsp.mkdir(pagesDir, { recursive: true });
+  const pages = [];
+  for (let index = 0; index < importedFiles.length; index += 1) {
+    const relativePath = importedFiles[index];
+    const sourcePath = path.join(projectDir, relativePath);
+    const prefix = String(index + 1).padStart(2, "0");
+    if (path.extname(relativePath).toLowerCase() === ".pdf") {
+      const pdftoppm = resolveExecutable("pdftoppm");
+      if (!path.isAbsolute(pdftoppm)) {
+        throw new Error("Splitting PDFs into pages needs pdftoppm. Install it with: brew install poppler");
+      }
+      await execFileAsync(pdftoppm, ["-r", "150", "-png", sourcePath, path.join(pagesDir, `${prefix}-page`)], {
+        timeout: 300000,
+        maxBuffer: 1024 * 1024 * 8
+      });
+      const rendered = (await fsp.readdir(pagesDir))
+        .filter((name) => name.startsWith(`${prefix}-page`) && name.endsWith(".png"))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      rendered.forEach((name) => pages.push(path.posix.join("pages", name)));
+    } else {
+      const target = path.join(pagesDir, `${prefix}-${path.basename(relativePath).replace(/^\d+-/, "")}`);
+      await fsp.copyFile(sourcePath, target);
+      pages.push(path.posix.join("pages", path.basename(target)));
+    }
+  }
+  if (!pages.length) throw new Error("No pages were found in the selected files.");
+  return pages;
+}
+
+function runAutomationAgent(runId, sender, agent, cwd, prompt, imagePaths) {
+  const { executable, args } = automationAgentCommand(agent, cwd, imagePaths);
+  const command = resolveExecutable(executable);
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, env: terminalEnv(cwd), stdio: ["pipe", "pipe", "pipe"] });
+    automationRuns.set(runId, child);
+    let tail = "";
+    const forward = (chunk) => {
+      const text = chunk.toString();
+      tail = (tail + text).slice(-6000);
+      if (!sender.isDestroyed()) sender.send("automation-progress", { runId, stage: "agent", output: text });
+    };
+    child.stdout.on("data", forward);
+    child.stderr.on("data", forward);
+    child.on("error", (error) => {
+      automationRuns.delete(runId);
+      reject(new Error(`Could not start ${executable}: ${error.message}`));
+    });
+    child.on("close", (code, signal) => {
+      automationRuns.delete(runId);
+      if (signal) reject(new Error("Automation stopped."));
+      else if (code !== 0) reject(new Error(`${executable} exited with code ${code}.\n\n${tail.trim()}`));
+      else resolve(tail);
+    });
+    child.stdin.end(prompt);
+  });
+}
+
+async function runAutomation(event, payload = {}) {
+  const sender = event.sender;
+  const runId = String(payload.runId || crypto.randomUUID());
+  const agent = String(payload.agent || "");
+  const { automations } = await listAutomations();
+  const automation = automations.find((item) => item.id === payload.automationId);
+  if (!automation) throw new Error("That automation no longer exists.");
+  automationAgentCommand(agent, "", []);
+  const steps = automationStepOrder(automation);
+
+  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(sender) || mainWindow, {
+    title: automation.name,
+    buttonLabel: "Run Automation",
+    properties: ["openFile", "multiSelections"],
+    filters: [{ name: "Scans and photos", extensions: AUTOMATION_SOURCE_EXTENSIONS }]
+  });
+  if (result.canceled || !result.filePaths.length) return { canceled: true };
+
+  const progress = (stepId, message) => {
+    if (!sender.isDestroyed()) sender.send("automation-progress", { runId, stepId, message });
+  };
+  const firstName = path.basename(result.filePaths[0], path.extname(result.filePaths[0]));
+  const projectName = `${firstName} (${automation.name})`;
+  const destination = await uniqueDirectory(projectLibraryRoot(), projectName);
+  const texPath = path.join(destination, "main.tex");
+  const agentLabel = agent === "claude" ? "Claude" : "Codex";
+  const completed = [];
+  let pages = [];
+  let project = null;
+  let compile = { ok: false, output: "" };
+
+  for (const step of steps) {
+    if (step.type === "input") {
+      progress(step.id, "Copying files and splitting pages…");
+      const importedFiles = await copyHandwrittenSources(result.filePaths, destination);
+      await fsp.rename(path.join(destination, "handwritten"), path.join(destination, "sources"));
+      const sources = importedFiles.map((relativePath) => relativePath.replace(/^handwritten\//, "sources/"));
+      pages = await automationPageImages(destination, sources);
+      if (!fs.existsSync(texPath)) await fsp.writeFile(texPath, automationTemplateTex("plain-notes", firstName), "utf8");
+      project = await registerProjectRecord(texPath, projectName);
+    } else if (step.type === "template") {
+      progress(step.id, `Writing the ${step.label} template…`);
+      await fsp.writeFile(texPath, automationTemplateTex(step.template, firstName), "utf8");
+    } else if (step.type === "agent") {
+      progress(step.id, `${step.label}: ${agentLabel} is working on ${pages.length} page${pages.length === 1 ? "" : "s"}…`);
+      await runAutomationAgent(
+        runId,
+        sender,
+        agent,
+        destination,
+        automationPrompt(automation, step, pages, completed),
+        pages.map((pagePath) => path.join(destination, pagePath))
+      );
+    } else if (step.type === "compile") {
+      progress(step.id, "Compiling the PDF…");
+      compile = await compileProjectIfPossible(project.id);
+    }
+    completed.push(step.label);
+  }
+
+  if (!steps.some((step) => step.type === "compile")) compile = await compileProjectIfPossible(project.id);
+  return { project: decorateProject(project), compile, ...(await listProjects()) };
+}
+
+function historyRoot() {
+  return path.join(app.getPath("userData"), "history");
+}
+
+async function historyRequest(payload = {}) {
+  const project = await getProject(payload.projectId);
+  const relativePath = String(payload.relativePath || "");
+  safeProjectPath(project, relativePath);
+  return { projectId: project.id, relativePath, projectRoot: projectRootFor(project) };
+}
+
+async function recordHistorySnapshot(_event, payload = {}) {
+  const request = await historyRequest(payload);
+  return historyStore.recordSnapshot(historyRoot(), { ...request, text: payload.text, reason: payload.reason });
+}
+
+async function importHistorySnapshots(_event, payload = {}) {
+  const request = await historyRequest(payload);
+  return historyStore.importSnapshots(historyRoot(), { ...request, entries: payload.entries });
+}
+
+async function listFileHistory(_event, payload = {}) {
+  return historyStore.listHistory(historyRoot(), await historyRequest(payload));
+}
+
+async function readHistoryEntry(_event, payload = {}) {
+  return historyStore.historyEntryText(historyRoot(), { ...(await historyRequest(payload)), entryId: payload.entryId });
+}
+
+function cancelAutomation(_event, runId) {
+  const child = automationRuns.get(runId);
+  if (child) child.kill("SIGTERM");
+  return { ok: Boolean(child) };
+}
+
 async function registerProjectFromPath(filePath) {
   const resolvedPath = path.resolve(filePath);
   const stat = await fsp.stat(resolvedPath);
 
   if (stat.isDirectory()) {
     const entryPath = await findProjectEntryFile(resolvedPath);
-    if (!entryPath) throw new Error("No .tex or .txt file found in that folder.");
+    if (!entryPath) throw new Error("No .tex, .txt, or HTML file found in that folder.");
     return registerProjectRecord(entryPath);
   }
 
-  if ([".tex", ".txt"].includes(path.extname(resolvedPath).toLowerCase())) {
+  if ([".tex", ".txt", ".html", ".htm"].includes(path.extname(resolvedPath).toLowerCase())) {
     return registerProjectRecord(resolvedPath);
   }
 
@@ -1359,7 +1687,7 @@ async function importArchiveToProject(archivePath) {
   await extractArchive(archivePath, destination);
 
   const entryPath = await findProjectEntryFile(destination);
-  if (!entryPath) throw new Error("Imported archive did not contain a .tex or .txt file.");
+  if (!entryPath) throw new Error("Imported archive did not contain a .tex, .txt, or HTML file.");
   return entryPath;
 }
 
@@ -1431,6 +1759,84 @@ function homeworkTemplate() {
     "",
     "\\section*{Problem 2}",
     "Show your work clearly.",
+    "",
+    "\\end{document}",
+    ""
+  ].join("\n");
+}
+
+function handwrittenProjectTemplate(style = "notes", importedFiles = []) {
+  const isHomework = style === "homework";
+  const title = isHomework ? "Homework with Handwritten Workings" : "Handwritten Notes";
+  const frontMatter = isHomework
+    ? [
+        "\\noindent\\textbf{Course:} Course name \\hfill \\textbf{Assignment:} Number or title\\\\[0.6em]",
+        "\\textbf{Due date:} Add due date \\hfill \\textbf{Collaborators:} None",
+        "",
+        "\\section*{Typed answers}",
+        "Add problem statements, final answers, or a short explanation here. Keep the original working pages in the section below.",
+        "",
+        "\\section*{Handwritten workings}"
+      ]
+    : [
+        "\\noindent\\textbf{Course / topic:} Add a course or topic\\\\[0.6em]",
+        "\\textbf{Summary:} Add a short searchable summary of these notes.",
+        "",
+        "\\section*{Imported pages}"
+      ];
+  const pages = importedFiles.length
+    ? importedFiles.flatMap((relativePath) => {
+        if (path.extname(relativePath).toLowerCase() === ".pdf") {
+          return [
+            "\\includepdf[pages=-,fitpaper=true,pagecommand={\\thispagestyle{openleaf}}]{\\detokenize{" + relativePath + "}}"
+          ];
+        }
+        return [
+          "\\clearpage",
+          "\\thispagestyle{openleaf}",
+          "\\begin{center}",
+          "  \\includegraphics[width=\\textwidth,height=0.86\\textheight,keepaspectratio]{\\detokenize{" + relativePath + "}}",
+          "\\end{center}"
+        ];
+      })
+    : [
+        "\\begin{center}",
+        "  \\fcolorbox{openleafline}{openleafpaper}{%",
+        "    \\begin{minipage}[c][0.52\\textheight][c]{0.86\\textwidth}",
+        "      \\centering\\large Import a PDF, PNG, JPEG, HEIC, or TIFF from New Project\\\\[0.75em]",
+        "      \\normalsize Your scanned handwritten pages will appear here.",
+        "    \\end{minipage}%",
+        "  }",
+        "\\end{center}"
+      ];
+
+  return [
+    "\\documentclass[11pt]{article}",
+    "\\usepackage[margin=0.75in,headheight=15pt]{geometry}",
+    "\\usepackage{graphicx}",
+    "\\usepackage{pdfpages}",
+    "\\usepackage{fancyhdr}",
+    "\\usepackage{xcolor}",
+    "\\definecolor{openleafline}{HTML}{CBD5E1}",
+    "\\definecolor{openleafpaper}{HTML}{F8FAFC}",
+    "\\fancypagestyle{openleaf}{%",
+    "  \\fancyhf{}",
+    `  \\fancyhead[L]{${title}}`,
+    "  \\fancyhead[R]{\\thepage}",
+    "  \\renewcommand{\\headrulewidth}{0.4pt}",
+    "}",
+    "\\pagestyle{openleaf}",
+    "",
+    `\\title{${title}}`,
+    "\\author{Your Name}",
+    "\\date{\\today}",
+    "",
+    "\\begin{document}",
+    "\\maketitle",
+    "",
+    ...frontMatter,
+    "",
+    ...pages,
     "",
     "\\end{document}",
     ""
@@ -1888,6 +2294,28 @@ function neuripsTemplate() {
 }
 
 const BUILT_IN_TEMPLATES = [
+  {
+    id: "handwritten-notes",
+    name: "Handwritten Notes",
+    description: "A searchable notes cover followed by imported scans or photos.",
+    sourceName: "Openleaf notes template",
+    sourceUrl: "",
+    entry: "main.tex",
+    files: {
+      "main.tex": handwrittenProjectTemplate("notes")
+    }
+  },
+  {
+    id: "homework-handwritten-workings",
+    name: "Homework + Handwritten Workings",
+    description: "Homework metadata and typed answers followed by handwritten solution pages.",
+    sourceName: "Openleaf homework template",
+    sourceUrl: "",
+    entry: "main.tex",
+    files: {
+      "main.tex": handwrittenProjectTemplate("homework")
+    }
+  },
   {
     id: "berkeley-cs170-homework",
     name: "Berkeley CS 170 Homework",
@@ -2353,7 +2781,7 @@ async function findProjectEntryFile(rootDir) {
         await visit(itemPath, depth + 1);
       } else if (entry.isFile()) {
         const lowerName = entry.name.toLowerCase();
-        if (lowerName.endsWith(".tex") || lowerName.endsWith(".txt")) candidates.push(itemPath);
+        if (/\.(tex|txt|html?)$/.test(lowerName)) candidates.push(itemPath);
       }
     }
   }
@@ -2365,7 +2793,8 @@ async function findProjectEntryFile(rootDir) {
       if (name === "main.tex") return 0;
       if (name.endsWith(".tex")) return 1;
       if (name.endsWith(".txt")) return 2;
-      return 3;
+      if (name === "index.html" || name === "index.htm") return 3;
+      return 4;
     };
     const rankDiff = rank(a) - rank(b);
     if (rankDiff) return rankDiff;
@@ -4444,6 +4873,39 @@ async function createProjectArchive(root, destination, format) {
   await execFileAsync("tar", args);
 }
 
+async function projectFileCommitInfo(_event, payload = {}) {
+  const project = await getProject(payload.projectId);
+  const file = project.commitTargetFile || safeProjectPath(project, payload.relativePath || relativeProjectPath(project, project.texPath));
+  const info = await fileCommitInfo(project.commitTargetFile ? path.dirname(file) : projectRootFor(project), file);
+  return { ...info, linkedCode: Boolean(project.commitTargetFile), targetFile: file };
+}
+
+async function commitProjectFile(_event, payload = {}) {
+  const project = await getProject(payload.projectId);
+  const file = project.commitTargetFile || safeProjectPath(project, payload.relativePath || relativeProjectPath(project, project.texPath));
+  if (payload.expectedFile && payload.expectedFile !== file) throw new Error("The commit target changed. Reopen Commit.");
+  return commitFile(project.commitTargetFile ? path.dirname(file) : projectRootFor(project), file, payload.message, payload.expectedHead);
+}
+
+async function chooseCommitCodeFile(event, projectId) {
+  const project = await getProject(projectId);
+  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+    title: "Choose the code file to commit",
+    defaultPath: project.commitTargetFile || projectRootFor(project),
+    properties: ["openFile"],
+    filters: [{ name: "Code files", extensions: ["cpp", "cc", "cxx", "c", "h", "hpp", "py", "js", "ts", "rs", "go"] }]
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  const file = await fsp.realpath(result.filePaths[0]);
+  await fileCommitInfo(path.dirname(file), file);
+  const projects = await readProjects();
+  const stored = projects.find((item) => item.id === projectId);
+  if (!stored) throw new Error("Project not found.");
+  stored.commitTargetFile = file;
+  await writeProjects(projects);
+  return projectFileCommitInfo(event, { projectId });
+}
+
 async function pushProjectToGithub(_event, payload) {
   const options = payload && typeof payload === "object"
     ? payload
@@ -4918,6 +5380,9 @@ ipcMain.handle("lookup-word-definition", async (_event, payload = {}) => {
 });
 ipcMain.handle("download-project-package", downloadProjectPackage);
 ipcMain.handle("push-project-to-github", pushProjectToGithub);
+ipcMain.handle("project-file-commit-info", projectFileCommitInfo);
+ipcMain.handle("choose-commit-code-file", chooseCommitCodeFile);
+ipcMain.handle("commit-project-file", commitProjectFile);
 ipcMain.handle("pull-project-from-github", pullProjectFromGithub);
 ipcMain.handle("list-ssh-hosts", listSshHosts);
 ipcMain.handle("close-window", closeWindow);
@@ -4928,6 +5393,15 @@ ipcMain.handle("open-external-link", openExternalLink);
 ipcMain.handle("open-history-window", openHistoryWindow);
 ipcMain.handle("read-agents", readAgents);
 ipcMain.handle("save-agents", saveAgents);
+ipcMain.handle("record-history-snapshot", recordHistorySnapshot);
+ipcMain.handle("import-history-snapshots", importHistorySnapshots);
+ipcMain.handle("list-file-history", listFileHistory);
+ipcMain.handle("read-history-entry", readHistoryEntry);
+ipcMain.handle("list-automations", listAutomations);
+ipcMain.handle("save-automation", saveAutomation);
+ipcMain.handle("remove-automation", removeAutomation);
+ipcMain.handle("run-automation", runAutomation);
+ipcMain.handle("cancel-automation", cancelAutomation);
 ipcMain.handle("terminal-create", createTerminal);
 ipcMain.handle("terminal-kill", killTerminal);
 ipcMain.on("terminal-write", writeTerminal);
@@ -4936,6 +5410,7 @@ ipcMain.on("terminal-resize", resizeTerminal);
 app.on("before-quit", () => {
   killTerminalSessions();
   killPythonSessions();
+  automationRuns.forEach((child) => child.kill("SIGTERM"));
   killPdfSpeechSession();
 });
 

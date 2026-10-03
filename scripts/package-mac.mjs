@@ -132,10 +132,15 @@ async function copyAppSources() {
   await fsp.mkdir(appResourcesDir, { recursive: true });
   const entries = [
     "app.js",
+    "automations.js",
+    "history-store.js",
+    "html-editor.js",
+    "git-file-commit.js",
     "index.html",
     "main.js",
     "presentation-editor.js",
     "preload.js",
+    "visual-typeset.js",
     "styles.css",
     "package.json",
     "package-lock.json",
