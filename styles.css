@@ -18150,3 +18150,31 @@ body.gradient-theme .text-tab .text-tab-curve {
     animation: none !important;
   }
 }
+
+/* Center the play triangle optically in its circle (its box sat ~2px right). */
+#pdfSpeechButton {
+  align-items: center !important;
+  display: inline-flex !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+#pdfSpeechButton .pdf-speech-play-icon {
+  transform: translateX(-1.3px);
+}
+
+/* PDF pages in "Theme" mode sit on the theme's background color. */
+.pdf-viewer.pdf-theme-pages .pdf-page,
+.pdf-viewer.pdf-theme-pages .pdf-page canvas,
+.pdf-thumbnail-list.pdf-theme-pages .pdf-thumbnail,
+.pdf-thumbnail-list.pdf-theme-pages .pdf-thumbnail canvas.pdf-canvas-dark-adaptive {
+  background: var(--bg) !important;
+}
+
+.pdf-viewer.pdf-theme-pages {
+  background: transparent !important;
+}
+
+#settingsPdfRenderModeRow[hidden] {
+  display: none !important;
+}

@@ -2834,6 +2834,10 @@ const PDF_CINEMATIC_ARTWORKS = [
 let pdfPronunciationDictionaryTimer = null;
 let pdfDarkMode = false;
 let pdfRenderMode = "adaptive";
+// "white" keeps pages white, "auto" darkens them in dark themes, "theme"
+// recolors them with the theme's background and text colors.
+let pdfPageStyle = "auto";
+let appThemeMode = "light";
 let selectedPdfRelativePath = "";
 const pdfViewPreviewWrites = new Set();
 let remoteCompiledPdfRelativePath = "";
@@ -3197,6 +3201,7 @@ function setupSettings() {
     localStorage.getItem("latexStudioPdfRenderMode")
       || (localStorage.getItem("latexStudioPdfInvertPages") === "true" ? "invert" : "adaptive")
   );
+  pdfPageStyle = normalizePdfPageStyle(localStorage.getItem("latexStudioPdfPageStyle"));
   projectViewMode = localStorage.getItem("latexStudioProjectView") === "rows" ? "rows" : "grid";
   projectSortMode = normalizeProjectSortMode(localStorage.getItem("latexStudioProjectSort"));
   vimModeEnabled = localStorage.getItem("latexStudioVimMode") === "true";
@@ -3273,6 +3278,13 @@ function setupSettings() {
 
   settingsFileSidebarToggle.addEventListener("change", () => {
     setFileSidebarVisible(settingsFileSidebarToggle.checked);
+  });
+
+  document.querySelectorAll("[data-pdf-page-style]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setPdfPageStyle(button.dataset.pdfPageStyle);
+      if (projectScreen && !projectScreen.hidden) renderProjectGrid();
+    });
   });
 
   settingsPdfRenderModeButtons.forEach((button) => {
@@ -3507,7 +3519,8 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
 
 function syncSurfaceThemesToAppTheme(theme, { persist = true } = {}) {
   const mode = theme === "dark" ? "dark" : "light";
-  pdfDarkMode = mode === "dark";
+  appThemeMode = mode;
+  applyPdfPageStyleState();
 
   sourcePane.dataset.terminalTheme = mode;
   if (presentationScreen) presentationScreen.dataset.terminalTheme = mode;
@@ -4351,6 +4364,49 @@ function setCompileLogMaximized(maximized) {
 
 function normalizeThemePreset(value) {
   return Object.prototype.hasOwnProperty.call(THEME_PRESETS, value) ? value : "custom";
+}
+
+function normalizePdfPageStyle(value) {
+  return ["white", "auto", "theme"].includes(value) ? value : "auto";
+}
+
+// Theme pages reuse the adaptive recolor (it keeps figures intact) with the
+// theme's own colors as the paper and ink.
+function applyPdfPageStyleState() {
+  pdfDarkMode = pdfPageStyle === "theme" || (pdfPageStyle === "auto" && appThemeMode === "dark");
+  pdfRenderMode = pdfPageStyle === "theme"
+    ? "adaptive"
+    : normalizePdfRenderMode(localStorage.getItem("latexStudioPdfRenderMode"));
+  if (pdfViewer) pdfViewer.classList.toggle("pdf-theme-pages", pdfPageStyle === "theme");
+  if (pdfThumbnailList) pdfThumbnailList.classList.toggle("pdf-theme-pages", pdfPageStyle === "theme");
+  document.querySelectorAll("[data-pdf-page-style]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.pdfPageStyle === pdfPageStyle);
+  });
+  const renderRow = document.getElementById("settingsPdfRenderModeRow");
+  if (renderRow) renderRow.hidden = pdfPageStyle !== "auto";
+}
+
+function setPdfPageStyle(style) {
+  pdfPageStyle = normalizePdfPageStyle(style);
+  localStorage.setItem("latexStudioPdfPageStyle", pdfPageStyle);
+  applyPdfPageStyleState();
+  applyPdfRenderMode();
+  updatePdfRenderModeButtons();
+  if (typeof renderPdf === "function") renderPdf({ showLoading: false, preserveView: true });
+}
+
+function pdfRecolorPalette() {
+  if (pdfPageStyle === "theme") {
+    return {
+      paper: cssColorToRgb(themeColor("--bg", "#ffffff"), { r: 255, g: 255, b: 255 }),
+      text: cssColorToRgb(themeColor("--text", "#111827"), { r: 17, g: 24, b: 39 })
+    };
+  }
+  const baseText = cssColorToRgb(themeColor("--text", "#f8fafc"), { r: 248, g: 250, b: 252 });
+  return {
+    paper: cssColorToRgb(themeColor("--pdf-dark-paper", "#111827"), { r: 17, g: 24, b: 39 }),
+    text: mixRgb(baseText, { r: 255, g: 255, b: 255 }, 0.18)
+  };
 }
 
 function normalizePdfRenderMode(value) {
@@ -16434,7 +16490,7 @@ function applyPdfPreviewCanvasRenderMode(context, canvas, { sourceCanvas = null 
 }
 
 function normalizePdfThumbnailDarkPreview(context, canvas) {
-  if (!pdfDarkMode || pdfRenderMode !== "adaptive") return;
+  if (!pdfDarkMode || pdfRenderMode !== "adaptive" || pdfPageStyle === "theme") return;
 
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
@@ -16643,10 +16699,8 @@ async function openPdfLink(url) {
 function applyDarkPdfCanvas(context, canvas, imageBoxes = []) {
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
-  const basePaper = cssColorToRgb(themeColor("--pdf-dark-paper", "#111827"), { r: 17, g: 24, b: 39 });
-  const baseText = cssColorToRgb(themeColor("--text", "#f8fafc"), { r: 248, g: 250, b: 252 });
-  const paper = basePaper;
-  const text = mixRgb(baseText, { r: 255, g: 255, b: 255 }, 0.18);
+  const { paper, text } = pdfRecolorPalette();
+  const darkPaper = 0.2126 * paper.r + 0.7152 * paper.g + 0.0722 * paper.b < 128;
 
   for (let index = 0; index < data.length; index += 4) {
     const pixel = index / 4;
@@ -16675,7 +16729,17 @@ function applyDarkPdfCanvas(context, canvas, imageBoxes = []) {
     const saturation = max === 0 ? 0 : chroma / max;
     const neutral = saturation < 0.18 || chroma < 24;
 
-    if (!neutral && luminance < 242) continue;
+    if (!neutral) {
+      // Dark colored text (links, highlighted answers) would vanish on a dark
+      // page; flip its lightness but keep its hue.
+      if (darkPaper && luminance < 150) {
+        const flipped = flipRgbLightness(r, g, b);
+        data[index] = flipped.r;
+        data[index + 1] = flipped.g;
+        data[index + 2] = flipped.b;
+      }
+      if (luminance < 242) continue;
+    }
 
     const mix = Math.pow(clampNumber(luminance / 255, 0, 1, 1), 1.42);
     data[index] = Math.round(text.r + (paper.r - text.r) * mix);
@@ -16684,6 +16748,34 @@ function applyDarkPdfCanvas(context, canvas, imageBoxes = []) {
   }
 
   context.putImageData(imageData, 0, 0);
+}
+
+// Inverts HSL lightness (keeping hue and saturation), clamped so the result
+// stays readable on a dark page.
+function flipRgbLightness(r, g, b) {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const lightness = (max + min) / 2;
+  const delta = max - min;
+  let hue = 0;
+  let saturation = 0;
+  if (delta) {
+    saturation = delta / (1 - Math.abs(2 * lightness - 1));
+    if (max === rn) hue = ((gn - bn) / delta) % 6;
+    else if (max === gn) hue = (bn - rn) / delta + 2;
+    else hue = (rn - gn) / delta + 4;
+    hue *= 60;
+    if (hue < 0) hue += 360;
+  }
+  const target = clampNumber(1 - lightness, 0.62, 0.86, 0.72);
+  const c = (1 - Math.abs(2 * target - 1)) * Math.min(1, saturation);
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = target - c / 2;
+  const [r1, g1, b1] = hue < 60 ? [c, x, 0] : hue < 120 ? [x, c, 0] : hue < 180 ? [0, c, x] : hue < 240 ? [0, x, c] : hue < 300 ? [x, 0, c] : [c, 0, x];
+  return { r: Math.round((r1 + m) * 255), g: Math.round((g1 + m) * 255), b: Math.round((b1 + m) * 255) };
 }
 
 function detectPdfImageBoxes(data, width, height) {
