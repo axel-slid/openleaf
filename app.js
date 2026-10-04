@@ -19081,11 +19081,22 @@ function setSaveState(message, type) {
   updateTopSaveStatus(message, type);
 }
 
+let saveStatusPopTimer = 0;
+
 function updateTopSaveStatus(message, type) {
   const status = saveStatusForMessage(message, type);
+  const previous = topSaveStatusButton.dataset.saveStatus;
   topSaveStatusButton.dataset.saveStatus = status.kind;
   topSaveStatusButton.title = message;
   topSaveStatusLabel.textContent = status.label;
+  // Play the check-mark draw only when a save actually just finished.
+  if (status.kind === "saved" && (previous === "busy" || previous === "unsaved")) {
+    topSaveStatusButton.classList.remove("just-saved");
+    void topSaveStatusButton.offsetWidth;
+    topSaveStatusButton.classList.add("just-saved");
+    clearTimeout(saveStatusPopTimer);
+    saveStatusPopTimer = setTimeout(() => topSaveStatusButton.classList.remove("just-saved"), 900);
+  }
 }
 
 function saveStatusForMessage(message, type) {

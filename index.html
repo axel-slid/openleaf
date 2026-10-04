@@ -161,8 +161,15 @@
             </svg>
             <span>Settings</span>
           </button>
-          <div id="topSaveStatusButton" class="save-status" aria-live="polite" data-save-status="neutral">
-            <span id="topSaveStatusLabel">Not loaded</span>
+          <div id="topSaveStatusButton" class="save-status save-status-indicator" aria-live="polite" data-save-status="neutral">
+            <svg class="save-status-svg" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="save-ring" cx="12" cy="12" r="9"></circle>
+              <circle class="save-spinner" cx="12" cy="12" r="9"></circle>
+              <path class="save-check" d="M7.5 12.5l3 3 6-6.5"></path>
+              <circle class="save-dot" cx="12" cy="12" r="3"></circle>
+              <path class="save-alert" d="M12 7.5v5.5M12 16.4v.1"></path>
+            </svg>
+            <span id="topSaveStatusLabel" class="visually-hidden">Not loaded</span>
           </div>
         </div>
       </header>
