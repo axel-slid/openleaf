@@ -246,18 +246,44 @@ function applyDisplayFrameBounds(window, display) {
   [50, 250, 750].forEach((delay) => setTimeout(apply, delay));
 }
 
-function createWindow({ projectId = "", tabParent = null } = {}) {
-  const windowBounds = widestDisplayWindowBounds(1520, 980);
+// Only glass themes get a transparent window. macOS has to re-blend a
+// transparent window whenever anything behind it changes, which kept the
+// window server busy even while Openleaf sat idle. The choice is remembered
+// in userData so the next window starts with the right kind.
+function windowPrefsPath() {
+  return path.join(app.getPath("userData"), "window-prefs.json");
+}
+
+function readWindowPrefs() {
+  try {
+    return JSON.parse(fs.readFileSync(windowPrefsPath(), "utf8")) || {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function writeWindowPrefs(prefs) {
+  try {
+    fs.writeFileSync(windowPrefsPath(), JSON.stringify(prefs));
+  } catch (_error) {
+    // A missing prefs file only means the next window starts opaque.
+  }
+}
+
+function createWindow({ projectId = "", tabParent = null, bounds = null } = {}) {
+  const windowBounds = bounds || widestDisplayWindowBounds(1520, 980);
+  const prefs = readWindowPrefs();
+  const glass = Boolean(prefs.glass);
+  const opaqueBackground = /^#[0-9a-f]{6}$/i.test(prefs.background || "") ? prefs.background : "#202020";
   const window = new BrowserWindow({
     ...windowBounds,
     minWidth: 1180,
     minHeight: 700,
     title: "Openleaf",
     ...(fs.existsSync(appIconPngPath) ? { icon: appIconPngPath } : {}),
-    // A clear window lets the transparent themes show the desktop through the
-    // app. The inset title bar keeps the traffic lights in the app's top bar.
-    backgroundColor: "#00000000",
-    transparent: true,
+    // The inset title bar keeps the traffic lights in the app's top bar.
+    backgroundColor: glass ? "#00000000" : opaqueBackground,
+    transparent: glass,
     ...(process.platform === "darwin"
       ? {
           titleBarStyle: "hiddenInset",
@@ -265,8 +291,7 @@ function createWindow({ projectId = "", tabParent = null } = {}) {
           tabbingIdentifier: "openleaf-projects",
           fullscreenable: true,
           enableLargerThanScreen: true,
-          vibrancy: "under-window",
-          visualEffectState: "active"
+          ...(glass ? { vibrancy: "under-window", visualEffectState: "active" } : {})
         }
       : {}),
     show: false,
@@ -277,6 +302,7 @@ function createWindow({ projectId = "", tabParent = null } = {}) {
       sandbox: true
     }
   });
+  window.openleafGlass = glass;
   const windowWebContentsId = window.webContents.id;
 
   if (process.platform === "darwin" && app.dock && fs.existsSync(appIconPngPath)) {
@@ -559,10 +585,26 @@ function closeWindow(event) {
 
 // The macOS blur behind the window is only needed for glass themes; solid
 // themes turn it off so the window server doesn't composite a blur layer.
-function setWindowGlass(event, enabled) {
+function setWindowGlass(event, payload = {}) {
+  const enabled = Boolean(payload.enabled);
+  const background = /^#[0-9a-f]{6}$/i.test(payload.background || "") ? payload.background : undefined;
+  writeWindowPrefs({ glass: enabled, background });
   const window = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
-  if (!window || window.isDestroyed() || process.platform !== "darwin") return { ok: false };
-  window.setVibrancy(enabled ? "under-window" : null);
+  if (!window || window.isDestroyed()) return { recreate: false };
+  if (!enabled && background) window.setBackgroundColor(background);
+  return { recreate: process.platform === "darwin" && window.openleafGlass !== enabled };
+}
+
+// Rebuilds the window (same bounds, same project) so a glass/solid theme
+// change gets the matching window kind.
+function recreateWindow(event, projectId = "") {
+  const oldWindow = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+  if (!oldWindow || oldWindow.isDestroyed()) return { ok: false };
+  const bounds = oldWindow.getBounds();
+  const next = createWindow({ projectId: String(projectId || ""), bounds });
+  next.once("ready-to-show", () => {
+    if (!oldWindow.isDestroyed()) oldWindow.destroy();
+  });
   return { ok: true };
 }
 
@@ -5454,6 +5496,7 @@ ipcMain.handle("close-window", closeWindow);
 ipcMain.handle("open-project-in-tab", openProjectInTab);
 ipcMain.handle("minimize-window", minimizeWindow);
 ipcMain.handle("set-window-glass", setWindowGlass);
+ipcMain.handle("recreate-window", recreateWindow);
 ipcMain.handle("toggle-fullscreen", toggleFullscreen);
 ipcMain.handle("open-external-link", openExternalLink);
 ipcMain.handle("open-history-window", openHistoryWindow);

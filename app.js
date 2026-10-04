@@ -3498,7 +3498,7 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   document.body.dataset.contrast = HIGH_CONTRAST_PRESETS.has(normalizedPreset) ? "high" : "normal";
   document.body.classList.toggle("high-contrast", HIGH_CONTRAST_PRESETS.has(normalizedPreset));
   document.body.classList.toggle("transparent-theme", TRANSPARENT_PRESETS.has(normalizedPreset));
-  window.localOverleaf.setWindowGlass?.(TRANSPARENT_PRESETS.has(normalizedPreset))?.catch(() => {});
+  syncWindowGlass(TRANSPARENT_PRESETS.has(normalizedPreset));
   document.documentElement.style.setProperty("--accent", normalizedAccent);
   document.documentElement.style.setProperty("--accent-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
   document.body.style.setProperty("--accent", normalizedAccent);
@@ -4364,6 +4364,29 @@ function setCompileLogMaximized(maximized) {
 
 function normalizeThemePreset(value) {
   return Object.prototype.hasOwnProperty.call(THEME_PRESETS, value) ? value : "custom";
+}
+
+let windowRecreatePending = false;
+
+// Glass themes need a transparent window and solid themes an opaque one; the
+// window kind is fixed at creation, so switching between them reopens the
+// window on the same project after saving.
+async function syncWindowGlass(enabled) {
+  if (!window.localOverleaf?.setWindowGlass) return;
+  const rgb = cssColorToRgb(themeColor("--bg", "#202020"), { r: 32, g: 32, b: 32 });
+  const background = `#${[rgb.r, rgb.g, rgb.b].map((value) => Math.round(value).toString(16).padStart(2, "0")).join("")}`;
+  try {
+    const result = await window.localOverleaf.setWindowGlass(enabled, background);
+    if (!result?.recreate || windowRecreatePending) return;
+    const otherDirtyTabs = openTextTabs.some((tab) => tab.dirty && tab.relativePath !== activeTextTabPath);
+    if (otherDirtyTabs) return;
+    windowRecreatePending = true;
+    if (activeProject && !activeMediaFile && getSourceText() !== savedText) await saveManuscript();
+    await window.localOverleaf.recreateWindow(activeProject ? activeProject.id : "");
+  } catch (error) {
+    windowRecreatePending = false;
+    console.warn("Could not switch the window kind.", error);
+  }
 }
 
 function normalizePdfPageStyle(value) {
