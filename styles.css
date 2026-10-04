@@ -18197,3 +18197,29 @@ body #pdfThumbnailList.pdf-theme-pages .pdf-thumbnail canvas {
   background: transparent !important;
   box-shadow: none !important;
 }
+
+/* High-contrast gradient themes: no graph-paper grid over the gradient, and
+   panes a little more solid so text stays crisp over vivid color. */
+body.gradient-theme.high-contrast .workspace,
+body.gradient-theme.high-contrast .editor-shell,
+body.gradient-theme.high-contrast .preview-stage {
+  background-image: none !important;
+}
+
+body.gradient-theme.high-contrast .editor-screen > .topbar,
+body.gradient-theme.high-contrast .file-rail,
+body.gradient-theme.high-contrast .file-pane,
+body.gradient-theme.high-contrast .source-pane,
+body.gradient-theme.high-contrast .preview-pane,
+body.gradient-theme.high-contrast .notes-panel,
+body.gradient-theme.high-contrast .log-panel {
+  background: rgb(from var(--panel) r g b / 0.55) !important;
+}
+
+/* "Always white" pages: no theme page filter or dark paper, in any theme. */
+body #pdfViewer.pdf-white-pages .pdf-page,
+body #pdfViewer.pdf-white-pages .pdf-page canvas,
+body #pdfThumbnailList.pdf-white-pages .pdf-thumbnail canvas {
+  background: #ffffff !important;
+  filter: none !important;
+}

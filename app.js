@@ -632,7 +632,12 @@ const HIGH_CONTRAST_PRESETS = new Set([
   "pastel-ink-hc",
   "pastel-aurora-hc",
   "pastel-plum-hc",
-  "aurora-contrast-hc"
+  "aurora-contrast-hc",
+  "neon-gradient-hc",
+  "volt-gradient-hc",
+  "inferno-gradient-hc",
+  "glacier-gradient-hc",
+  "solar-gradient-hc"
 ]);
 const TRANSPARENT_PRESETS = new Set([
   "glass-light",
@@ -2575,6 +2580,161 @@ const THEME_PRESETS = {
       "--pdf-paper": "#ffffff"
     }
   },
+  "neon-gradient-hc": {
+    theme: "dark",
+    accent: "#ff4fd8",
+    background: "radial-gradient(circle at 14% 8%, rgba(255, 79, 216, 0.72), transparent 58%), radial-gradient(circle at 88% 12%, rgba(34, 211, 238, 0.68), transparent 56%), radial-gradient(circle at 50% 108%, rgba(124, 58, 237, 0.6), transparent 62%), linear-gradient(135deg, #0b0014, #16002a 54%, #05000c)",
+    colors: {
+      "--bg": "#05000c",
+      "--glass": "rgba(10, 0, 20, 0.95)",
+      "--glass-strong": "rgba(10, 0, 20, 0.99)",
+      "--panel": "rgba(10, 0, 20, 0.98)",
+      "--page": "#ffffff",
+      "--text": "#ffffff",
+      "--muted": "#e6e6ee",
+      "--border": "rgba(255, 79, 216, 0.72)",
+      "--border-strong": "rgba(255, 255, 255, 0.92)",
+      "--red": "#ffb4c2",
+      "--green": "#9dffc6",
+      "--blue": "#bfe0ff",
+      "--blue-dark": "#93c5fd",
+      "--cm-bg": "#0d0018",
+      "--cm-gutter": "#160024",
+      "--cm-text": "#ffffff",
+      "--cm-keyword": "#ff8ae6",
+      "--cm-variable": "#7ff3ff",
+      "--cm-atom": "#b7a6ff",
+      "--cm-comment": "#c9c9d6",
+      "--cm-string": "#fff27a",
+      "--cm-number": "#ffb38a",
+      "--pdf-bg": "#05000c",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "volt-gradient-hc": {
+    theme: "dark",
+    accent: "#c6ff3d",
+    background: "radial-gradient(circle at 14% 8%, rgba(198, 255, 61, 0.72), transparent 58%), radial-gradient(circle at 88% 12%, rgba(56, 132, 255, 0.68), transparent 56%), radial-gradient(circle at 50% 108%, rgba(16, 230, 160, 0.6), transparent 62%), linear-gradient(135deg, #030d02, #061a10 54%, #020806)",
+    colors: {
+      "--bg": "#020806",
+      "--glass": "rgba(4, 14, 8, 0.95)",
+      "--glass-strong": "rgba(4, 14, 8, 0.99)",
+      "--panel": "rgba(4, 14, 8, 0.98)",
+      "--page": "#ffffff",
+      "--text": "#ffffff",
+      "--muted": "#e6e6ee",
+      "--border": "rgba(198, 255, 61, 0.72)",
+      "--border-strong": "rgba(255, 255, 255, 0.92)",
+      "--red": "#ffb4c2",
+      "--green": "#9dffc6",
+      "--blue": "#bfe0ff",
+      "--blue-dark": "#93c5fd",
+      "--cm-bg": "#06140b",
+      "--cm-gutter": "#0a1f12",
+      "--cm-text": "#ffffff",
+      "--cm-keyword": "#d8ff6b",
+      "--cm-variable": "#8ec5ff",
+      "--cm-atom": "#5cffc9",
+      "--cm-comment": "#c9c9d6",
+      "--cm-string": "#fff27a",
+      "--cm-number": "#ffb3e6",
+      "--pdf-bg": "#020806",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "inferno-gradient-hc": {
+    theme: "dark",
+    accent: "#ff8a3d",
+    background: "radial-gradient(circle at 14% 8%, rgba(255, 92, 56, 0.72), transparent 58%), radial-gradient(circle at 88% 12%, rgba(255, 191, 64, 0.68), transparent 56%), radial-gradient(circle at 50% 108%, rgba(220, 38, 127, 0.6), transparent 62%), linear-gradient(135deg, #140302, #260807 54%, #0c0201)",
+    colors: {
+      "--bg": "#0c0201",
+      "--glass": "rgba(18, 4, 3, 0.95)",
+      "--glass-strong": "rgba(18, 4, 3, 0.99)",
+      "--panel": "rgba(18, 4, 3, 0.98)",
+      "--page": "#ffffff",
+      "--text": "#ffffff",
+      "--muted": "#e6e6ee",
+      "--border": "rgba(255, 92, 56, 0.72)",
+      "--border-strong": "rgba(255, 255, 255, 0.92)",
+      "--red": "#ffb4c2",
+      "--green": "#9dffc6",
+      "--blue": "#bfe0ff",
+      "--blue-dark": "#93c5fd",
+      "--cm-bg": "#170604",
+      "--cm-gutter": "#220a06",
+      "--cm-text": "#ffffff",
+      "--cm-keyword": "#ffb347",
+      "--cm-variable": "#ffd0a8",
+      "--cm-atom": "#ff9ec7",
+      "--cm-comment": "#c9c9d6",
+      "--cm-string": "#fff27a",
+      "--cm-number": "#ff8fa3",
+      "--pdf-bg": "#0c0201",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "glacier-gradient-hc": {
+    theme: "light",
+    accent: "#0369a1",
+    background: "radial-gradient(circle at 14% 10%, rgba(56, 189, 248, 0.62), transparent 58%), radial-gradient(circle at 88% 14%, rgba(20, 184, 166, 0.58), transparent 56%), radial-gradient(circle at 50% 110%, rgba(99, 102, 241, 0.5), transparent 62%), linear-gradient(135deg, #eaf8ff, #e4f4fb 54%, #e9edff)",
+    colors: {
+      "--bg": "#e4f4fb",
+      "--glass": "rgba(255, 255, 255, 0.86)",
+      "--glass-strong": "rgba(255, 255, 255, 0.96)",
+      "--panel": "rgba(255, 255, 255, 0.96)",
+      "--page": "#ffffff",
+      "--text": "#000000",
+      "--muted": "#1f2430",
+      "--border": "rgba(0, 0, 0, 0.42)",
+      "--border-strong": "rgba(0, 0, 0, 0.86)",
+      "--red": "#b91c1c",
+      "--green": "#065f46",
+      "--blue": "#1d4ed8",
+      "--blue-dark": "#1e3a8a",
+      "--cm-bg": "#ffffff",
+      "--cm-gutter": "#e3f2fa",
+      "--cm-text": "#000000",
+      "--cm-keyword": "#7e22ce",
+      "--cm-variable": "#0c4a6e",
+      "--cm-atom": "#065f46",
+      "--cm-comment": "#3f4655",
+      "--cm-string": "#14532d",
+      "--cm-number": "#9d174d",
+      "--pdf-bg": "#e4f4fb",
+      "--pdf-paper": "#ffffff"
+    }
+  },
+  "solar-gradient-hc": {
+    theme: "light",
+    accent: "#c2410c",
+    background: "radial-gradient(circle at 14% 10%, rgba(251, 146, 60, 0.62), transparent 58%), radial-gradient(circle at 88% 14%, rgba(236, 72, 153, 0.58), transparent 56%), radial-gradient(circle at 50% 110%, rgba(250, 204, 21, 0.5), transparent 62%), linear-gradient(135deg, #fff3e6, #fff0e8 54%, #fff3f8)",
+    colors: {
+      "--bg": "#fff0e8",
+      "--glass": "rgba(255, 255, 255, 0.86)",
+      "--glass-strong": "rgba(255, 255, 255, 0.96)",
+      "--panel": "rgba(255, 255, 255, 0.96)",
+      "--page": "#ffffff",
+      "--text": "#000000",
+      "--muted": "#1f2430",
+      "--border": "rgba(0, 0, 0, 0.42)",
+      "--border-strong": "rgba(0, 0, 0, 0.86)",
+      "--red": "#b91c1c",
+      "--green": "#065f46",
+      "--blue": "#1d4ed8",
+      "--blue-dark": "#1e3a8a",
+      "--cm-bg": "#ffffff",
+      "--cm-gutter": "#fdeee2",
+      "--cm-text": "#000000",
+      "--cm-keyword": "#9a3412",
+      "--cm-variable": "#1d4ed8",
+      "--cm-atom": "#065f46",
+      "--cm-comment": "#3f4655",
+      "--cm-string": "#14532d",
+      "--cm-number": "#9d174d",
+      "--pdf-bg": "#fff0e8",
+      "--pdf-paper": "#ffffff"
+    }
+  },
   "aurora-contrast-hc": {
     theme: "dark",
     accent: "#7fffd4",
@@ -3414,7 +3574,8 @@ function updateThemeGallerySelection() {
 function themeCategoryLabel(label) {
   return String(label || "")
     .replace("Light High Contrast", "Light Contrast")
-    .replace("Dark High Contrast", "Dark Contrast");
+    .replace("Dark High Contrast", "Dark Contrast")
+    .replace("Gradient High Contrast", "Gradient Contrast");
 }
 
 function themeCategoryForPreset(presetId) {
@@ -4397,16 +4558,19 @@ function normalizePdfPageStyle(value) {
 // theme's own colors as the paper and ink.
 function applyPdfPageStyleState() {
   pdfDarkMode = pdfPageStyle === "theme" || (pdfPageStyle === "auto" && appThemeMode === "dark");
-  pdfRenderMode = pdfPageStyle === "theme"
-    ? "adaptive"
-    : normalizePdfRenderMode(localStorage.getItem("latexStudioPdfRenderMode"));
-  if (pdfViewer) pdfViewer.classList.toggle("pdf-theme-pages", pdfPageStyle === "theme");
-  if (pdfThumbnailList) pdfThumbnailList.classList.toggle("pdf-theme-pages", pdfPageStyle === "theme");
+  // Dark pages always use the adaptive recolor, which keeps figures intact.
+  pdfRenderMode = "adaptive";
+  if (pdfViewer) {
+    pdfViewer.classList.toggle("pdf-theme-pages", pdfPageStyle === "theme");
+    pdfViewer.classList.toggle("pdf-white-pages", pdfPageStyle === "white");
+  }
+  if (pdfThumbnailList) {
+    pdfThumbnailList.classList.toggle("pdf-theme-pages", pdfPageStyle === "theme");
+    pdfThumbnailList.classList.toggle("pdf-white-pages", pdfPageStyle === "white");
+  }
   document.querySelectorAll("[data-pdf-page-style]").forEach((button) => {
     button.classList.toggle("active", button.dataset.pdfPageStyle === pdfPageStyle);
   });
-  const renderRow = document.getElementById("settingsPdfRenderModeRow");
-  if (renderRow) renderRow.hidden = pdfPageStyle !== "auto";
 }
 
 function setPdfPageStyle(style) {
