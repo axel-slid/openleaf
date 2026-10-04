@@ -17908,3 +17908,13 @@ body.transparent-theme[data-theme] #terminalCollapsedButton,
 body.transparent-theme[data-theme] #compileLogCollapsedButton {
   background: transparent !important;
 }
+
+/* Performance: no CSS backdrop blurs. Stacked blur layers made every frame
+   (window drags, scrolling, resizing) re-blur the whole window several times.
+   Glass themes get their blur from the macOS window material instead. */
+*,
+*::before,
+*::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}

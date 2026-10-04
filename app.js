@@ -3265,6 +3265,7 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   document.body.dataset.contrast = HIGH_CONTRAST_PRESETS.has(normalizedPreset) ? "high" : "normal";
   document.body.classList.toggle("high-contrast", HIGH_CONTRAST_PRESETS.has(normalizedPreset));
   document.body.classList.toggle("transparent-theme", TRANSPARENT_PRESETS.has(normalizedPreset));
+  window.localOverleaf.setWindowGlass?.(TRANSPARENT_PRESETS.has(normalizedPreset))?.catch(() => {});
   document.documentElement.style.setProperty("--accent", normalizedAccent);
   document.documentElement.style.setProperty("--accent-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
   document.body.style.setProperty("--accent", normalizedAccent);

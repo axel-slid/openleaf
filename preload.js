@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld("localOverleaf", {
   },
   closeWindow: () => ipcRenderer.invoke("close-window"),
   minimizeWindow: () => ipcRenderer.invoke("minimize-window"),
+  setWindowGlass: (enabled) => ipcRenderer.invoke("set-window-glass", Boolean(enabled)),
   toggleFullscreen: () => ipcRenderer.invoke("toggle-fullscreen"),
   setFullscreen: (fullscreen) => ipcRenderer.invoke("toggle-fullscreen", Boolean(fullscreen)),
   load: (projectId, relativePath) => ipcRenderer.invoke("load-manuscript", { projectId, relativePath }),

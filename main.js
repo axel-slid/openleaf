@@ -557,6 +557,15 @@ function closeWindow(event) {
   return { closed: true };
 }
 
+// The macOS blur behind the window is only needed for glass themes; solid
+// themes turn it off so the window server doesn't composite a blur layer.
+function setWindowGlass(event, enabled) {
+  const window = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+  if (!window || window.isDestroyed() || process.platform !== "darwin") return { ok: false };
+  window.setVibrancy(enabled ? "under-window" : null);
+  return { ok: true };
+}
+
 function minimizeWindow(event) {
   const window = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
   if (!window || window.isDestroyed()) return { minimized: false };
@@ -5415,6 +5424,7 @@ ipcMain.handle("list-ssh-hosts", listSshHosts);
 ipcMain.handle("close-window", closeWindow);
 ipcMain.handle("open-project-in-tab", openProjectInTab);
 ipcMain.handle("minimize-window", minimizeWindow);
+ipcMain.handle("set-window-glass", setWindowGlass);
 ipcMain.handle("toggle-fullscreen", toggleFullscreen);
 ipcMain.handle("open-external-link", openExternalLink);
 ipcMain.handle("open-history-window", openHistoryWindow);
