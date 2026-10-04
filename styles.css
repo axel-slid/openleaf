@@ -18011,11 +18011,28 @@ body.gradient-theme .text-tab.active::after {
    gradient themes they get the same light glass as the rail beside them. */
 body.gradient-theme .source-pane::after,
 body.gradient-theme .preview-pane::after {
-  background: color-mix(in srgb, var(--text) 5%, transparent) !important;
+  background: transparent !important;
   box-shadow: none !important;
 }
 
 body.gradient-theme .source-pane.terminal-collapsed #terminalPanel,
 body.gradient-theme #compileLogPanel.log-collapsed {
   background: transparent !important;
+}
+
+/* Gradient themes: the active tab is a rounded pill on a borderless strip,
+   since there's no solid editor surface for it to merge into. */
+body.gradient-theme .text-tabs {
+  box-shadow: none !important;
+}
+
+body.gradient-theme .text-tab.active {
+  border-radius: 8px !important;
+  border-style: solid !important;
+  border-width: 1px !important;
+  margin-bottom: 3px !important;
+}
+
+body.gradient-theme .text-tab .text-tab-curve {
+  display: none !important;
 }
