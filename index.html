@@ -23,6 +23,7 @@
                 <span class="project-brand-veins"></span>
               </span>
               <span class="project-brand-name">Openleaf</span>
+              <svg id="projectBrandUnderline" class="project-brand-underline" aria-hidden="true"></svg>
               <span id="projectBrandVersion" class="project-brand-version"></span>
             </h1>
           </div>
@@ -512,14 +513,7 @@
                   <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
                 </svg>
               </button>
-              <button id="pdfCinematicButton" class="pdf-reader-button pdf-cinematic-button" type="button" aria-label="Open Cinematic Mode" title="Cinematic Mode" hidden>
-                <svg class="yin-yang-symbol" viewBox="0 0 20 20" aria-hidden="true">
-                  <circle class="yin-yang-outline" cx="10" cy="10" r="8"></circle>
-                  <path class="yin-yang-half" d="M10 2A8 8 0 0 0 10 18a4 4 0 0 0 0-8 4 4 0 0 1 0-8Z"></path>
-                  <circle class="yin-yang-dark-dot" cx="10" cy="6" r="1.3"></circle>
-                  <circle class="yin-yang-light-dot" cx="10" cy="14" r="1.3"></circle>
-                </svg>
-              </button>
+
             </div>
           </div>
           <div class="pdf-viewer-shell" id="pdfViewerShell">
@@ -1469,13 +1463,6 @@
               <input id="settingsNotesToggle" type="checkbox">
             </label>
             <label class="setting-row">
-              <span class="setting-row-copy">
-                <span>Extra features</span>
-                <small>Show experimental tools such as Cinematic Mode.</small>
-              </span>
-              <input id="settingsExtraFeaturesToggle" type="checkbox">
-            </label>
-            <label class="setting-row">
               <span>
                 Preferred agent
                 <small>Used for selection edits and automations.</small>
@@ -1661,46 +1648,7 @@ tectonic main.tex</code></pre>
     </aside>
   </div>
 
-  <section id="pdfCinematicStage" class="pdf-cinematic-stage" role="dialog" aria-modal="true" aria-labelledby="pdfCinematicTitle" hidden>
-    <img id="pdfCinematicArtwork" class="pdf-cinematic-artwork" alt="Artwork from the current PDF page">
-    <div class="pdf-cinematic-ambient" aria-hidden="true"></div>
-    <div class="pdf-cinematic-vignette" aria-hidden="true"></div>
-    <header class="pdf-cinematic-header">
-      <span class="pdf-cinematic-brand"><i></i> Openleaf Cinematic</span>
-      <div class="pdf-cinematic-toolbar" aria-label="Cinematic appearance">
-        <div class="pdf-cinematic-backgrounds" role="group" aria-label="Background artwork">
-          <button type="button" data-cinematic-artwork="0" aria-label="Use Monet artwork" title="Monet"></button>
-          <button type="button" data-cinematic-artwork="1" aria-label="Use Van Gogh artwork" title="Van Gogh"></button>
-          <button type="button" data-cinematic-artwork="2" aria-label="Use landscape artwork" title="The Heart of the Andes"></button>
-        </div>
-        <label class="pdf-cinematic-range" title="Background intensity">
-          <span>Art</span>
-          <input id="pdfCinematicBackdropIntensity" type="range" min="0.25" max="1" step="0.05" value="0.78" aria-label="Background intensity">
-        </label>
-        <label class="pdf-cinematic-range" title="Reading text size">
-          <span>Text</span>
-          <input id="pdfCinematicTextSize" type="range" min="0.8" max="1.4" step="0.05" value="1" aria-label="Reading text size">
-        </label>
-        <button id="pdfCinematicFollowButton" class="pdf-cinematic-tool-button active" type="button" aria-pressed="true" title="Keep the spoken text centered">Follow</button>
-        <button id="pdfCinematicCloseButton" class="pdf-cinematic-close" type="button" aria-label="Close Cinematic Mode" title="Close Cinematic Mode">
-          <svg class="icon icon-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
-        </button>
-      </div>
-    </header>
-    <div class="pdf-cinematic-copy">
-      <h2 id="pdfCinematicTitle" class="visually-hidden">Preparing the scene…</h2>
-      <div id="pdfCinematicNarration" class="pdf-cinematic-transcript" tabindex="0">Preparing the document…</div>
-      <div class="pdf-cinematic-audio-state">
-        <button id="pdfCinematicPlaybackButton" class="pdf-cinematic-playback" type="button" aria-label="Pause cinematic reading" title="Play or pause">
-          <svg class="pdf-cinematic-pause-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 5v10M13.5 5v10"></path></svg>
-          <svg class="pdf-cinematic-play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 5 8 5-8 5Z"></path></svg>
-        </button>
-        <span class="pdf-cinematic-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-        <span id="pdfCinematicStatus" role="status" aria-live="polite">Preparing local narration…</span>
-      </div>
-    </div>
-    <div class="pdf-cinematic-progress" aria-hidden="true"><i id="pdfCinematicProgressBar"></i></div>
-  </section>
+
 
   <div id="pythonKernelMenu" class="python-kernel-menu" role="listbox" aria-label="Python kernels" hidden></div>
 

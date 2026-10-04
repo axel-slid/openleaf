@@ -4165,11 +4165,98 @@ function greetingAllowedForHour(greeting, hour) {
   return true;
 }
 
+// The leaf's stem continues out of the logo and runs under "Openleaf" as a
+// circuit trace, with short branches ending in nodes like the icon's veins.
+function drawProjectBrandUnderline() {
+  const svg = document.getElementById("projectBrandUnderline");
+  const logo = projectHeroTitle?.querySelector(".project-brand-logo");
+  const name = projectHeroTitle?.querySelector(".project-brand-name");
+  if (!svg || !logo || !name || !projectHeroTitle.offsetParent) return;
+  logo.style.transform = "";
+  const box = projectHeroTitle.getBoundingClientRect();
+  const leaf = logo.getBoundingClientRect();
+  const text = name.getBoundingClientRect();
+  // The underline runs just below the name; the leaf shifts so its stem tip
+  // (lower-left of the leaf mask) lands exactly on it.
+  const lineY = text.bottom - box.top + 11;
+  const stemX = leaf.left - box.left + leaf.width * 0.13;
+  const stemY = leaf.top - box.top + leaf.height * 0.96;
+  const shift = lineY - stemY;
+  logo.style.transform = `translateY(${shift.toFixed(1)}px)`;
+  const startX = stemX;
+  const endX = text.right - box.left + 6;
+  const width = Math.ceil(box.width + 24);
+  const height = Math.ceil(Math.max(box.height, lineY + 26));
+  svg.setAttribute("width", width);
+  svg.setAttribute("height", height);
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.innerHTML = projectBrandVine(startX, endX, lineY);
+}
+
+// A tapered, gently swaying vine (drawn as a filled outline so it thins like
+// a brush stroke) with curling tendrils and two small leaves.
+function projectBrandVine(startX, endX, baseY) {
+  const span = endX - startX;
+  const steps = 72;
+  const at = (t) => {
+    const x = startX + span * t;
+    const y = baseY + Math.sin(t * Math.PI * 1.6) * 4.6 * t + t * t * 2;
+    const dy = (Math.cos(t * Math.PI * 1.6) * Math.PI * 1.6 * 4.6 * t + Math.sin(t * Math.PI * 1.6) * 4.6 + 4 * t) / span;
+    const len = Math.hypot(1, dy);
+    return { x, y, nx: -dy / len, ny: 1 / len };
+  };
+  const thickness = (t) => 4.4 * Math.pow(1 - t, 0.85) + 0.6;
+  const top = [];
+  const bottom = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const p = at(t);
+    const half = thickness(t) / 2;
+    top.push(`${(p.x + p.nx * half).toFixed(2)} ${(p.y + p.ny * half).toFixed(2)}`);
+    bottom.push(`${(p.x - p.nx * half).toFixed(2)} ${(p.y - p.ny * half).toFixed(2)}`);
+  }
+  const stem = `M${top.join("L")}L${bottom.reverse().join("L")}Z`;
+
+  const tendril = (t, dir, size) => {
+    const p = at(t);
+    const s = size;
+    return `M${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+      + `c${(s * 0.5).toFixed(1)} ${(dir * s * 0.1).toFixed(1)} ${(s * 1.1).toFixed(1)} ${(dir * s * 0.55).toFixed(1)} ${(s * 1.05).toFixed(1)} ${(dir * s * 1.0).toFixed(1)}`
+      + `c${(-s * 0.05).toFixed(1)} ${(dir * s * 0.45).toFixed(1)} ${(-s * 0.55).toFixed(1)} ${(dir * s * 0.55).toFixed(1)} ${(-s * 0.62).toFixed(1)} ${(dir * s * 0.18).toFixed(1)}`
+      + `c${(-s * 0.05).toFixed(1)} ${(-dir * s * 0.28).toFixed(1)} ${(s * 0.28).toFixed(1)} ${(-dir * s * 0.32).toFixed(1)} ${(s * 0.3).toFixed(1)} ${(-dir * s * 0.05).toFixed(1)}`;
+  };
+  const leaf = (t, dir, size) => {
+    const p = at(t);
+    const tipX = p.x + size * 0.85;
+    const tipY = p.y + dir * size * 0.75;
+    const mx = (p.x + tipX) / 2;
+    const my = (p.y + tipY) / 2;
+    const ox = -(tipY - p.y) * 0.32;
+    const oy = (tipX - p.x) * 0.32;
+    return `M${p.x.toFixed(1)} ${p.y.toFixed(1)}Q${(mx + ox).toFixed(1)} ${(my + oy).toFixed(1)} ${tipX.toFixed(1)} ${tipY.toFixed(1)}Q${(mx - ox).toFixed(1)} ${(my - oy).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)}Z`;
+  };
+  const end = at(1);
+  const endCurl = `M${end.x.toFixed(1)} ${end.y.toFixed(1)}c4 1 7 5 5 8c-1.6 2.4 -5 1.2 -4.2 -1.2`;
+  return `
+    <path class="project-brand-vine" d="${stem}"></path>
+    <path class="project-brand-tendril" d="${tendril(0.3, 1, 14)}"></path>
+    <path class="project-brand-tendril" d="${tendril(0.68, 1, 12)}"></path>
+    <path class="project-brand-vine-leaf" d="${leaf(0.47, 1, 20)}"></path>
+    <path class="project-brand-vine-leaf" d="${leaf(0.86, 1, 14)}"></path>
+    <path class="project-brand-tendril" d="${endCurl}"></path>
+  `;
+}
+
 // The home header shows the Openleaf name, logo, and version.
 function updateProjectHeroGreeting() {
   if (!projectHeroTitle) return;
   projectHeroTitle.hidden = false;
   projectHeroTitle.style.display = "";
+  requestAnimationFrame(drawProjectBrandUnderline);
+  if (!projectHeroTitle.dataset.underlineObserved && typeof ResizeObserver === "function") {
+    projectHeroTitle.dataset.underlineObserved = "true";
+    new ResizeObserver(() => drawProjectBrandUnderline()).observe(projectHeroTitle);
+  }
   const version = document.getElementById("projectBrandVersion");
   if (version && !version.textContent && window.localOverleaf?.appVersion) {
     window.localOverleaf.appVersion().then((value) => {

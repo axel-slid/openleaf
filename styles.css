@@ -18406,3 +18406,90 @@ body .project-hero .hero-actions button.settingsButton {
   font-size: 15px !important;
   font-weight: 400 !important;
 }
+
+/* Circuit-trace underline drawn from the leaf's stem under the name. */
+body #projectHeroTitle.project-brand {
+  padding-bottom: 14px !important;
+  position: relative;
+}
+
+.project-brand-underline {
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+}
+
+.project-brand-trace {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+}
+
+.project-brand-trace-node {
+  fill: var(--bg);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.project-brand-trace.thin {
+  stroke-width: 1.6;
+}
+
+.project-brand-trace-dot {
+  fill: var(--accent);
+}
+
+/* Larger brand header. */
+body #projectHeroTitle.project-brand {
+  font-size: 56px !important;
+  gap: 16px;
+  padding-bottom: 20px !important;
+}
+
+body #projectHeroTitle .project-brand-logo {
+  height: 88px;
+  width: 88px;
+}
+
+body #projectHeroTitle .project-brand-version {
+  font-size: 17px;
+}
+
+.project-brand-trace {
+  stroke-width: 3;
+}
+
+.project-brand-trace.thin {
+  stroke-width: 2.2;
+}
+
+.project-brand-vine,
+.project-brand-vine-leaf {
+  fill: var(--accent);
+  stroke: none;
+}
+
+.project-brand-vine-leaf {
+  opacity: 0.9;
+}
+
+.project-brand-tendril {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.project-brand-tendril {
+  stroke-width: 2;
+}
+
+body #projectHeroTitle .project-brand-logo {
+  height: 104px;
+  width: 104px;
+}
