@@ -4186,7 +4186,7 @@ function drawProjectBrandUnderline() {
   const startX = stemX;
   const endX = text.right - box.left + 6;
   const width = Math.ceil(box.width + 24);
-  const height = Math.ceil(Math.max(box.height, lineY + 26));
+  const height = Math.ceil(Math.max(box.height, lineY + 36));
   svg.setAttribute("width", width);
   svg.setAttribute("height", height);
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
@@ -4205,7 +4205,7 @@ function projectBrandVine(startX, endX, baseY) {
     const len = Math.hypot(1, dy);
     return { x, y, nx: -dy / len, ny: 1 / len };
   };
-  const thickness = (t) => 4.4 * Math.pow(1 - t, 0.85) + 0.6;
+  const thickness = (t) => 6.4 * Math.pow(1 - t, 0.8) + 0.9;
   const top = [];
   const bottom = [];
   for (let i = 0; i <= steps; i += 1) {
@@ -4236,13 +4236,13 @@ function projectBrandVine(startX, endX, baseY) {
     return `M${p.x.toFixed(1)} ${p.y.toFixed(1)}Q${(mx + ox).toFixed(1)} ${(my + oy).toFixed(1)} ${tipX.toFixed(1)} ${tipY.toFixed(1)}Q${(mx - ox).toFixed(1)} ${(my - oy).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)}Z`;
   };
   const end = at(1);
-  const endCurl = `M${end.x.toFixed(1)} ${end.y.toFixed(1)}c4 1 7 5 5 8c-1.6 2.4 -5 1.2 -4.2 -1.2`;
+  const endCurl = `M${end.x.toFixed(1)} ${end.y.toFixed(1)}c6 1.5 10 7 7 11.5c-2.3 3.4 -7 1.7 -6 -1.7`;
   return `
     <path class="project-brand-vine" d="${stem}"></path>
-    <path class="project-brand-tendril" d="${tendril(0.3, 1, 14)}"></path>
-    <path class="project-brand-tendril" d="${tendril(0.68, 1, 12)}"></path>
-    <path class="project-brand-vine-leaf" d="${leaf(0.47, 1, 20)}"></path>
-    <path class="project-brand-vine-leaf" d="${leaf(0.86, 1, 14)}"></path>
+    <path class="project-brand-tendril" d="${tendril(0.3, 1, 20)}"></path>
+    <path class="project-brand-tendril" d="${tendril(0.68, 1, 17)}"></path>
+    <path class="project-brand-vine-leaf" d="${leaf(0.47, 1, 28)}"></path>
+    <path class="project-brand-vine-leaf" d="${leaf(0.86, 1, 20)}"></path>
     <path class="project-brand-tendril" d="${endCurl}"></path>
   `;
 }

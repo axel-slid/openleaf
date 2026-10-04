@@ -18493,3 +18493,11 @@ body #projectHeroTitle .project-brand-logo {
   height: 104px;
   width: 104px;
 }
+
+.project-brand-tendril {
+  stroke-width: 2.6;
+}
+
+body #projectHeroTitle.project-brand {
+  padding-bottom: 30px !important;
+}
