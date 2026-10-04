@@ -17930,7 +17930,7 @@ body.gradient-theme .preview-pane,
 body.gradient-theme .notes-panel,
 body.gradient-theme .terminal-panel,
 body.gradient-theme .log-panel {
-  background: rgb(from var(--panel) r g b / 0.42) !important;
+  background: rgb(from var(--panel) r g b / 0.34) !important;
 }
 
 body.gradient-theme .pane-header,
@@ -17944,7 +17944,7 @@ body.gradient-theme .editor-stack {
 }
 
 body.gradient-theme .CodeMirror {
-  background: rgb(from var(--cm-bg) r g b / 0.45) !important;
+  background: transparent !important;
 }
 
 /* Gradient themes: the Notes rail and Terminal bar don't paint over the gradient. */
@@ -17980,4 +17980,16 @@ body.gradient-theme #previewRailButton,
 body.gradient-theme .log-panel.log-collapsed,
 body.gradient-theme #compileLogPanel.log-collapsed {
   background: transparent !important;
+}
+
+/* Gradient themes: the read-aloud play button takes the theme accent. */
+body.gradient-theme #pdfSpeechButton {
+  background: var(--accent) !important;
+  box-shadow: none !important;
+  color: #10131a !important;
+}
+
+body.gradient-theme #pdfSpeechButton svg {
+  fill: currentColor !important;
+  stroke: currentColor !important;
 }
