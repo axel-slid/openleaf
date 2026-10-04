@@ -18521,3 +18521,36 @@ body #projectHeroTitle.project-brand {
   margin-top: 36px !important;
   padding-bottom: 22px !important;
 }
+
+/* Gradient themes: the read-aloud pill and the Code/Visual pill are see-through. */
+body.gradient-theme .pdf-speech-pill,
+body.gradient-theme .source-mode-actions {
+  background: color-mix(in srgb, var(--text) 7%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text) 16%, transparent) !important;
+  box-shadow: none !important;
+}
+
+/* Gradient themes: file panel and open terminal let the gradient through. */
+body.gradient-theme .file-pane-header,
+body.gradient-theme .file-outline,
+body.gradient-theme #fileOutline,
+body.gradient-theme .terminal-header,
+body.gradient-theme .terminal-workbench,
+body.gradient-theme #terminalBody,
+body.gradient-theme #terminalPanel .xterm,
+body.gradient-theme #terminalPanel .xterm-viewport,
+body.gradient-theme #terminalPanel .xterm-screen {
+  background: transparent !important;
+}
+
+/* Rename pencil next to the title: no background in any theme. */
+body .top-document-title-wrap .title-edit-button,
+body.gradient-theme .top-document-title-wrap .title-edit-button {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+body.gradient-theme #terminalTabs {
+  background: transparent !important;
+}

@@ -8934,6 +8934,7 @@ async function createTerminalSession(kind = "shell") {
       lineHeight: 1.25,
       rows: 12,
       scrollback: 5000,
+      allowTransparency: true,
       theme: terminalTheme()
     });
     const fitAddon = new FitAddon.FitAddon();
@@ -9182,7 +9183,7 @@ function refreshTerminalThemes() {
 function terminalTheme() {
   const dark = resolvedTerminalTheme() === "dark";
   const accentRgb = themeColor("--accent-rgb", "249, 115, 22");
-  const transparent = document.body.classList.contains("transparent-theme");
+  const transparent = document.body.classList.contains("transparent-theme") || document.body.classList.contains("gradient-theme");
   return {
     background: transparent ? "rgba(0, 0, 0, 0)" : themeColor("--terminal-bg", dark ? "#111827" : "#ffffff"),
     foreground: themeColor("--terminal-text", dark ? "#e5edf7" : "#1f2937"),
@@ -17072,6 +17073,30 @@ function applyDarkPdfCanvas(context, canvas, imageBoxes = []) {
     const saturation = max === 0 ? 0 : chroma / max;
     const neutral = saturation < 0.18 || chroma < 24;
 
+    if (!neutral && seeThroughPaper) {
+      // Colored text on see-through pages: separate each pixel into ink and
+      // paper (anti-aliased edges are part white), so edges fade out instead
+      // of leaving pale halos, then lighten dark ink for dark themes.
+      const coverage = clampNumber((255 - Math.min(r, g, b)) / 255, 0, 1, 0);
+      if (coverage < 0.03) {
+        data[index + 3] = 0;
+        continue;
+      }
+      let ink = {
+        r: clampNumber((r - 255 * (1 - coverage)) / coverage, 0, 255, r),
+        g: clampNumber((g - 255 * (1 - coverage)) / coverage, 0, 255, g),
+        b: clampNumber((b - 255 * (1 - coverage)) / coverage, 0, 255, b)
+      };
+      if (darkPaper && 0.2126 * ink.r + 0.7152 * ink.g + 0.0722 * ink.b < 150) {
+        ink = flipRgbLightness(ink.r, ink.g, ink.b);
+      }
+      data[index] = Math.round(ink.r);
+      data[index + 1] = Math.round(ink.g);
+      data[index + 2] = Math.round(ink.b);
+      data[index + 3] = Math.round(255 * coverage);
+      continue;
+    }
+
     if (!neutral) {
       // Dark colored text (links, highlighted answers) would vanish on a dark
       // page; flip its lightness but keep its hue.
@@ -17122,12 +17147,22 @@ function flipRgbLightness(r, g, b) {
     hue *= 60;
     if (hue < 0) hue += 360;
   }
-  const target = clampNumber(1 - lightness, 0.62, 0.86, 0.72);
-  const c = (1 - Math.abs(2 * target - 1)) * Math.min(1, saturation);
-  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
-  const m = target - c / 2;
-  const [r1, g1, b1] = hue < 60 ? [c, x, 0] : hue < 120 ? [x, c, 0] : hue < 180 ? [0, c, x] : hue < 240 ? [0, x, c] : hue < 300 ? [x, 0, c] : [c, 0, x];
-  return { r: Math.round((r1 + m) * 255), g: Math.round((g1 + m) * 255), b: Math.round((b1 + m) * 255) };
+  const toRgb = (target) => {
+    const c = (1 - Math.abs(2 * target - 1)) * Math.min(1, saturation);
+    const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+    const m = target - c / 2;
+    const [r1, g1, b1] = hue < 60 ? [c, x, 0] : hue < 120 ? [x, c, 0] : hue < 180 ? [0, c, x] : hue < 240 ? [0, x, c] : hue < 300 ? [x, 0, c] : [c, 0, x];
+    return { r: Math.round((r1 + m) * 255), g: Math.round((g1 + m) * 255), b: Math.round((b1 + m) * 255) };
+  };
+  // Blues look dark even at mid lightness, so keep lightening until the
+  // perceived brightness is readable on a dark page.
+  let target = clampNumber(1 - lightness, 0.62, 0.86, 0.72);
+  let rgb = toRgb(target);
+  while (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b < 150 && target < 0.92) {
+    target += 0.03;
+    rgb = toRgb(target);
+  }
+  return rgb;
 }
 
 function detectPdfImageBoxes(data, width, height) {
