@@ -18866,3 +18866,19 @@ body .pdf-voice-picker .pdf-voice-card {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+
+/* Artwork always carries the spin; pausing freezes it where it is. */
+.spotify-artwork {
+  animation: spotify-spin 9s linear infinite;
+  animation-play-state: paused;
+}
+
+.spotify-now-playing.playing .spotify-artwork {
+  animation-play-state: running;
+}
+
+/* No outline around the Spotify group. */
+.spotify-now-playing {
+  border: 0 !important;
+  padding-left: 0 !important;
+}
