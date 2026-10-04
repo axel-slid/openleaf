@@ -10405,9 +10405,8 @@ async function saveProjectName(project, name) {
 }
 
 async function removeProject(project) {
+  // Removing only drops the project from the list; files on disk stay, so no prompt.
   closeProjectContextMenu();
-  const confirmed = window.confirm(`Remove "${project.name}" from the editor?\n\nThis will not delete any files from disk.`);
-  if (!confirmed) return;
 
   setProjectBusy(true);
   try {

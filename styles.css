@@ -18254,3 +18254,16 @@ body #pdfThumbnailList.pdf-white-pages .pdf-thumbnail canvas {
 .history-line.remove mark {
   color: inherit;
 }
+
+/* Project trash button: a bare icon, no box. */
+body .project-card .project-remove-button,
+body #projectGrid .project-remove-button {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+body .project-card .project-remove-button:hover,
+body #projectGrid .project-remove-button:hover {
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+}
