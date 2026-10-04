@@ -17993,3 +17993,29 @@ body.gradient-theme #pdfSpeechButton svg {
   fill: currentColor !important;
   stroke: currentColor !important;
 }
+
+/* Gradient themes: bars and the active tab use a light accent-tinted glass
+   instead of dark fills. */
+body.gradient-theme .text-tab.active {
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text) 16%, transparent) !important;
+  box-shadow: none !important;
+}
+
+body.gradient-theme .text-tab.active::before,
+body.gradient-theme .text-tab.active::after {
+  display: none !important;
+}
+
+/* The collapsed Terminal and Log bars are drawn by each pane's ::after; in
+   gradient themes they get the same light glass as the rail beside them. */
+body.gradient-theme .source-pane::after,
+body.gradient-theme .preview-pane::after {
+  background: color-mix(in srgb, var(--text) 5%, transparent) !important;
+  box-shadow: none !important;
+}
+
+body.gradient-theme .source-pane.terminal-collapsed #terminalPanel,
+body.gradient-theme #compileLogPanel.log-collapsed {
+  background: transparent !important;
+}
