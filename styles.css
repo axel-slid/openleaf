@@ -18223,3 +18223,22 @@ body #pdfThumbnailList.pdf-white-pages .pdf-thumbnail canvas {
   background: #ffffff !important;
   filter: none !important;
 }
+
+/* Full-width toolbar: a smaller play circle inside the read-aloud pill. */
+@container pdf-toolbar (min-width: 651px) {
+  #pdfSpeechButton {
+    height: 22px !important;
+    min-height: 22px !important;
+    min-width: 22px !important;
+    width: 22px !important;
+  }
+
+  #pdfSpeechButton svg {
+    height: 11px !important;
+    width: 11px !important;
+  }
+
+  .pdf-speech-pill {
+    padding-left: 6px !important;
+  }
+}
