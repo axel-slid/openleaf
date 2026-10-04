@@ -6847,6 +6847,7 @@ function wireEvents() {
   if (pdfSpeechButton) pdfSpeechButton.addEventListener("click", togglePdfSpeech);
   if (pdfSpeechRate) pdfSpeechRate.addEventListener("input", handlePdfSpeechRateChange);
   if (pdfSpeechVoice) pdfSpeechVoice.addEventListener("change", handlePdfSpeechVoiceChange);
+  setupPdfVoicePicker();
   if (pdfPronunciationDictionary) pdfPronunciationDictionary.addEventListener("input", handlePdfPronunciationDictionaryChange);
   closeHistoryButton.addEventListener("click", () => setHistoryPanelOpen(false));
   pdfZoomOutButton.addEventListener("click", () => changePdfZoom(-0.1));
@@ -18208,6 +18209,79 @@ function restartPdfSpeechPreprocessing() {
   rebuildPdfSpeechWordMetadata();
   updatePdfSpeechProgress();
   startPdfSpeechPreprocessing();
+}
+
+// Clicking the read-aloud pill (outside its play button) rises a voice
+// picker: one card per local voice, each with its own animated waveform.
+let pdfVoicePicker = null;
+
+function setupPdfVoicePicker() {
+  const pill = document.querySelector(".pdf-speech-pill");
+  if (!pill || !pdfSpeechVoice) return;
+  pill.addEventListener("click", (event) => {
+    if (event.target.closest("#pdfSpeechButton")) return;
+    if (pdfVoicePicker) closePdfVoicePicker();
+    else openPdfVoicePicker(pill);
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!pdfVoicePicker) return;
+    if (pdfVoicePicker.contains(event.target) || event.target.closest(".pdf-speech-pill")) return;
+    closePdfVoicePicker();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && pdfVoicePicker) closePdfVoicePicker();
+  });
+}
+
+function openPdfVoicePicker(pill) {
+  const picker = document.createElement("div");
+  picker.className = "pdf-voice-picker";
+  picker.setAttribute("role", "listbox");
+  picker.setAttribute("aria-label", "Reader voice");
+  const current = pdfSpeechVoiceId();
+  Array.from(pdfSpeechVoice.options).forEach((option, index) => {
+    const [name, tone = ""] = option.textContent.split("·").map((part) => part.trim());
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `pdf-voice-card${option.value === current ? " active" : ""}`;
+    card.setAttribute("role", "option");
+    card.setAttribute("aria-selected", String(option.value === current));
+    card.style.setProperty("--delay", `${index * 45}ms`);
+    const bars = Array.from({ length: 7 }, (_, bar) => `<i style="--bar:${bar};--seed:${(index * 7 + bar * 3) % 10}"></i>`).join("");
+    card.innerHTML = `
+      <span class="pdf-voice-avatar">${escapeHtml(name.charAt(0))}</span>
+      <span class="pdf-voice-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(tone)}</small></span>
+      <span class="pdf-voice-wave" aria-hidden="true">${bars}</span>
+    `;
+    card.addEventListener("click", () => {
+      pdfSpeechVoice.value = option.value;
+      pdfSpeechVoice.dispatchEvent(new Event("change"));
+      picker.querySelectorAll(".pdf-voice-card").forEach((item) => {
+        const selected = item === card;
+        item.classList.toggle("active", selected);
+        item.setAttribute("aria-selected", String(selected));
+      });
+      setTimeout(closePdfVoicePicker, 260);
+    });
+    picker.appendChild(card);
+  });
+  document.body.appendChild(picker);
+  const rect = pill.getBoundingClientRect();
+  const width = 260;
+  picker.style.width = `${width}px`;
+  picker.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + rect.width / 2 - width / 2))}px`;
+  picker.style.top = `${rect.bottom + 8}px`;
+  pdfVoicePicker = picker;
+  requestAnimationFrame(() => picker.classList.add("open"));
+}
+
+function closePdfVoicePicker() {
+  const picker = pdfVoicePicker;
+  if (!picker) return;
+  pdfVoicePicker = null;
+  picker.classList.remove("open");
+  picker.classList.add("closing");
+  setTimeout(() => picker.remove(), 220);
 }
 
 function pdfSpeechVoiceId() {
