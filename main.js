@@ -4554,6 +4554,30 @@ async function projectFileAction(_event, payload = {}) {
     };
   }
 
+  if (action === "move") {
+    const targetRelative = String(options.targetRelativePath || "");
+    const targetDir = targetRelative ? safeProjectPath(project, targetRelative) : projectRootFor(project);
+    const targetStat = await fsp.stat(targetDir);
+    if (!targetStat.isDirectory()) throw new Error("Drop onto a folder.");
+    const resolvedSource = path.resolve(filePath);
+    const resolvedTarget = path.resolve(targetDir);
+    if (resolvedTarget === resolvedSource || resolvedTarget.startsWith(`${resolvedSource}${path.sep}`)) {
+      throw new Error("A folder cannot be moved into itself.");
+    }
+    if (path.dirname(resolvedSource) === resolvedTarget) {
+      return { project: decorateProject(project), file: fileDescriptor(project, filePath), files: await walkProjectFiles(project) };
+    }
+    const entry = path.resolve(project.texPath);
+    if (entry === resolvedSource || entry.startsWith(`${resolvedSource}${path.sep}`)) {
+      throw new Error("The project entry .tex file stays where it is.");
+    }
+    const destination = path.join(targetDir, path.basename(filePath));
+    if (fs.existsSync(destination)) throw new Error(`${path.basename(filePath)} already exists there.`);
+    await fsp.rename(filePath, destination);
+    await touchProject(project.id);
+    return { project: decorateProject(project), file: fileDescriptor(project, destination), files: await walkProjectFiles(project) };
+  }
+
   if (action === "rename") {
     if (path.resolve(filePath) === path.resolve(project.texPath)) {
       throw new Error("The project entry .tex file cannot be renamed from the file tree.");

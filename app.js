@@ -3088,6 +3088,13 @@ let lastPythonLayoutFileKey = "";
 let activeFileRenameInput = null;
 let activeFileCreation = null;
 let selectedFileTreeNode = null;
+// Multi-selection in the file tree (shift for ranges, cmd to toggle).
+let selectedFileTreePaths = new Set();
+let homeSelection = new Set();
+let homeFocusIndex = -1;
+let homeSelectionAnchor = -1;
+let lastEditorProjectId = "";
+let fileTreeSelectionAnchor = "";
 let expandedFileFolders = new Set();
 let pythonRunSequence = 0;
 const pythonNotebookRuns = new Map();
@@ -3449,6 +3456,7 @@ function setupSettings() {
 
   setupPdfFitLock();
   setupPeripherals();
+  setupHomeKeyboard();
 
   document.querySelectorAll("[data-pdf-page-style]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -6376,7 +6384,9 @@ Add links, tables, callouts, equations, lists, and code to make the sample your 
 async function prepareOpenleafTutorialProject() {
   if (!window.localOverleaf || window.localOverleaf.isTestRuntime) return;
   const storedId = localStorage.getItem("openleafTutorialProjectId") || "";
-  let project = projects.find((item) => item.id === storedId);
+  // Reuse any existing tutorial project so interrupted tours never stack copies.
+  let project = projects.find((item) => item.id === storedId)
+    || projects.find((item) => item.name === "Openleaf Tutorial");
   let created = false;
 
   if (!project) {
@@ -6406,6 +6416,8 @@ async function prepareOpenleafTutorialProject() {
 function maybeStartOpenleafTour() {
   if (window.localOverleaf && window.localOverleaf.isTestRuntime) return;
   if (localStorage.getItem("openleafWelcomeTourVersion") === "1") return;
+  // The tour shows once, even if the window closes before it finishes.
+  localStorage.setItem("openleafWelcomeTourVersion", "1");
   setTimeout(() => startOpenleafTour(), 650);
 }
 
@@ -8726,6 +8738,184 @@ function refreshPowerStatus() {
     battery.classList.toggle("low", power.percent <= 20 && !power.onAc);
     battery.title = `${power.percent}%${power.charging ? ", charging" : power.onAc ? ", on power" : ""}`;
   }).catch(() => {});
+}
+
+// Home keyboard and multi-select: j/k move, Enter opens, shift extends,
+// cmd-click or x toggles, Backspace removes selected from the list.
+// Cmd+E jumps between home and the last editor; Cmd+1/2/3 focus code, PDF,
+// and terminal in the editor.
+function homeCards() {
+  return Array.from(projectGrid.querySelectorAll(".project-card, .project-collection-card"))
+    .filter((card) => card.offsetParent);
+}
+
+function homeCardKey(card) {
+  return card.dataset.projectId ? `p:${card.dataset.projectId}` : `c:${card.dataset.collectionId || ""}`;
+}
+
+function applyHomeSelectionClasses() {
+  const cards = homeCards();
+  cards.forEach((card, index) => {
+    card.classList.toggle("home-selected", homeSelection.has(homeCardKey(card)));
+    card.classList.toggle("home-focused", index === homeFocusIndex);
+  });
+  renderHomeSelectionBar();
+}
+
+function renderHomeSelectionBar() {
+  let bar = document.getElementById("homeSelectionBar");
+  const projectKeys = [...homeSelection].filter((key) => key.startsWith("p:"));
+  if (!projectKeys.length || projectScreen.hidden) {
+    bar?.remove();
+    return;
+  }
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "homeSelectionBar";
+    bar.className = "home-selection-bar";
+    bar.innerHTML = `
+      <span class="home-selection-count"></span>
+      <button type="button" data-home-action="remove" title="Remove from Openleaf (files stay on disk)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"></path><path d="M9 7V4h6v3"></path></svg>
+        <span>Remove</span>
+      </button>
+      <button type="button" data-home-action="clear" title="Clear selection" aria-label="Clear selection">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+      </button>
+    `;
+    bar.querySelector('[data-home-action="remove"]').addEventListener("click", removeHomeSelection);
+    bar.querySelector('[data-home-action="clear"]').addEventListener("click", () => {
+      homeSelection.clear();
+      applyHomeSelectionClasses();
+    });
+    document.body.appendChild(bar);
+    requestAnimationFrame(() => bar.classList.add("open"));
+  }
+  bar.querySelector(".home-selection-count").textContent = `${projectKeys.length} selected`;
+}
+
+async function removeHomeSelection() {
+  const ids = [...homeSelection].filter((key) => key.startsWith("p:")).map((key) => key.slice(2));
+  if (!ids.length) return;
+  setProjectBusy(true);
+  try {
+    let result = null;
+    for (const id of ids) result = await window.localOverleaf.removeProject(id);
+    projects = result?.projects || projects.filter((item) => !ids.includes(item.id));
+    homeSelection.clear();
+    homeFocusIndex = -1;
+    renderProjectGrid();
+  } finally {
+    setProjectBusy(false);
+  }
+}
+
+function setHomeFocus(index, { extend = false } = {}) {
+  const cards = homeCards();
+  if (!cards.length) return;
+  homeFocusIndex = clampNumber(index, 0, cards.length - 1, 0);
+  if (extend) {
+    if (homeSelectionAnchor < 0) homeSelectionAnchor = homeFocusIndex;
+    homeSelection = new Set(cards
+      .slice(Math.min(homeSelectionAnchor, homeFocusIndex), Math.max(homeSelectionAnchor, homeFocusIndex) + 1)
+      .map(homeCardKey));
+  } else {
+    homeSelectionAnchor = homeFocusIndex;
+  }
+  applyHomeSelectionClasses();
+  cards[homeFocusIndex].scrollIntoView({ block: "nearest" });
+}
+
+function homeKeyboardTargetIsFree(event) {
+  const target = event.target;
+  if (target instanceof Element && target.closest("input, textarea, select, [contenteditable='true'], .CodeMirror")) return false;
+  const overlayOpen = !settingsBackdrop.hidden || (automationsPanel && !automationsPanel.hidden);
+  return !overlayOpen;
+}
+
+function setupHomeKeyboard() {
+  new MutationObserver(() => {
+    const cards = homeCards();
+    if (homeFocusIndex >= cards.length) homeFocusIndex = cards.length - 1;
+    applyHomeSelectionClasses();
+  }).observe(projectGrid, { childList: true });
+
+  // Modifier clicks on cards select instead of opening.
+  projectGrid.addEventListener("click", (event) => {
+    const card = event.target.closest(".project-card, .project-collection-card");
+    if (!card || (!event.metaKey && !event.ctrlKey && !event.shiftKey)) return;
+    if (event.target.closest(".project-favorite-button, .project-remove-button, .project-collection-delete")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const cards = homeCards();
+    const index = cards.indexOf(card);
+    if (event.shiftKey && homeSelectionAnchor >= 0) {
+      homeFocusIndex = index;
+      homeSelection = new Set(cards.slice(Math.min(homeSelectionAnchor, index), Math.max(homeSelectionAnchor, index) + 1).map(homeCardKey));
+    } else {
+      const key = homeCardKey(card);
+      if (homeSelection.has(key)) homeSelection.delete(key);
+      else homeSelection.add(key);
+      homeFocusIndex = index;
+      homeSelectionAnchor = index;
+    }
+    applyHomeSelectionClasses();
+  }, true);
+
+  document.addEventListener("keydown", (event) => {
+    const mod = event.metaKey || event.ctrlKey;
+    if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "e") {
+      event.preventDefault();
+      if (!projectScreen.hidden) {
+        const id = lastEditorProjectId || (activeProject && activeProject.id);
+        if (id && projects.some((project) => project.id === id)) openProject(id);
+      } else if (!editorScreen.hidden) {
+        showProjects();
+      }
+      return;
+    }
+    if (mod && !event.shiftKey && !event.altKey && ["1", "2", "3"].includes(event.key) && !editorScreen.hidden) {
+      event.preventDefault();
+      if (event.key === "1") editor?.focus();
+      if (event.key === "2") {
+        pdfViewer.tabIndex = pdfViewer.tabIndex >= 0 ? pdfViewer.tabIndex : -1;
+        pdfViewer.focus();
+      }
+      if (event.key === "3") {
+        if (sourcePane.classList.contains("terminal-collapsed")) setTerminalCollapsed(false);
+        const session = terminalSessions.find((item) => item.id === activeTerminalId) || terminalSessions[0];
+        if (session) session.term.focus();
+      }
+      return;
+    }
+    if (projectScreen.hidden || mod || event.altKey || !homeKeyboardTargetIsFree(event)) return;
+    const key = event.key;
+    if (key === "j" || key === "J" || key === "ArrowDown") {
+      event.preventDefault();
+      setHomeFocus(homeFocusIndex + 1, { extend: event.shiftKey });
+    } else if (key === "k" || key === "K" || key === "ArrowUp") {
+      event.preventDefault();
+      setHomeFocus(homeFocusIndex < 0 ? 0 : homeFocusIndex - 1, { extend: event.shiftKey });
+    } else if (key === "Enter" && homeFocusIndex >= 0) {
+      const card = homeCards()[homeFocusIndex];
+      if (!card) return;
+      event.preventDefault();
+      card.querySelector(".project-card-open, .project-collection-open")?.click();
+    } else if (key === "x" && homeFocusIndex >= 0) {
+      const card = homeCards()[homeFocusIndex];
+      const cardKey = card && homeCardKey(card);
+      if (!cardKey) return;
+      if (homeSelection.has(cardKey)) homeSelection.delete(cardKey);
+      else homeSelection.add(cardKey);
+      applyHomeSelectionClasses();
+    } else if ((key === "Backspace" || key === "Delete") && homeSelection.size) {
+      event.preventDefault();
+      removeHomeSelection();
+    } else if (key === "Escape" && homeSelection.size) {
+      homeSelection.clear();
+      applyHomeSelectionClasses();
+    }
+  });
 }
 
 function setPdfZoom(value, { render = true, live = false } = {}) {
@@ -13658,6 +13848,7 @@ async function saveActivePresentation() {
 }
 
 async function openProject(projectId, { pdfRelativePath = "", sourceRelativePath = "" } = {}) {
+  lastEditorProjectId = projectId;
   resetTextTabs();
   cancelProjectFileCreation();
   selectedFileTreeNode = null;
@@ -13869,6 +14060,10 @@ function renderFileTree() {
   }
 
   projectFiles.forEach((node) => tree.appendChild(renderFileNode(node, 0)));
+  if (!tree.dataset.rootDropTarget) {
+    tree.dataset.rootDropTarget = "true";
+    attachFileTreeDropTarget(tree, "");
+  }
   updateFileOutline();
   updatePdfTitleFromSelection();
 }
@@ -14020,7 +14215,12 @@ function renderFileNode(node, depth) {
       </span>
       <span class="folder-name">${escapeHtml(node.name)}</span>
     `;
-    summary.addEventListener("click", () => selectFileTreeNode(node));
+    summary.addEventListener("click", (event) => {
+      if (handleFileTreeModifierClick(event, node)) return;
+      selectFileTreeNode(node);
+    });
+    attachFileTreeDrag(summary, node);
+    attachFileTreeDropTarget(details, node.relativePath);
     attachFileContextMenu(summary, node);
     details.appendChild(summary);
 
@@ -14068,10 +14268,12 @@ function renderFileNode(node, depth) {
     ${fileIconMarkup(node)}
     <span class="file-name">${escapeHtml(node.name)}</span>
   `;
-  button.addEventListener("click", () => {
+  button.addEventListener("click", (event) => {
+    if (handleFileTreeModifierClick(event, node)) return;
     selectFileTreeNode(node);
     selectProjectFile(node, { preview: true });
   });
+  attachFileTreeDrag(button, node);
   button.addEventListener("dblclick", (event) => {
     event.preventDefault();
     selectFileTreeNode(node);
@@ -14378,17 +14580,131 @@ function currentFileFolderTarget() {
 }
 
 function isSelectedFileTreeNode(node) {
-  return Boolean(selectedFileTreeNode && node && selectedFileTreeNode.relativePath === node.relativePath);
+  if (!node) return false;
+  if (selectedFileTreePaths.size > 1) return selectedFileTreePaths.has(node.relativePath);
+  return Boolean(selectedFileTreeNode && selectedFileTreeNode.relativePath === node.relativePath);
+}
+
+function refreshFileTreeSelectionClasses() {
+  const tree = activeFileTreeContainer();
+  tree.querySelectorAll("[data-file-path]").forEach((row) => {
+    row.classList.toggle("selected", isSelectedFileTreeNode({ relativePath: row.dataset.filePath }));
+  });
 }
 
 function selectFileTreeNode(node) {
   if (!node || !node.relativePath) return;
   selectedFileTreeNode = { relativePath: node.relativePath, kind: node.kind };
-  const tree = activeFileTreeContainer();
-  tree.querySelectorAll(".selected").forEach((row) => row.classList.remove("selected"));
-  const selectedRow = Array.from(tree.querySelectorAll("[data-file-path]"))
-    .find((candidate) => candidate.dataset.filePath === node.relativePath);
-  if (selectedRow) selectedRow.classList.add("selected");
+  selectedFileTreePaths = new Set([node.relativePath]);
+  fileTreeSelectionAnchor = node.relativePath;
+  refreshFileTreeSelectionClasses();
+}
+
+// Shift extends from the anchor over visible rows; cmd toggles one row.
+// Returns true when the click was a selection gesture (so it shouldn't open).
+function handleFileTreeModifierClick(event, node) {
+  if (!event.shiftKey && !event.metaKey && !event.ctrlKey) return false;
+  event.preventDefault();
+  if (event.shiftKey && fileTreeSelectionAnchor) {
+    const rows = Array.from(activeFileTreeContainer().querySelectorAll("[data-file-path]"))
+      .filter((row) => row.offsetParent)
+      .map((row) => row.dataset.filePath);
+    const from = rows.indexOf(fileTreeSelectionAnchor);
+    const to = rows.indexOf(node.relativePath);
+    if (from >= 0 && to >= 0) {
+      selectedFileTreePaths = new Set(rows.slice(Math.min(from, to), Math.max(from, to) + 1));
+    }
+  } else if (selectedFileTreePaths.has(node.relativePath)) {
+    selectedFileTreePaths.delete(node.relativePath);
+  } else {
+    selectedFileTreePaths.add(node.relativePath);
+    fileTreeSelectionAnchor = node.relativePath;
+  }
+  selectedFileTreeNode = { relativePath: node.relativePath, kind: node.kind };
+  refreshFileTreeSelectionClasses();
+  return true;
+}
+
+// Rows drag onto folders (or the empty tree area for the project root).
+function attachFileTreeDrag(row, node) {
+  row.draggable = true;
+  row.addEventListener("dragstart", (event) => {
+    const paths = selectedFileTreePaths.has(node.relativePath) ? [...selectedFileTreePaths] : [node.relativePath];
+    event.dataTransfer.setData("application/x-openleaf-paths", JSON.stringify(paths));
+    event.dataTransfer.effectAllowed = "move";
+  });
+}
+
+function attachFileTreeDropTarget(element, targetRelativePath) {
+  element.addEventListener("dragover", (event) => {
+    if (!event.dataTransfer.types.includes("application/x-openleaf-paths")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    element.classList.add("file-drop-target");
+  });
+  element.addEventListener("dragleave", (event) => {
+    if (!element.contains(event.relatedTarget)) element.classList.remove("file-drop-target");
+  });
+  element.addEventListener("drop", async (event) => {
+    if (!event.dataTransfer.types.includes("application/x-openleaf-paths")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    element.classList.remove("file-drop-target");
+    let paths = [];
+    try {
+      paths = JSON.parse(event.dataTransfer.getData("application/x-openleaf-paths")) || [];
+    } catch (_error) {
+      return;
+    }
+    // Moving a folder carries its children, so skip anything nested inside another dragged item.
+    paths = paths.filter((item) => !paths.some((other) => other !== item && item.startsWith(`${other}/`)));
+    await moveProjectFiles(paths, targetRelativePath);
+  });
+}
+
+async function moveProjectFiles(paths, targetRelativePath) {
+  if (!activeProject || !paths.length) return;
+  let result = null;
+  const moved = [];
+  for (const previousPath of paths) {
+    try {
+      result = await window.localOverleaf.projectFileAction(activeProject.id, previousPath, "move", { targetRelativePath });
+      if (result.file && result.file.relativePath !== previousPath) {
+        remapOpenProjectPaths(previousPath, result.file);
+        moved.push(result.file.relativePath);
+      }
+    } catch (error) {
+      projectFileStatus(formatError(error), "error");
+    }
+  }
+  if (targetRelativePath) expandedFileFolders.add(targetRelativePath);
+  selectedFileTreePaths = new Set(moved);
+  applyFileActionResult(result);
+  updateEditorFileTitle();
+  updateActiveDocumentTitle();
+}
+
+function remapOpenProjectPaths(previousPath, file) {
+  const oldPrefix = `${previousPath}/`;
+  const newPrefix = `${file.relativePath}/`;
+  const remap = (value) => (value === previousPath ? file.relativePath : value.startsWith(oldPrefix) ? `${newPrefix}${value.slice(oldPrefix.length)}` : value);
+  openTextTabs.forEach((tab) => {
+    if (tab.relativePath === previousPath) tab.file = file;
+    tab.relativePath = remap(tab.relativePath);
+  });
+  activeTextTabPath = remap(activeTextTabPath);
+  if (activeFile && activeFile.relativePath) {
+    activeFile = activeFile.relativePath === previousPath ? file : { ...activeFile, relativePath: remap(activeFile.relativePath) };
+  }
+  if (selectedFileTreeNode) selectedFileTreeNode = { ...selectedFileTreeNode, relativePath: remap(selectedFileTreeNode.relativePath) };
+  [...expandedFileFolders].forEach((folder) => {
+    const next = remap(folder);
+    if (next !== folder) {
+      expandedFileFolders.delete(folder);
+      expandedFileFolders.add(next);
+    }
+  });
 }
 
 function updateFileOutline() {
