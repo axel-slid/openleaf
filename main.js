@@ -5496,6 +5496,7 @@ ipcMain.handle("close-window", closeWindow);
 ipcMain.handle("open-project-in-tab", openProjectInTab);
 ipcMain.handle("minimize-window", minimizeWindow);
 ipcMain.handle("set-window-glass", setWindowGlass);
+ipcMain.handle("app-version", () => app.getVersion());
 ipcMain.handle("recreate-window", recreateWindow);
 ipcMain.handle("toggle-fullscreen", toggleFullscreen);
 ipcMain.handle("open-external-link", openExternalLink);

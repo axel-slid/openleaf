@@ -18267,3 +18267,142 @@ body .project-card .project-remove-button:hover,
 body #projectGrid .project-remove-button:hover {
   background: color-mix(in srgb, var(--text) 9%, transparent) !important;
 }
+
+/* Home header: Openleaf logo, name, and version, with the actions beneath. */
+body .project-hero {
+  align-items: flex-start !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+}
+
+body .project-hero .hero-actions {
+  justify-content: flex-start !important;
+  margin: 0 !important;
+}
+
+body #projectHeroTitle.project-brand {
+  align-items: center;
+  display: flex;
+  font-size: 34px !important;
+  font-weight: 700 !important;
+  gap: 14px;
+  letter-spacing: -0.01em;
+  line-height: 1 !important;
+  margin: 0 !important;
+}
+
+.project-brand-logo {
+  flex: 0 0 auto;
+  height: 46px;
+  width: 46px;
+}
+
+.project-brand-tile {
+  fill: rgba(var(--accent-rgb), 0.16);
+  stroke: rgba(var(--accent-rgb), 0.35);
+  stroke-width: 1;
+}
+
+.project-brand-leaf {
+  fill: var(--accent);
+}
+
+.project-brand-vein {
+  fill: none;
+  stroke: var(--bg);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.project-brand-node {
+  fill: var(--bg);
+}
+
+.project-brand-name {
+  color: var(--text);
+}
+
+.project-brand-version {
+  align-self: flex-end;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+body .project-shell .project-hero {
+  justify-content: flex-start !important;
+  min-height: 0 !important;
+  padding-bottom: 8px !important;
+}
+
+body #projectHeroTitle.project-brand {
+  padding-bottom: 0 !important;
+}
+
+body #projectHeroTitle.project-brand {
+  align-items: baseline;
+  gap: 10px;
+}
+
+body #projectHeroTitle .project-brand-logo {
+  align-self: center;
+  height: 44px;
+  width: 44px;
+}
+
+body #projectHeroTitle .project-brand-version {
+  align-self: baseline;
+  margin: 0;
+}
+
+/* Settings matches the other header links. */
+body .project-hero .hero-actions .settingsButton {
+  font: inherit !important;
+  font-size: inherit !important;
+}
+
+/* Logo: the app icon's own leaf, cut into masks so it takes the theme accent
+   (leaf) and background (veins). */
+body #projectHeroTitle .project-brand-logo {
+  align-self: center;
+  display: inline-block;
+  height: 64px;
+  position: relative;
+  width: 64px;
+}
+
+.project-brand-logo > span {
+  inset: 0;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  position: absolute;
+}
+
+.project-brand-logo .project-brand-leaf {
+  background: var(--accent);
+  -webkit-mask-image: url("assets/leaf-mask.png");
+  mask-image: url("assets/leaf-mask.png");
+}
+
+.project-brand-logo .project-brand-veins {
+  background: var(--bg);
+  -webkit-mask-image: url("assets/leaf-veins-mask.png");
+  mask-image: url("assets/leaf-veins-mask.png");
+}
+
+body #projectHeroTitle.project-brand {
+  font-size: 40px !important;
+  gap: 12px;
+}
+
+body .project-hero .hero-actions button.settingsButton {
+  font-size: 15px !important;
+  font-weight: 400 !important;
+}

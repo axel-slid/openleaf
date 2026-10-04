@@ -4159,30 +4159,16 @@ function greetingAllowedForHour(greeting, hour) {
   return true;
 }
 
-function updateProjectHeroGreeting({ rotate = false } = {}) {
+// The home header shows the Openleaf name, logo, and version.
+function updateProjectHeroGreeting() {
   if (!projectHeroTitle) return;
-  const firstName = String(aiProfile.name || "").trim().split(/\s+/)[0] || "";
   projectHeroTitle.hidden = false;
   projectHeroTitle.style.display = "";
-  const now = new Date();
-  const hour = now.getHours();
-  const bucket = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
-  const timeGreetings = PROJECT_TIME_GREETINGS[bucket] || PROJECT_TIME_GREETINGS.morning;
-  const greetings = firstName ? timeGreetings.named : timeGreetings.anonymous;
-  const storageKey = firstName ? `latexStudioGreetingIndex:${firstName.toLowerCase()}` : "latexStudioGreetingIndex";
-  let index = clampNumber(Number(localStorage.getItem(storageKey)), 0, greetings.length - 1, 0);
-  if (rotate) {
-    index = (index + 1) % greetings.length;
-    localStorage.setItem(storageKey, String(index));
-  }
-  // The name takes the theme accent so the greeting carries some color.
-  const [before, after = ""] = (greetings[index] || "Hello!").split("{name}");
-  projectHeroTitle.replaceChildren(document.createTextNode(before));
-  if ((greetings[index] || "").includes("{name}")) {
-    const name = document.createElement("span");
-    name.className = "project-hero-name";
-    name.textContent = firstName;
-    projectHeroTitle.append(name, document.createTextNode(after));
+  const version = document.getElementById("projectBrandVersion");
+  if (version && !version.textContent && window.localOverleaf?.appVersion) {
+    window.localOverleaf.appVersion().then((value) => {
+      version.textContent = value ? `v${value}` : "";
+    }).catch(() => {});
   }
 }
 
