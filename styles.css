@@ -18554,3 +18554,17 @@ body.gradient-theme .top-document-title-wrap .title-edit-button {
 body.gradient-theme #terminalTabs {
   background: transparent !important;
 }
+
+body.gradient-theme #terminalPanel .terminal-instance,
+body.gradient-theme #terminalPanel .terminal-instance.split-active {
+  background: transparent !important;
+}
+
+body.gradient-theme #compileLog {
+  background: transparent !important;
+}
+
+body.gradient-theme #compileLogResizeHandle,
+body.gradient-theme #terminalTabsResizeHandle {
+  background: color-mix(in srgb, var(--text) 14%, transparent) !important;
+}
