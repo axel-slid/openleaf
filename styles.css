@@ -17890,3 +17890,21 @@ body.transparent-theme .CodeMirror,
 body.transparent-theme .CodeMirror-gutters {
   background: transparent !important;
 }
+
+/* Glass themes: bars don't stack another fill on top of their pane. */
+body.transparent-theme[data-theme] .editor-screen > .topbar {
+  background: rgb(from var(--panel) r g b / 0.14) !important;
+}
+
+body.transparent-theme[data-theme] .pane-header,
+body.transparent-theme[data-theme] .text-tabs,
+body.transparent-theme[data-theme] .source-pane.terminal-collapsed .terminal-panel,
+body.transparent-theme[data-theme] .log-panel.log-collapsed,
+body.transparent-theme[data-theme] .collapsed-panel-rail {
+  background: transparent !important;
+}
+
+body.transparent-theme[data-theme] #terminalCollapsedButton,
+body.transparent-theme[data-theme] #compileLogCollapsedButton {
+  background: transparent !important;
+}
