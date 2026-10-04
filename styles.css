@@ -17946,3 +17946,28 @@ body.gradient-theme .editor-stack {
 body.gradient-theme .CodeMirror {
   background: rgb(from var(--cm-bg) r g b / 0.45) !important;
 }
+
+/* Gradient themes: the Notes rail and Terminal bar don't paint over the gradient. */
+body.gradient-theme #notesRailButton,
+body.gradient-theme .source-pane.terminal-collapsed #terminalPanel {
+  background: transparent !important;
+}
+
+/* Gradient themes: header controls use light translucent fills, not solid blocks. */
+body.gradient-theme #compileButton,
+body.gradient-theme .pdf-speech-pill,
+body.gradient-theme .top-document-title-wrap .title-edit-button {
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent) !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+}
+
+body.gradient-theme #compileButton:hover,
+body.gradient-theme .top-document-title-wrap .title-edit-button:hover {
+  background: color-mix(in srgb, var(--text) 16%, transparent) !important;
+}
+
+body.gradient-theme .top-document-title-wrap .title-edit-button {
+  border-color: transparent !important;
+}

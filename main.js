@@ -1032,6 +1032,7 @@ function projectKind(project) {
 
 function projectReadingManifest(rootPath) {
   const manifestPath = path.join(rootPath, ".openleaf-readings.json");
+  if (isCloudPlaceholder(manifestPath)) return null;
   try {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     return manifest && typeof manifest === "object" ? manifest : null;
@@ -1165,11 +1166,39 @@ function decorateProject(project) {
   };
 }
 
+// iCloud "Optimize Mac Storage" leaves placeholders: the size is set but no
+// blocks are on disk. Opening one synchronously blocks the main process until
+// macOS downloads it, which froze startup, so sync reads skip placeholders.
+function isCloudPlaceholder(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    return stat.isFile() && stat.size > 0 && stat.blocks === 0;
+  } catch (_error) {
+    return false;
+  }
+}
+
+const detectedTitleCache = new Map();
+
 function detectTexTitle(texPath) {
   try {
-    const tex = fs.readFileSync(texPath, "utf8").slice(0, 12000);
-    const title = extractTexCommandBody(tex, "title");
-    return cleanTexTitle(title);
+    const stat = fs.statSync(texPath);
+    const key = `${texPath}\0${stat.mtimeMs}`;
+    if (detectedTitleCache.has(key)) return detectedTitleCache.get(key);
+    if (stat.size > 0 && stat.blocks === 0) return detectedTitleCache.get(texPath) || "";
+    const fd = fs.openSync(texPath, "r");
+    let tex = "";
+    try {
+      const buffer = Buffer.alloc(Math.min(12000, stat.size));
+      const bytes = fs.readSync(fd, buffer, 0, buffer.length, 0);
+      tex = buffer.subarray(0, bytes).toString("utf8");
+    } finally {
+      fs.closeSync(fd);
+    }
+    const title = cleanTexTitle(extractTexCommandBody(tex, "title"));
+    detectedTitleCache.set(key, title);
+    detectedTitleCache.set(texPath, title);
+    return title;
   } catch (error) {
     return "";
   }
@@ -2509,7 +2538,7 @@ function decorateCustomTemplate(template) {
   let previewText = "";
   if (template.texPath && fs.existsSync(template.texPath)) {
     try {
-      previewText = fs.readFileSync(template.texPath, "utf8").slice(0, 12000);
+      previewText = isCloudPlaceholder(template.texPath) ? "" : fs.readFileSync(template.texPath, "utf8").slice(0, 12000);
     } catch (error) {
       previewText = "";
     }
