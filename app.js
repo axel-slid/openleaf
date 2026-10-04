@@ -2994,6 +2994,10 @@ const PDF_CINEMATIC_ARTWORKS = [
 let pdfPronunciationDictionaryTimer = null;
 let pdfDarkMode = false;
 let pdfRenderMode = "adaptive";
+// Declared up here because init() runs before later top-level lines execute.
+let pdfFitLock = false;
+let pdfFitLockWidth = 0;
+let pdfFitLockTimer = 0;
 // "white" keeps pages white, "auto" darkens them in dark themes, "theme"
 // recolors them with the theme's background and text colors.
 let pdfPageStyle = "auto";
@@ -3439,6 +3443,8 @@ function setupSettings() {
   settingsFileSidebarToggle.addEventListener("change", () => {
     setFileSidebarVisible(settingsFileSidebarToggle.checked);
   });
+
+  setupPdfFitLock();
 
   document.querySelectorAll("[data-pdf-page-style]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -8509,7 +8515,7 @@ function changePdfZoom(delta) {
   schedulePdfZoomRender(80);
 }
 
-function fitPdfToBoundaries() {
+function fitPdfToBoundaries({ live = false } = {}) {
   const pageShell = pdfViewer.querySelector(".pdf-page");
   if (!pageShell) return;
   const viewerStyles = getComputedStyle(pdfViewer);
@@ -8518,7 +8524,37 @@ function fitPdfToBoundaries() {
     - Number.parseFloat(viewerStyles.paddingRight || "0");
   const pageWidth = pageShell.getBoundingClientRect().width;
   if (!(available > 0) || !(pageWidth > 0)) return;
+  if (live) {
+    // Scale the current pages right away, then re-render sharp once resizing settles.
+    setPdfZoom(pdfZoom * (available / pageWidth), { render: false, live: true });
+    clearTimeout(pdfFitLockTimer);
+    pdfFitLockTimer = setTimeout(() => renderPdf({ showLoading: false, preserveView: true }), 160);
+    return;
+  }
   setPdfZoom(pdfZoom * (available / pageWidth));
+}
+
+// PDF fit lock: whenever the PDF pane changes width (dragging the divider,
+// collapsing panels, resizing the window), refit the pages to the pane.
+
+function setupPdfFitLock() {
+  const toggle = document.getElementById("settingsPdfFitLockToggle");
+  pdfFitLock = localStorage.getItem("latexStudioPdfFitLock") === "true";
+  if (toggle) {
+    toggle.checked = pdfFitLock;
+    toggle.addEventListener("change", () => {
+      pdfFitLock = toggle.checked;
+      localStorage.setItem("latexStudioPdfFitLock", String(pdfFitLock));
+      if (pdfFitLock) fitPdfToBoundaries();
+    });
+  }
+  if (!pdfViewer || typeof ResizeObserver !== "function") return;
+  new ResizeObserver(() => {
+    const width = pdfViewer.clientWidth;
+    if (!pdfFitLock || !width || Math.abs(width - pdfFitLockWidth) < 2) return;
+    pdfFitLockWidth = width;
+    fitPdfToBoundaries({ live: true });
+  }).observe(pdfViewer);
 }
 
 function setPdfZoom(value, { render = true, live = false } = {}) {
