@@ -17918,3 +17918,31 @@ body.transparent-theme[data-theme] #compileLogCollapsedButton {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
+
+/* Gradient themes: panes are translucent so the theme's gradient reads through. */
+body.gradient-theme .editor-screen > .topbar,
+body.gradient-theme .file-rail,
+body.gradient-theme .source-rail,
+body.gradient-theme .preview-rail,
+body.gradient-theme .file-pane,
+body.gradient-theme .source-pane,
+body.gradient-theme .preview-pane,
+body.gradient-theme .notes-panel,
+body.gradient-theme .terminal-panel,
+body.gradient-theme .log-panel {
+  background: rgb(from var(--panel) r g b / 0.42) !important;
+}
+
+body.gradient-theme .pane-header,
+body.gradient-theme .text-tabs,
+body.gradient-theme #terminalCollapsedButton,
+body.gradient-theme #compileLogCollapsedButton,
+body.gradient-theme .CodeMirror-gutters,
+body.gradient-theme #pdfViewer,
+body.gradient-theme .editor-stack {
+  background: transparent !important;
+}
+
+body.gradient-theme .CodeMirror {
+  background: rgb(from var(--cm-bg) r g b / 0.45) !important;
+}
