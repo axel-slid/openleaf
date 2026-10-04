@@ -17971,3 +17971,13 @@ body.gradient-theme .top-document-title-wrap .title-edit-button:hover {
 body.gradient-theme .top-document-title-wrap .title-edit-button {
   border-color: transparent !important;
 }
+
+/* Gradient themes: the left rail's full-height button and the collapsed Log
+   bar don't paint over the gradient. */
+body.gradient-theme #fileRailButton,
+body.gradient-theme #sourceRailButton,
+body.gradient-theme #previewRailButton,
+body.gradient-theme .log-panel.log-collapsed,
+body.gradient-theme #compileLogPanel.log-collapsed {
+  background: transparent !important;
+}

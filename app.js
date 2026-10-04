@@ -2231,7 +2231,7 @@ const THEME_PRESETS = {
   "prism-light": {
     theme: "light",
     accent: "#7c3aed",
-    background: "radial-gradient(circle at 14% 12%, rgba(124, 58, 237, 0.5), transparent 56%), radial-gradient(circle at 84% 8%, rgba(14, 165, 233, 0.46), transparent 54%), linear-gradient(135deg, #fbfdff, #edf4ff 58%, #f7eafe)",
+    background: "radial-gradient(circle at 14% 12%, rgba(124, 58, 237, 0.5), transparent 56%), radial-gradient(circle at 84% 8%, rgba(14, 165, 233, 0.46), transparent 54%), radial-gradient(circle at 50% 108%, rgba(124, 58, 237, 0.36), transparent 60%), linear-gradient(135deg, #fbfdff, #edf4ff 58%, #f7eafe)",
     colors: {
       "--bg": "#edf4ff",
       "--glass": "rgba(255, 255, 255, 0.72)",
@@ -2262,7 +2262,7 @@ const THEME_PRESETS = {
   "frosted-candy": {
     theme: "light",
     accent: "#ec4899",
-    background: "radial-gradient(circle at 18% 16%, rgba(236, 72, 153, 0.5), transparent 56%), radial-gradient(circle at 90% 18%, rgba(45, 212, 191, 0.5), transparent 56%), linear-gradient(135deg, #fff7fb, #edfdf9 54%, #eef2ff)",
+    background: "radial-gradient(circle at 18% 16%, rgba(236, 72, 153, 0.5), transparent 56%), radial-gradient(circle at 90% 18%, rgba(45, 212, 191, 0.5), transparent 56%), radial-gradient(circle at 50% 108%, rgba(236, 72, 153, 0.36), transparent 60%), linear-gradient(135deg, #fff7fb, #edfdf9 54%, #eef2ff)",
     colors: {
       "--bg": "#f4fbff",
       "--glass": "rgba(255, 255, 255, 0.7)",
@@ -2293,7 +2293,7 @@ const THEME_PRESETS = {
   "sunset-gradient": {
     theme: "dark",
     accent: "#ff9f6e",
-    background: "radial-gradient(circle at 18% 8%, rgba(255, 159, 110, 0.59), transparent 58%), radial-gradient(circle at 82% 14%, rgba(168, 85, 247, 0.46), transparent 56%), linear-gradient(135deg, #160f20, #241832 54%, #0c1222)",
+    background: "radial-gradient(circle at 18% 8%, rgba(255, 159, 110, 0.59), transparent 58%), radial-gradient(circle at 82% 14%, rgba(168, 85, 247, 0.46), transparent 56%), radial-gradient(circle at 50% 108%, rgba(255, 159, 110, 0.36), transparent 60%), linear-gradient(135deg, #160f20, #241832 54%, #0c1222)",
     colors: {
       "--bg": "#0c1222",
       "--glass": "rgba(22, 15, 32, 0.82)",
@@ -2325,7 +2325,7 @@ const THEME_PRESETS = {
   "lagoon-gradient": {
     theme: "dark",
     accent: "#67e8f9",
-    background: "radial-gradient(circle at 12% 10%, rgba(103, 232, 249, 0.42), transparent 56%), radial-gradient(circle at 92% 12%, rgba(52, 211, 153, 0.38), transparent 54%), linear-gradient(135deg, #031b2a, #062f3d 52%, #04131f)",
+    background: "radial-gradient(circle at 12% 10%, rgba(103, 232, 249, 0.42), transparent 56%), radial-gradient(circle at 92% 12%, rgba(52, 211, 153, 0.38), transparent 54%), radial-gradient(circle at 50% 108%, rgba(103, 232, 249, 0.36), transparent 60%), linear-gradient(135deg, #031b2a, #062f3d 52%, #04131f)",
     colors: {
       "--bg": "#04131f",
       "--glass": "rgba(3, 27, 42, 0.82)",
@@ -2485,7 +2485,7 @@ const THEME_PRESETS = {
   "peach-gradient": {
     theme: "light",
     accent: "#f97316",
-    background: "radial-gradient(circle at 16% 12%, rgba(251, 146, 60, 0.5), transparent 58%), radial-gradient(circle at 88% 16%, rgba(244, 114, 182, 0.46), transparent 56%), radial-gradient(circle at 50% 110%, rgba(253, 186, 116, 0.4), transparent 60%), linear-gradient(135deg, #fff6ef, #fff1ea 54%, #fdf0f6)",
+    background: "radial-gradient(circle at 16% 12%, rgba(251, 146, 60, 0.5), transparent 58%), radial-gradient(circle at 88% 16%, rgba(244, 114, 182, 0.46), transparent 56%), radial-gradient(circle at 50% 110%, rgba(253, 186, 116, 0.4), transparent 60%), radial-gradient(circle at 50% 108%, rgba(251, 146, 60, 0.36), transparent 60%), linear-gradient(135deg, #fff6ef, #fff1ea 54%, #fdf0f6)",
     colors: {
       "--bg": "#fff1ea",
       "--glass": "rgba(255, 255, 255, 0.7)",
@@ -2516,7 +2516,7 @@ const THEME_PRESETS = {
   "mint-gradient": {
     theme: "light",
     accent: "#10b981",
-    background: "radial-gradient(circle at 16% 12%, rgba(52, 211, 153, 0.5), transparent 58%), radial-gradient(circle at 88% 16%, rgba(56, 189, 248, 0.46), transparent 56%), radial-gradient(circle at 50% 110%, rgba(163, 230, 53, 0.4), transparent 60%), linear-gradient(135deg, #f1fdf8, #ecfbf6 54%, #eef8ff)",
+    background: "radial-gradient(circle at 16% 12%, rgba(52, 211, 153, 0.5), transparent 58%), radial-gradient(circle at 88% 16%, rgba(56, 189, 248, 0.46), transparent 56%), radial-gradient(circle at 50% 110%, rgba(163, 230, 53, 0.4), transparent 60%), radial-gradient(circle at 50% 108%, rgba(52, 211, 153, 0.36), transparent 60%), linear-gradient(135deg, #f1fdf8, #ecfbf6 54%, #eef8ff)",
     colors: {
       "--bg": "#ecfbf6",
       "--glass": "rgba(255, 255, 255, 0.7)",
@@ -2547,7 +2547,7 @@ const THEME_PRESETS = {
   "lilac-gradient": {
     theme: "light",
     accent: "#8b5cf6",
-    background: "radial-gradient(circle at 16% 12%, rgba(167, 139, 250, 0.5), transparent 58%), radial-gradient(circle at 88% 16%, rgba(96, 165, 250, 0.46), transparent 56%), radial-gradient(circle at 50% 110%, rgba(244, 114, 182, 0.4), transparent 60%), linear-gradient(135deg, #f7f4ff, #f2efff 54%, #eef4ff)",
+    background: "radial-gradient(circle at 16% 12%, rgba(167, 139, 250, 0.5), transparent 58%), radial-gradient(circle at 88% 16%, rgba(96, 165, 250, 0.46), transparent 56%), radial-gradient(circle at 50% 110%, rgba(244, 114, 182, 0.4), transparent 60%), radial-gradient(circle at 50% 108%, rgba(167, 139, 250, 0.36), transparent 60%), linear-gradient(135deg, #f7f4ff, #f2efff 54%, #eef4ff)",
     colors: {
       "--bg": "#f2efff",
       "--glass": "rgba(255, 255, 255, 0.7)",
@@ -2578,7 +2578,7 @@ const THEME_PRESETS = {
   "aurora-contrast-hc": {
     theme: "dark",
     accent: "#7fffd4",
-    background: "radial-gradient(circle at 18% 8%, rgba(127, 255, 212, 0.55), transparent 56%), radial-gradient(circle at 82% 10%, rgba(190, 140, 255, 0.59), transparent 56%), linear-gradient(135deg, #020910, #071f2c 52%, #150b24)",
+    background: "radial-gradient(circle at 18% 8%, rgba(127, 255, 212, 0.55), transparent 56%), radial-gradient(circle at 82% 10%, rgba(190, 140, 255, 0.59), transparent 56%), radial-gradient(circle at 50% 108%, rgba(127, 255, 212, 0.36), transparent 60%), linear-gradient(135deg, #020910, #071f2c 52%, #150b24)",
     colors: {
       "--bg": "#020910",
       "--glass": "rgba(2, 9, 16, 0.95)",
