@@ -595,6 +595,63 @@ function setWindowGlass(event, payload = {}) {
   return { recreate: process.platform === "darwin" && window.openleafGlass !== enabled };
 }
 
+// Peripherals: Spotify now-playing (via JXA, which also asks macOS for
+// permission to control Spotify the first time) and battery from pmset.
+const SPOTIFY_STATUS_SCRIPT = `
+const spotify = Application("Spotify");
+if (!spotify.running()) {
+  JSON.stringify({ running: false });
+} else {
+  try {
+    const track = spotify.currentTrack();
+    JSON.stringify({
+      running: true,
+      state: String(spotify.playerState()),
+      name: track.name(),
+      artist: track.artist(),
+      artworkUrl: track.artworkUrl()
+    });
+  } catch (error) {
+    JSON.stringify({ running: true, state: String(spotify.playerState()) });
+  }
+}`;
+
+async function getSpotifyStatus() {
+  if (process.platform !== "darwin") return { running: false };
+  try {
+    const { stdout } = await execFileAsync("/usr/bin/osascript", ["-l", "JavaScript", "-e", SPOTIFY_STATUS_SCRIPT], { timeout: 3500, maxBuffer: 128 * 1024 });
+    return JSON.parse(stdout || "{}");
+  } catch (error) {
+    return { running: false, error: error.message };
+  }
+}
+
+async function controlSpotify(_event, action) {
+  const commands = { previous: "previousTrack()", playpause: "playpause()", next: "nextTrack()" };
+  if (process.platform !== "darwin" || !commands[action]) throw new Error("Unsupported Spotify control");
+  await execFileAsync("/usr/bin/osascript", ["-l", "JavaScript", "-e", `const spotify = Application("Spotify"); if (spotify.running()) spotify.${commands[action]};`], { timeout: 3500 });
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  return getSpotifyStatus();
+}
+
+async function getPowerStatus() {
+  if (process.platform !== "darwin") return { available: false };
+  try {
+    const { stdout } = await execFileAsync("/usr/bin/pmset", ["-g", "batt"], { timeout: 3000 });
+    const percent = stdout.match(/(\d+)%/);
+    const state = (stdout.match(/\d+%;\s*([^;]+);/) || [])[1] || "";
+    if (!percent) return { available: false };
+    return {
+      available: true,
+      percent: Math.max(0, Math.min(100, Number(percent[1]) || 0)),
+      charging: state.trim().toLowerCase() === "charging",
+      onAc: /AC Power/.test(stdout)
+    };
+  } catch (error) {
+    return { available: false };
+  }
+}
+
 // Rebuilds the window (same bounds, same project) so a glass/solid theme
 // change gets the matching window kind.
 function recreateWindow(event, projectId = "") {
@@ -5497,6 +5554,9 @@ ipcMain.handle("open-project-in-tab", openProjectInTab);
 ipcMain.handle("minimize-window", minimizeWindow);
 ipcMain.handle("set-window-glass", setWindowGlass);
 ipcMain.handle("app-version", () => app.getVersion());
+ipcMain.handle("spotify-status", getSpotifyStatus);
+ipcMain.handle("spotify-control", controlSpotify);
+ipcMain.handle("power-status", getPowerStatus);
 ipcMain.handle("recreate-window", recreateWindow);
 ipcMain.handle("toggle-fullscreen", toggleFullscreen);
 ipcMain.handle("open-external-link", openExternalLink);

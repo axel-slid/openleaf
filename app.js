@@ -2998,6 +2998,9 @@ let pdfRenderMode = "adaptive";
 let pdfFitLock = false;
 let pdfFitLockWidth = 0;
 let pdfFitLockTimer = 0;
+let peripheralsEnabled = false;
+let spotifyTimer = 0;
+let powerTimer = 0;
 // "white" keeps pages white, "auto" darkens them in dark themes, "theme"
 // recolors them with the theme's background and text colors.
 let pdfPageStyle = "auto";
@@ -3445,6 +3448,7 @@ function setupSettings() {
   });
 
   setupPdfFitLock();
+  setupPeripherals();
 
   document.querySelectorAll("[data-pdf-page-style]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -8643,6 +8647,85 @@ function setupPdfFitLock() {
     pdfFitLockWidth = width;
     fitPdfToBoundaries({ live: true });
   }).observe(pdfViewer);
+}
+
+// Peripherals: Spotify now-playing beside Projects and battery at top right.
+// Polling runs only while enabled and the window is visible.
+
+function setupPeripherals() {
+  const toggle = document.getElementById("settingsPeripheralsToggle");
+  peripheralsEnabled = localStorage.getItem("openleafPeripherals") === "true";
+  if (toggle) {
+    toggle.checked = peripheralsEnabled;
+    toggle.addEventListener("change", () => {
+      peripheralsEnabled = toggle.checked;
+      localStorage.setItem("openleafPeripherals", String(peripheralsEnabled));
+      applyPeripherals();
+    });
+  }
+  const control = (action) => window.localOverleaf.controlSpotify(action).then(renderSpotifyStatus).catch(() => {});
+  document.getElementById("spotifyPreviousButton")?.addEventListener("click", () => control("previous"));
+  document.getElementById("spotifyPlayPauseButton")?.addEventListener("click", () => control("playpause"));
+  document.getElementById("spotifyNextButton")?.addEventListener("click", () => control("next"));
+  document.addEventListener("visibilitychange", applyPeripherals);
+  applyPeripherals();
+}
+
+function applyPeripherals() {
+  clearInterval(spotifyTimer);
+  clearInterval(powerTimer);
+  const active = peripheralsEnabled && !document.hidden && window.localOverleaf?.spotifyStatus;
+  if (!peripheralsEnabled) {
+    document.getElementById("spotifyNowPlaying").hidden = true;
+    document.getElementById("titlebarBattery").hidden = true;
+  }
+  if (!active) return;
+  refreshSpotifyStatus();
+  refreshPowerStatus();
+  spotifyTimer = setInterval(refreshSpotifyStatus, 4000);
+  powerTimer = setInterval(refreshPowerStatus, 60000);
+}
+
+function refreshSpotifyStatus() {
+  window.localOverleaf.spotifyStatus().then(renderSpotifyStatus).catch(() => {});
+}
+
+function renderSpotifyStatus(status = {}) {
+  const widget = document.getElementById("spotifyNowPlaying");
+  if (!widget) return;
+  const hasTrack = peripheralsEnabled && status.running && status.name;
+  widget.hidden = !hasTrack;
+  if (!hasTrack) return;
+  const playing = status.state === "playing";
+  widget.classList.toggle("playing", playing);
+  document.getElementById("spotifyTrackName").textContent = status.name;
+  document.getElementById("spotifyTrackArtist").textContent = status.artist || "";
+  widget.title = `${status.name}${status.artist ? ` · ${status.artist}` : ""}`;
+  const playButton = document.getElementById("spotifyPlayPauseButton");
+  playButton.title = playing ? "Pause" : "Play";
+  playButton.setAttribute("aria-label", playButton.title);
+  const art = document.getElementById("spotifyArtwork");
+  if (status.artworkUrl) {
+    if (art.src !== status.artworkUrl) art.src = status.artworkUrl;
+    art.hidden = false;
+  } else {
+    art.hidden = true;
+  }
+}
+
+function refreshPowerStatus() {
+  window.localOverleaf.powerStatus().then((power) => {
+    const battery = document.getElementById("titlebarBattery");
+    if (!battery) return;
+    battery.hidden = !peripheralsEnabled || !power.available;
+    if (battery.hidden) return;
+    document.getElementById("titlebarBatteryFill").setAttribute("width", String(Math.round(19 * power.percent / 100)));
+    document.getElementById("titlebarBatteryText").textContent = `${power.percent}%`;
+    document.getElementById("titlebarBatteryCharge").style.display = power.charging ? "" : "none";
+    battery.classList.toggle("charging", power.charging);
+    battery.classList.toggle("low", power.percent <= 20 && !power.onAc);
+    battery.title = `${power.percent}%${power.charging ? ", charging" : power.onAc ? ", on power" : ""}`;
+  }).catch(() => {});
 }
 
 function setPdfZoom(value, { render = true, live = false } = {}) {
