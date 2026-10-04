@@ -13622,13 +13622,13 @@ body.transparent-theme[data-theme="light"] .text-tabs,
 body.transparent-theme[data-theme="light"] .terminal-panel,
 body.transparent-theme[data-theme="light"] .log-panel,
 body.transparent-theme[data-theme="light"] .file-outline {
-  background: rgba(248, 250, 252, 0.78) !important;
+  background: rgba(248, 250, 252, 0.42) !important;
 }
 
 body.transparent-theme[data-theme="light"] .editor-stack,
 body.transparent-theme[data-theme="light"] .ipynb-cell-body,
 body.transparent-theme[data-theme="light"] .python-notebook-panel {
-  background: rgba(255, 255, 255, 0.74) !important;
+  background: rgba(255, 255, 255, 0.3) !important;
 }
 
 body.transparent-theme[data-theme="dark"] .topbar,
@@ -13643,13 +13643,13 @@ body.transparent-theme[data-theme="dark"] .text-tabs,
 body.transparent-theme[data-theme="dark"] .terminal-panel,
 body.transparent-theme[data-theme="dark"] .log-panel,
 body.transparent-theme[data-theme="dark"] .file-outline {
-  background: rgba(9, 13, 22, 0.72) !important;
+  background: rgba(9, 13, 22, 0.38) !important;
 }
 
 body.transparent-theme[data-theme="dark"] .editor-stack,
 body.transparent-theme[data-theme="dark"] .ipynb-cell-body,
 body.transparent-theme[data-theme="dark"] .python-notebook-panel {
-  background: rgba(9, 13, 22, 0.66) !important;
+  background: rgba(9, 13, 22, 0.22) !important;
 }
 
 body.transparent-theme .CodeMirror,
@@ -17814,8 +17814,19 @@ body .project-tools:focus-within {
   overflow: hidden !important;
 }
 
-@container source-toolbar (max-width: 520px) {
+@container source-toolbar (max-width: 670px) {
   #vimModeIndicator { display: none !important; }
+}
+
+@container source-toolbar (max-width: 550px) {
+  #minimapToggleButton { display: none !important; }
+}
+
+@container source-toolbar (max-width: 500px) {
+  .source-pane .pane-header .source-header-actions { display: none !important; }
+}
+
+@container source-toolbar (max-width: 590px) {
   .source-pane .pane-header .source-heading {
     flex-basis: 150px !important;
     max-width: 150px !important;
@@ -17872,4 +17883,10 @@ body .project-tools:focus-within {
     height: 32px !important;
     width: 32px !important;
   }
+}
+
+/* Glass themes: let the editor surface show the blurred desktop. */
+body.transparent-theme .CodeMirror,
+body.transparent-theme .CodeMirror-gutters {
+  background: transparent !important;
 }
