@@ -18501,3 +18501,23 @@ body #projectHeroTitle .project-brand-logo {
 body #projectHeroTitle.project-brand {
   padding-bottom: 30px !important;
 }
+
+/* Larger name and leaf. */
+body #projectHeroTitle.project-brand {
+  font-size: 72px !important;
+  gap: 20px;
+}
+
+body #projectHeroTitle .project-brand-logo {
+  height: 136px;
+  width: 136px;
+}
+
+body #projectHeroTitle .project-brand-version {
+  font-size: 19px;
+}
+
+body #projectHeroTitle.project-brand {
+  margin-top: 36px !important;
+  padding-bottom: 22px !important;
+}
