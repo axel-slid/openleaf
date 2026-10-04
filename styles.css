@@ -18164,11 +18164,18 @@ body.gradient-theme .text-tab .text-tab-curve {
 }
 
 /* PDF pages in "Theme" mode sit on the theme's background color. */
+/* Theme pages are see-through: the canvas paper is transparent, so the
+   page shows the theme background with a faint glass edge. */
 .pdf-viewer.pdf-theme-pages .pdf-page,
+.pdf-thumbnail-list.pdf-theme-pages .pdf-thumbnail {
+  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent) !important;
+}
+
 .pdf-viewer.pdf-theme-pages .pdf-page canvas,
-.pdf-thumbnail-list.pdf-theme-pages .pdf-thumbnail,
-.pdf-thumbnail-list.pdf-theme-pages .pdf-thumbnail canvas.pdf-canvas-dark-adaptive {
-  background: var(--bg) !important;
+.pdf-thumbnail-list.pdf-theme-pages .pdf-thumbnail canvas {
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .pdf-viewer.pdf-theme-pages {
@@ -18177,4 +18184,16 @@ body.gradient-theme .text-tab .text-tab-curve {
 
 #settingsPdfRenderModeRow[hidden] {
   display: none !important;
+}
+
+body #pdfViewer.pdf-theme-pages .pdf-page,
+body #pdfThumbnailList.pdf-theme-pages .pdf-thumbnail {
+  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent) !important;
+}
+
+body #pdfViewer.pdf-theme-pages .pdf-page canvas,
+body #pdfThumbnailList.pdf-theme-pages .pdf-thumbnail canvas {
+  background: transparent !important;
+  box-shadow: none !important;
 }

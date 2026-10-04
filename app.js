@@ -16724,6 +16724,7 @@ function applyDarkPdfCanvas(context, canvas, imageBoxes = []) {
   const data = imageData.data;
   const { paper, text } = pdfRecolorPalette();
   const darkPaper = 0.2126 * paper.r + 0.7152 * paper.g + 0.0722 * paper.b < 128;
+  const seeThroughPaper = pdfPageStyle === "theme";
 
   for (let index = 0; index < data.length; index += 4) {
     const pixel = index / 4;
@@ -16765,6 +16766,15 @@ function applyDarkPdfCanvas(context, canvas, imageBoxes = []) {
     }
 
     const mix = Math.pow(clampNumber(luminance / 255, 0, 1, 1), 1.42);
+    if (seeThroughPaper) {
+      // Theme pages: paper becomes transparent so the theme's gradient shows
+      // through; ink keeps its coverage as alpha in the theme's text color.
+      data[index] = text.r;
+      data[index + 1] = text.g;
+      data[index + 2] = text.b;
+      data[index + 3] = Math.round(255 * (1 - mix));
+      continue;
+    }
     data[index] = Math.round(text.r + (paper.r - text.r) * mix);
     data[index + 1] = Math.round(text.g + (paper.g - text.g) * mix);
     data[index + 2] = Math.round(text.b + (paper.b - text.b) * mix);
