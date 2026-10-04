@@ -9435,7 +9435,7 @@ async function renderHistoryDiff() {
     if (token !== historyLoadToken || selectedId !== historySelectedId) return;
     if (historyView === "full") {
       const rows = text.split("\n").map((line, lineIndex) => ({ type: "same", oldNo: lineIndex + 1, newNo: lineIndex + 1, text: line }));
-      container.innerHTML = `<div class="history-diff-lines">${renderHistoryLines(rows, { collapse: false })}</div>`;
+      container.innerHTML = `<div class="history-diff-lines cm-s-default">${renderHistoryLines(rows, { collapse: false })}</div>`;
       return;
     }
     const after = historyView === "current" ? getSourceText() : text;
@@ -9444,7 +9444,7 @@ async function renderHistoryDiff() {
       container.innerHTML = `<p class="history-empty">${historyView === "current" ? "Identical to the current text." : `No changes from the ${escapeHtml(baseLabel)}.`}</p>`;
       return;
     }
-    container.innerHTML = `<div class="history-diff-lines">${renderHistoryLines(rows, { collapse: true })}</div>`;
+    container.innerHTML = `<div class="history-diff-lines cm-s-default">${renderHistoryLines(rows, { collapse: true })}</div>`;
     container.querySelectorAll("[data-expand]").forEach((button) => {
       button.addEventListener("click", () => {
         container.querySelectorAll(`[data-fold="${button.dataset.expand}"]`).forEach((row) => row.removeAttribute("hidden"));
@@ -9541,11 +9541,58 @@ function pairHistoryWordChanges(rows) {
       const tokensB = split(added[k].text);
       if (tokensA.length * tokensB.length > 40000) continue;
       const ops = lcsEditScript(tokensA, tokensB);
-      removed[k].html = ops.filter(([type]) => type !== "add").map(([type, token]) => (type === "remove" ? `<mark>${escapeHtml(token)}</mark>` : escapeHtml(token))).join("");
-      added[k].html = ops.filter(([type]) => type !== "remove").map(([type, token]) => (type === "add" ? `<mark>${escapeHtml(token)}</mark>` : escapeHtml(token))).join("");
+      removed[k].marks = historyChangedRanges(ops, "remove");
+      added[k].marks = historyChangedRanges(ops, "add");
     }
     index = addEnd;
   }
+}
+
+// Character ranges of the tokens that changed on one side of a line pair.
+function historyChangedRanges(ops, changedType) {
+  const ranges = [];
+  let offset = 0;
+  ops.forEach(([type, token]) => {
+    if (type !== "same" && type !== changedType) return;
+    if (type === changedType) ranges.push([offset, offset + token.length]);
+    offset += token.length;
+  });
+  return ranges;
+}
+
+// Highlights a line of LaTeX with the editor's own mode, so the diff uses the
+// same token classes (and therefore the same theme colors) as the editor.
+function historyHighlightedLine(text, marks = []) {
+  const runs = [];
+  if (window.CodeMirror && CodeMirror.runMode && text) {
+    CodeMirror.runMode(text, "stex", (token, style) => {
+      runs.push({ text: token, cls: style ? style.split(" ").map((name) => `cm-${name}`).join(" ") : "" });
+    });
+  } else {
+    runs.push({ text, cls: "" });
+  }
+  const isMarked = (position) => marks.some(([start, end]) => position >= start && position < end);
+  let html = "";
+  let position = 0;
+  runs.forEach(({ text: token, cls }) => {
+    let chunk = "";
+    let chunkMarked = null;
+    const flush = () => {
+      if (!chunk) return;
+      const body = cls ? `<span class="${cls}">${escapeHtml(chunk)}</span>` : escapeHtml(chunk);
+      html += chunkMarked ? `<mark>${body}</mark>` : body;
+      chunk = "";
+    };
+    for (const char of token) {
+      const marked = isMarked(position);
+      if (chunkMarked !== null && marked !== chunkMarked) flush();
+      chunkMarked = marked;
+      chunk += char;
+      position += char.length;
+    }
+    flush();
+  });
+  return html;
 }
 
 function renderHistoryLines(rows, { collapse }) {
@@ -9577,7 +9624,7 @@ function renderHistoryLines(rows, { collapse }) {
 
 function historyLineHtml(row, foldId = 0) {
   const sign = row.type === "add" ? "+" : row.type === "remove" ? "−" : "";
-  return `<div class="history-line ${row.type}"${foldId ? ` data-fold="${foldId}" hidden` : ""}><span class="history-line-no">${row.oldNo || ""}</span><span class="history-line-no">${row.newNo || ""}</span><span class="history-line-sign">${sign}</span><span class="history-line-text">${row.html ?? escapeHtml(row.text)}</span></div>`;
+  return `<div class="history-line ${row.type}"${foldId ? ` data-fold="${foldId}" hidden` : ""}><span class="history-line-no">${row.oldNo || ""}</span><span class="history-line-no">${row.newNo || ""}</span><span class="history-line-sign">${sign}</span><span class="history-line-text">${historyHighlightedLine(row.text, row.marks)}</span></div>`;
 }
 
 async function restoreHistoryEntry() {

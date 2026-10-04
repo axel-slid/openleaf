@@ -18242,3 +18242,15 @@ body #pdfThumbnailList.pdf-white-pages .pdf-thumbnail canvas {
     padding-left: 6px !important;
   }
 }
+
+/* History shows LaTeX source like the editor: its code font and its colors
+   (token classes come from the editor's stex mode under .cm-s-default). */
+.history-diff-lines {
+  color: var(--cm-text, var(--text));
+  font: 12.5px/1.6 var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace) !important;
+}
+
+.history-line.add mark,
+.history-line.remove mark {
+  color: inherit;
+}
