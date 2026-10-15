@@ -2175,6 +2175,7 @@ button:disabled {
   border-radius: 999px;
   box-shadow: 0 1px 0 color-mix(in srgb, var(--page) 60%, transparent) inset;
   display: flex;
+  flex: 0 0 auto;
   gap: 0;
   margin-left: auto;
   min-width: 164px;
@@ -2205,6 +2206,23 @@ button:disabled {
 }
 
 .source-mode-actions .mode-button:not(.active):hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.html-video-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text);
+  flex: 0 0 auto;
+  font-size: 14px;
+  height: 32px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.html-video-button:hover {
   background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 
@@ -17853,6 +17871,7 @@ body .project-tools:focus-within {
 
 @container source-toolbar (max-width: 360px) {
   .source-pane .pane-header .source-heading { display: none !important; }
+  .html-video-insert-label { display: none; }
 }
 
 @container source-toolbar (max-width: 260px) {
