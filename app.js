@@ -4960,15 +4960,29 @@ let htmlPreviewController = null;
 let htmlVisualController = null;
 let htmlPreviewTimer = null;
 
+function openHtmlProjectDocument(url) {
+  const root = activeProject?.rootUrl;
+  if (!root || !url.startsWith(root)) return;
+  const relative = decodeURIComponent(new URL(url).pathname.slice(new URL(root).pathname.length));
+  if (/\.pdf$/i.test(relative)) {
+    htmlPreviewController?.pause();
+    setPdfCollapsed(false);
+    previewPane.classList.remove("html-preview-active");
+    void selectPdfFile(relative);
+  } else if (/\.html?$/i.test(relative)) void loadProjectFile(relative, { preview: false });
+}
+
 function isHtmlFile(file = activeFile) {
   return /\.html?$/i.test(String(file && (file.name || file.relativePath) || ""));
 }
 
 function syncHtmlPreview() {
   const wasHtml = previewPane.classList.contains("html-preview-active");
-  const html = isHtmlFile();
+  const html = isHtmlFile() && !selectedPdfRelativePath;
   previewPane.classList.toggle("html-preview-active", html);
   if (!html) {
+    htmlPreviewController?.pause();
+    htmlVisualController?.pause();
     clearTimeout(htmlPreviewTimer);
     if (wasHtml) {
       pdfTitle.textContent = activeProject && activeProject.pdfName || "main.pdf";
@@ -4979,7 +4993,7 @@ function syncHtmlPreview() {
   }
   clearTimeout(autoCompileTimer);
   if (!htmlPreviewController) {
-    htmlPreviewController = OpenleafHtmlEditor.create();
+    htmlPreviewController = OpenleafHtmlEditor.create({ onOpenDocument: openHtmlProjectDocument });
     previewPane.append(htmlPreviewController.frame);
   }
   pdfTitle.textContent = "HTML Preview";
@@ -4989,7 +5003,7 @@ function syncHtmlPreview() {
 
 function renderHtmlVisualEditor() {
   if (!htmlVisualController) {
-    htmlVisualController = OpenleafHtmlEditor.create({ editable: true, onChange(html) {
+    htmlVisualController = OpenleafHtmlEditor.create({ editable: true, onOpenDocument: openHtmlProjectDocument, onChange(html) {
       if (!isHtmlFile()) return;
       suppressSourceChange = true;
       editor.setValue(html);
@@ -5040,6 +5054,7 @@ function applyEditorModeForFile(file = activeFile) {
   const pythonFile = isPythonExecutionFile(file);
   sourceModeButton.hidden = pythonFile;
   visualModeButton.hidden = pythonFile;
+  document.getElementById("htmlVideoButton").hidden = !isHtmlFile(file);
   if (pythonFile) setMode("source");
   updateVimModeIndicator();
 }
@@ -6971,6 +6986,32 @@ function wireEvents() {
   compileLogCollapsedButton.addEventListener("click", () => setCompileLogCollapsed(false));
   sourceModeButton.addEventListener("click", () => setMode("source"));
   visualModeButton.addEventListener("click", () => setMode("visual"));
+  const htmlVideoDialog = document.getElementById("htmlVideoDialog");
+  document.getElementById("htmlVideoButton").addEventListener("click", () => {
+    document.getElementById("htmlVideoForm").reset();
+    document.getElementById("htmlVideoError").textContent = "";
+    htmlVideoDialog.showModal();
+    document.getElementById("htmlVideoUrl").focus();
+  });
+  document.getElementById("htmlVideoCancel").addEventListener("click", () => htmlVideoDialog.close());
+  document.getElementById("htmlVideoForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!isHtmlFile()) return;
+    const url = document.getElementById("htmlVideoUrl").value.trim();
+    const title = document.getElementById("htmlVideoTitle").value.trim() || "Video";
+    if (!OpenleafVideo.parse(url, activeFile.fileUrl)) {
+      document.getElementById("htmlVideoError").textContent = "Use a YouTube link, or an MP4, WebM, or Ogg file path.";
+      return;
+    }
+    if (!visualEditor.hidden && htmlVisualController) htmlVisualController.insertVideo(url, title);
+    else {
+      // Insert a block before </body>, rather than accidentally inside a tag or stylesheet.
+      const source = getSourceText();
+      const position = source.search(/<\/body\s*>/i);
+      editor.replaceRange(OpenleafVideo.markup(url, title), editor.posFromIndex(position < 0 ? source.length : position));
+    }
+    htmlVideoDialog.close();
+  });
   latexSnippetButtons.forEach((button) => {
     button.addEventListener("click", () => insertLatexSnippet(button.dataset.latexSnippet));
   });
@@ -16152,6 +16193,7 @@ function scheduleAutoCompile(message) {
 }
 
 function setMode(mode) {
+  if (isHtmlFile()) selectedPdfRelativePath = "";
   syncHtmlPreview();
   if (activeMediaFile) {
     editor.getWrapperElement().hidden = true;
@@ -16163,6 +16205,7 @@ function setMode(mode) {
 
   const notebook = isIpynbFile();
   const visual = mode === "visual" && !isPythonExecutionFile();
+  if (!visual) htmlVisualController?.pause();
   sourceModeButton.classList.toggle("active", !visual);
   visualModeButton.classList.toggle("active", visual);
   editor.getWrapperElement().hidden = visual || notebook;
@@ -16834,7 +16877,7 @@ function restorePdfViewState(state) {
 }
 
 async function setPdf(options = {}) {
-  if (isHtmlFile()) { syncHtmlPreview(); return true; }
+  if (isHtmlFile() && !selectedPdfRelativePath) { syncHtmlPreview(); return true; }
   return renderPdf(options);
 }
 
@@ -16887,7 +16930,7 @@ async function processPdfLazyRenderQueue() {
 }
 
 async function renderPdf({ showLoading = true, preserveView = false, preserveLogOnError = false } = {}) {
-  if (isHtmlFile()) { syncHtmlPreview(); return true; }
+  if (isHtmlFile() && !selectedPdfRelativePath) { syncHtmlPreview(); return true; }
   if (!activeProject || editorScreen.hidden || previewPane.classList.contains("python-output-active")) return false;
 
   const token = ++pdfRenderToken;

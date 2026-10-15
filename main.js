@@ -5612,6 +5612,18 @@ app.whenReady().then(() => {
   app.setName("Openleaf");
   buildMenu();
   createWindow();
+  // Desktop YouTube embeds require the installed application's identity as Referer.
+  // Only player-frame requests in Openleaf windows are affected; document sandboxes stay unchanged.
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders({
+    urls: ["https://www.youtube-nocookie.com/embed/*"]
+  }, (details, callback) => {
+    const headers = { ...details.requestHeaders };
+    if (details.resourceType === "subFrame" && BrowserWindow.getAllWindows().some((window) => window.webContents.id === details.webContentsId)) {
+      for (const key of Object.keys(headers)) if (key.toLowerCase() === "referer") delete headers[key];
+      headers.Referer = "https://com.openleaf.latex/";
+    }
+    callback({ requestHeaders: headers });
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

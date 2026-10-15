@@ -135,6 +135,7 @@ async function copyAppSources() {
     "automations.js",
     "history-store.js",
     "html-editor.js",
+    "video-embed.js",
     "git-file-commit.js",
     "index.html",
     "main.js",

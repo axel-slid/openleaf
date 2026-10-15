@@ -16179,6 +16179,18 @@ body[data-theme="dark"] .project-division-preview img {
 .preview-pane.html-preview-active #previewPaneHeader > :not(.pdf-title-block) { display: none !important; }
 .preview-pane.html-preview-active #pdfTitle { pointer-events: none; }
 #visualEditor:has(> .html-live-frame) { padding: 0; overflow: hidden; }
+.openleaf-video-dialog { width:min(1040px,calc(100vw - 64px)); padding:20px; border:1px solid var(--border); border-radius:16px; background:var(--bg,#fff); color:var(--text,#222); }
+.openleaf-video-dialog::backdrop, .openleaf-video-insert-dialog::backdrop { background:#0009; }
+.openleaf-video-dialog header { display:flex; justify-content:space-between; align-items:center; gap:24px; margin-bottom:16px; font:16px system-ui; }
+.openleaf-video-dialog iframe { width:100%; aspect-ratio:16/9; min-height:270px; display:block; border:0; background:#101619; }
+.openleaf-video-dialog video { width:100%; max-height:70vh; display:block; background:#101619; }
+.openleaf-video-dialog button, .openleaf-video-insert-dialog button { padding:8px 14px; cursor:pointer; border:1px solid var(--border,#ccc); border-radius:7px; background:var(--bg,#fff); color:var(--text,#222); }
+.openleaf-video-dialog > button { margin-top:12px; }
+.openleaf-video-insert-dialog { width:min(480px,calc(100vw - 64px)); padding:24px; border:1px solid var(--border); border-radius:16px; background:var(--bg,#fff); color:var(--text,#222); }
+.openleaf-video-insert-dialog label { display:block; margin:18px 0 6px; }
+.openleaf-video-insert-dialog input { display:block; box-sizing:border-box; width:100%; padding:10px; border:1px solid var(--border,#ccc); border-radius:6px; background:var(--bg,#fff); color:var(--text,#222); }
+.openleaf-video-insert-dialog form > div { display:flex; justify-content:flex-end; gap:12px; }
+#htmlVideoError { color:var(--danger,#bd3434); }
 /* Local Git commit dialog. */
 .commit-file-dialog {
   width: min(600px, calc(100vw - 48px));

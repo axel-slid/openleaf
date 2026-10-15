@@ -1,6 +1,6 @@
 /* HTML previews never run page scripts; editing keeps the original scripts and LaTeX in the saved source. */
 window.OpenleafHtmlEditor = (() => {
-  function create({ editable = false, onChange = () => {} } = {}) {
+  function create({ editable = false, onChange = () => {}, onOpenDocument = () => {} } = {}) {
     const frame = document.createElement("iframe");
     frame.className = "html-live-frame";
     frame.title = editable ? "Visual HTML editor" : "Live HTML preview";
@@ -9,12 +9,69 @@ window.OpenleafHtmlEditor = (() => {
 
     function serialize() {
       const body = frame.contentDocument.body.cloneNode(true);
+      body.querySelectorAll("[data-openleaf-video-player]").forEach((player) => player.remove());
       body.querySelectorAll("[data-openleaf-latex]").forEach((token) => {
         token.replaceWith(body.ownerDocument.createTextNode(token.dataset.openleafLatex));
       });
       const clean = sourceDocument.cloneNode(true);
       clean.body.innerHTML = body.innerHTML;
       return (sourceDocument.doctype ? "<!DOCTYPE html>\n" : "") + clean.documentElement.outerHTML;
+    }
+
+    function renderVideos(doc) {
+      const style = doc.createElement("style");
+      style.textContent = `
+        [data-openleaf-video] { margin: 24px 0; }
+        [data-openleaf-video-player] video { display:block; width:100%; max-height:70vh; background:#101619; border-radius:12px; }
+        .openleaf-video-play { display:block; position:relative; width:100%; aspect-ratio:16/9; min-height:200px; border:0; border-radius:12px; overflow:hidden; cursor:pointer; background:#101619; color:white; }
+        .openleaf-video-play img { width:100%; height:100%; position:absolute; inset:0; object-fit:contain; }
+        .openleaf-video-play span { position:relative; display:inline-block; border-radius:30px; padding:14px 24px; background:#000c; font:bold 16px system-ui; }
+        [data-openleaf-video-player] p { font:14px system-ui; }
+      `;
+      doc.head.append(style);
+      doc.querySelectorAll("[data-openleaf-video]").forEach((block) => {
+        const video = OpenleafVideo.parse(block.dataset.openleafVideo, fileUrl);
+        const player = doc.createElement("div");
+        player.dataset.openleafVideoPlayer = "";
+        player.contentEditable = "false";
+        const title = block.querySelector("figcaption")?.textContent || "Video";
+        if (!video) {
+          const error = doc.createElement("p");
+          error.textContent = "Unsupported video. Use a YouTube link or an MP4, WebM, or Ogg video file.";
+          player.append(error);
+        } else {
+          const button = doc.createElement("button");
+          button.type = "button";
+          button.className = "openleaf-video-play";
+          button.setAttribute("aria-label", `Play ${title}`);
+          const poster = doc.createElement("img");
+          const posterUrl = video.poster || (block.dataset.openleafPoster ? new URL(block.dataset.openleafPoster, fileUrl).href : "");
+          if (posterUrl) poster.src = posterUrl;
+          poster.alt = "";
+          poster.loading = "lazy";
+          const label = doc.createElement("span");
+          label.textContent = "▶ Play video";
+          if (posterUrl) button.append(poster);
+          button.append(label);
+          button.addEventListener("click", () => OpenleafVideo.play(video, title));
+          player.append(button);
+        }
+        block.prepend(player);
+      });
+    }
+
+    function insertVideo(url, title) {
+      const doc = frame.contentDocument;
+      const range = doc.getSelection()?.rangeCount ? doc.getSelection().getRangeAt(0) : null;
+      const template = doc.createElement("template");
+      template.innerHTML = OpenleafVideo.markup(url, title);
+      if (range && doc.body.contains(range.commonAncestorContainer) && !range.startContainer.parentElement?.closest("[data-openleaf-video-player]")) {
+        range.deleteContents();
+        range.insertNode(template.content);
+      } else doc.body.append(template.content);
+      const html = serialize();
+      onChange(html);
+      update(html, fileUrl, true);
     }
 
     function renderMath(doc) {
@@ -74,9 +131,20 @@ window.OpenleafHtmlEditor = (() => {
       frame.onload = () => {
         const doc = frame.contentDocument;
         renderMath(doc);
+        renderVideos(doc);
         doc.designMode = editable ? "on" : "off";
         doc.scrollingElement.scrollTop = scrollTop;
-        doc.addEventListener("click", (event) => { if (event.target.closest("a")) event.preventDefault(); });
+        doc.addEventListener("click", (event) => {
+          const link = event.target.closest("a");
+          if (!link) return;
+          event.preventDefault();
+          const url = new URL(link.getAttribute("href") || "", fileUrl);
+          if (url.protocol === "https:" || url.protocol === "http:") window.localOverleaf.openExternalLink(url.href);
+          else if (url.protocol === "file:" && /\.(pdf|html?)$/i.test(url.pathname)) {
+            if (url.pathname === new URL(fileUrl).pathname && url.hash) doc.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView();
+            else onOpenDocument(url.href);
+          }
+        });
         doc.addEventListener("input", () => onChange(serialize()));
         doc.addEventListener("keydown", (event) => {
           if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
@@ -87,7 +155,10 @@ window.OpenleafHtmlEditor = (() => {
       };
       frame.srcdoc = "<!DOCTYPE html>" + view.documentElement.outerHTML;
     }
-    return { frame, update };
+    function pause() {
+      frame.contentDocument?.querySelectorAll("video,audio").forEach((media) => media.pause());
+    }
+    return { frame, update, insertVideo, pause };
   }
   return { create };
 })();

@@ -341,6 +341,7 @@
             <div class="source-mode-actions" aria-label="Editor mode">
               <button class="mode-button active" id="sourceModeButton" type="button" title="Edit LaTeX source">Code</button>
               <button class="mode-button" id="visualModeButton" type="button" title="Visual document editor">Visual</button>
+              <button class="mode-button" id="htmlVideoButton" type="button" title="Embed a YouTube or video file" hidden>Insert video</button>
             </div>
             <span id="vimModeIndicator" class="vim-mode-indicator" data-vim-state="off" hidden></span>
             <button id="editorFullscreenButton" class="icon-button editor-fullscreen-button" type="button" aria-label="Enter editor fullscreen" title="Enter editor fullscreen" aria-pressed="false">
@@ -1716,6 +1717,18 @@ tectonic main.tex</code></pre>
       <div class="commit-file-actions"><button id="cancelFileCommit" type="button">Cancel</button><button id="confirmFileCommit" type="submit" disabled>Commit file</button></div>
     </form>
   </dialog>
+  <dialog id="htmlVideoDialog" class="openleaf-video-insert-dialog" aria-label="Insert video">
+    <form id="htmlVideoForm">
+      <h2>Insert video</h2>
+      <label for="htmlVideoUrl">YouTube link or video file path</label>
+      <input id="htmlVideoUrl" type="text" placeholder="https://www.youtube.com/watch?v=… or media/demo.mp4" required>
+      <label for="htmlVideoTitle">Caption</label>
+      <input id="htmlVideoTitle" type="text" placeholder="Video title">
+      <p id="htmlVideoError" role="status"></p>
+      <div><button type="button" id="htmlVideoCancel">Cancel</button><button type="submit">Insert video</button></div>
+    </form>
+  </dialog>
+  <script src="video-embed.js"></script>
   <script src="html-editor.js"></script>
   <script src="visual-typeset.js"></script>
   <script src="app.js"></script>
