@@ -5054,7 +5054,6 @@ function applyEditorModeForFile(file = activeFile) {
   const pythonFile = isPythonExecutionFile(file);
   sourceModeButton.hidden = pythonFile;
   visualModeButton.hidden = pythonFile;
-  document.getElementById("htmlVideoButton").hidden = !isHtmlFile(file);
   if (pythonFile) setMode("source");
   updateVimModeIndicator();
 }
@@ -6987,12 +6986,6 @@ function wireEvents() {
   sourceModeButton.addEventListener("click", () => setMode("source"));
   visualModeButton.addEventListener("click", () => setMode("visual"));
   const htmlVideoDialog = document.getElementById("htmlVideoDialog");
-  document.getElementById("htmlVideoButton").addEventListener("click", () => {
-    document.getElementById("htmlVideoForm").reset();
-    document.getElementById("htmlVideoError").textContent = "";
-    htmlVideoDialog.showModal();
-    document.getElementById("htmlVideoUrl").focus();
-  });
   document.getElementById("htmlVideoCancel").addEventListener("click", () => htmlVideoDialog.close());
   document.getElementById("htmlVideoForm").addEventListener("submit", (event) => {
     event.preventDefault();

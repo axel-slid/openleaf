@@ -10,12 +10,69 @@ window.OpenleafHtmlEditor = (() => {
     function serialize() {
       const body = frame.contentDocument.body.cloneNode(true);
       body.querySelectorAll("[data-openleaf-video-player]").forEach((player) => player.remove());
+      body.querySelectorAll("[data-openleaf-plot-player]").forEach((player) => player.remove());
+      body.querySelectorAll(".openleaf-plot-ready").forEach((block) => block.classList.remove("openleaf-plot-ready"));
       body.querySelectorAll("[data-openleaf-latex]").forEach((token) => {
         token.replaceWith(body.ownerDocument.createTextNode(token.dataset.openleafLatex));
       });
       const clean = sourceDocument.cloneNode(true);
       clean.body.innerHTML = body.innerHTML;
       return (sourceDocument.doctype ? "<!DOCTYPE html>\n" : "") + clean.documentElement.outerHTML;
+    }
+
+    function renderPlots(doc) {
+      const style = doc.createElement("style");
+      style.textContent = ".openleaf-plot-ready [data-openleaf-plot-fallback]{display:none!important}";
+      // Plotly installs its stylesheet in the host document; plots live in this iframe.
+      document.querySelectorAll('style[id^="plotly.js-style"]').forEach((hostStyle) => {
+        style.textContent += [...(hostStyle.sheet?.cssRules || [])].map((rule) => rule.cssText).join("\n");
+      });
+      doc.head.append(style);
+      doc.querySelectorAll("[data-openleaf-plot]").forEach(async (block) => {
+        // Only trusted host code runs. A document supplies a JSON figure, never JavaScript.
+        try {
+          const url = new URL(block.dataset.openleafPlot, fileUrl);
+          if (url.protocol !== "file:" || !/\.json$/i.test(url.pathname)) return;
+          const response = await fetch(url.href);
+          if (!response.ok) throw new Error("Could not read plot data");
+          const figure = await response.json();
+          if (!Array.isArray(figure.data) || !window.Plotly || !block.isConnected) return;
+          const player = doc.createElement("div");
+          player.dataset.openleafPlotPlayer = "";
+          player.contentEditable = "false";
+          player.setAttribute("aria-label", block.getAttribute("aria-label") || "Interactive chart");
+          block.prepend(player);
+          const layout = { ...(figure.layout || {}), autosize: true };
+          delete layout.width;
+          await window.Plotly.newPlot(player, figure.data, layout, {
+            responsive: true, displaylogo: false, scrollZoom: true,
+            modeBarButtonsToRemove: ["toImage", "lasso2d", "select2d"],
+          });
+          block.classList.add("openleaf-plot-ready");
+          const baseShapes = Array.isArray(layout.shapes) ? layout.shapes : [];
+          const bands = Array.isArray(figure.openleaf?.stageBands) ? figure.openleaf.stageBands : [];
+          let activeBand = -1;
+          player.on("plotly_hover", (event) => {
+            const index = event.points?.[0]?.customdata?.[0];
+            const band = Number.isInteger(index) ? bands[index] : null;
+            if (!band || activeBand === index || !Number.isFinite(band.start) || !Number.isFinite(band.end)) return;
+            activeBand = index;
+            void window.Plotly.relayout(player, { shapes: [...baseShapes, {
+              type: "rect", xref: "x", yref: "paper", x0: band.start, x1: band.end,
+              y0: 0, y1: 1, fillcolor: "rgba(193,138,45,0.15)",
+              line: { color: "rgba(193,138,45,0.7)", width: 1 }, layer: "below",
+            }] });
+          });
+          player.on("plotly_unhover", () => {
+            if (activeBand < 0) return;
+            activeBand = -1;
+            void window.Plotly.relayout(player, { shapes: baseShapes });
+          });
+        } catch (error) {
+          console.warn("Could not render document plot:", error);
+          // The document's static image remains visible on any failure.
+        }
+      });
     }
 
     function renderVideos(doc) {
@@ -114,6 +171,7 @@ window.OpenleafHtmlEditor = (() => {
     function update(html, url, force = false) {
       if (!force && sourceText === html && fileUrl === url) return;
       scrollTop = frame.contentDocument?.scrollingElement?.scrollTop || 0;
+      frame.contentDocument?.querySelectorAll("[data-openleaf-plot-player]").forEach((plot) => window.Plotly?.purge(plot));
       sourceText = html;
       fileUrl = url;
       sourceDocument = new DOMParser().parseFromString(html, "text/html");
@@ -132,6 +190,7 @@ window.OpenleafHtmlEditor = (() => {
         const doc = frame.contentDocument;
         renderMath(doc);
         renderVideos(doc);
+        renderPlots(doc);
         doc.designMode = editable ? "on" : "off";
         doc.scrollingElement.scrollTop = scrollTop;
         doc.addEventListener("click", (event) => {
