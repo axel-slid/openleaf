@@ -54,6 +54,12 @@ window.OpenleafHtmlEditor = (() => {
             window.Plotly.purge(player);
             const layout = { ...(figure.layout || {}), autosize: true };
             delete layout.width;
+            const range = layout.xaxis?.range;
+            if (Array.isArray(range) && range.length === 2 && range.every(Number.isFinite)) {
+              const [lower, upper] = [...range].sort((a, b) => a - b);
+              layout.xaxis = { ...layout.xaxis, minallowed: lower, maxallowed: upper,
+                autorangeoptions: { ...(layout.xaxis.autorangeoptions || {}), minallowed: lower, maxallowed: upper } };
+            }
             await window.Plotly.newPlot(player, figure.data, layout, {
               responsive: true, displaylogo: false, scrollZoom: true,
               modeBarButtonsToRemove: ["toImage", "lasso2d", "select2d"],
@@ -120,11 +126,12 @@ window.OpenleafHtmlEditor = (() => {
               event.stopPropagation();
               void choose().catch((error) => console.warn("Could not switch chart run:", error));
             });
-            controls.append(label, settings);
-            if (manifest.comparisonNote) {
-              const note = doc.createElement("p"); note.textContent = String(manifest.comparisonNote);
-              note.style.cssText = "margin:10px 0 0;color:#66717b;font-size:12px"; controls.append(note);
-            }
+            const details = doc.createElement("details");
+            const summary = doc.createElement("summary");
+            summary.textContent = "Settings";
+            summary.style.cssText = "cursor:pointer;margin:0 0 8px";
+            details.append(summary, settings);
+            controls.append(label, details);
             wrapper.append(controls, player);
             await choose();
           } else {
