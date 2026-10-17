@@ -34,7 +34,7 @@ window.OpenleafHtmlEditor = (() => {
           async function readJson(path, base) {
             const url = new URL(path, base);
             if (url.protocol !== "file:" || !/\.json$/i.test(url.pathname)) throw new Error("Expected local JSON plot data");
-            const response = await fetch(url.href);
+            const response = await fetch(url.href, { cache: "no-store" });
             if (!response.ok) throw new Error("Could not read plot data");
             return { value: await response.json(), url: url.href };
           }
@@ -114,7 +114,8 @@ window.OpenleafHtmlEditor = (() => {
             details.append(summary, settings); controls.append(row, status, details); wrapper.append(controls, player);
             const runGpu = (run) => run.gpu_id || "blackwell";
             function options(target, values, preferred) {
-              target.replaceChildren();
+              target.replaceChildren(); target.disabled = !values.length;
+              if (!values.length) {const pending = doc.createElement("option"); pending.textContent = "Pending"; pending.value = ""; target.append(pending);}
               for (const value of values) {
                 const option = doc.createElement("option"); option.value = value.id; option.textContent = value.label || value.id; target.append(option);
               }
