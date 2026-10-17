@@ -88,52 +88,87 @@ window.OpenleafHtmlEditor = (() => {
           }
           block.prepend(wrapper);
           if (block.dataset.openleafRuns) {
-            const { value: manifest, url: manifestUrl } = await readJson(block.dataset.openleafRuns, fileUrl);
-            const runs = (manifest.runs || []).filter((run) => run && typeof run.id === "string" && typeof run.figure === "string");
-            if (!runs.length) throw new Error("No chart runs");
+            let { value: manifest, url: manifestUrl } = await readJson(block.dataset.openleafRuns, fileUrl);
+            let runs = [];
             const controls = doc.createElement("div");
             controls.style.cssText = "margin:0 0 18px;font:14px Georgia,serif;color:#28333f";
-            const label = doc.createElement("label");
-            label.textContent = "Run ";
-            const select = doc.createElement("select");
-            select.dataset.openleafRunSelector = "";
-            select.setAttribute("aria-label", "Select benchmark run");
-            select.style.cssText = "font:inherit;background:white;color:inherit;border:1px solid #bbc2c7;padding:6px 10px;margin:0 0 12px 8px;max-width:100%";
-            for (const run of runs) {
-              const option = doc.createElement("option");
-              option.value = run.id;
-              option.textContent = run.label || run.id;
-              select.append(option);
+            const row = doc.createElement("div");
+            row.style.cssText = "display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-bottom:10px";
+            function makeSelect(title, attribute) {
+              const label = doc.createElement("label"), select = doc.createElement("select");
+              label.textContent = title + " "; select.setAttribute(attribute, "");
+              select.setAttribute("aria-label", "Select benchmark " + title.toLowerCase());
+              select.style.cssText = "font:inherit;background:white;color:inherit;border:1px solid #bbc2c7;padding:6px 10px;margin-left:8px;max-width:100%";
+              select.addEventListener("input", (event) => event.stopPropagation()); label.append(select); row.append(label); return select;
             }
-            select.value = runs.some((run) => run.id === manifest.defaultRun) ? manifest.defaultRun : runs[0].id;
-            label.append(select);
+            const gpuSelect = makeSelect("GPU", "data-openleaf-gpu-selector");
+            const select = makeSelect("Run", "data-openleaf-run-selector");
+            const status = doc.createElement("p");
+            status.dataset.openleafRunProgress = "";
+            status.style.cssText = "margin:0 0 10px;color:#66717b;font-size:12px";
             const settings = doc.createElement("dl");
             settings.dataset.openleafRunSettings = "";
-            settings.style.cssText = "display:grid;grid-template-columns:max-content 1fr;gap:4px 18px;margin:0;line-height:1.45";
+            settings.style.cssText = "display:grid;grid-template-columns:max-content 1fr;gap:4px 22px;margin:0;line-height:1.45";
+            const details = doc.createElement("details"), summary = doc.createElement("summary");
+            summary.textContent = "Settings"; summary.style.cssText = "cursor:pointer;margin:0 0 8px";
+            details.append(summary, settings); controls.append(row, status, details); wrapper.append(controls, player);
+            const runGpu = (run) => run.gpu_id || "blackwell";
+            function options(target, values, preferred) {
+              target.replaceChildren();
+              for (const value of values) {
+                const option = doc.createElement("option"); option.value = value.id; option.textContent = value.label || value.id; target.append(option);
+              }
+              target.value = values.some((value) => value.id === preferred) ? preferred : values[0]?.id || "";
+            }
             async function choose() {
               const run = runs.find((item) => item.id === select.value);
-              settings.replaceChildren();
+              settings.replaceChildren(); details.hidden = !run;
+              if (!run || !run.figure) {
+                ++revision; window.Plotly.purge(player); player.replaceChildren();
+                status.textContent = run?.progress?.state || "Pending — no measured run yet";
+                block.classList.add("openleaf-plot-ready"); return;
+              }
               const pairs = Array.isArray(run.settings) ? run.settings : Object.entries(run.settings || {});
               for (const [key, value] of pairs) {
                 const term = doc.createElement("dt"), detail = doc.createElement("dd");
-                term.textContent = String(key); detail.textContent = String(value); detail.style.margin = "0";
-                settings.append(term, detail);
+                term.textContent = String(key); detail.textContent = String(value); detail.style.margin = "0"; settings.append(term, detail);
               }
+              const progress = run.progress || {};
+              const parts = [progress.state];
+              if (Number.isFinite(progress.runtime_s)) parts.push(Math.floor(progress.runtime_s/60) + " min");
+              if (Number.isFinite(progress.completed_footage_s)) parts.push((progress.completed_footage_s/3600).toFixed(3) + " footage-h");
+              if (progress.stage) parts.push(progress.stage);
+              const stamp = manifest.updatedAt;
+              if (stamp) parts.push((manifest.stale ? "Last sync " : "Updated ") + new Date(stamp).toLocaleTimeString());
+              if (manifest.source === "local-offline") parts.push("offline records");
+              status.textContent = parts.filter(Boolean).join(" · ");
               await draw(run.figure, manifestUrl);
             }
-            select.addEventListener("input", (event) => event.stopPropagation());
-            select.addEventListener("change", (event) => {
-              event.stopPropagation();
-              void choose().catch((error) => console.warn("Could not switch chart run:", error));
-            });
-            const details = doc.createElement("details");
-            const summary = doc.createElement("summary");
-            summary.textContent = "Settings";
-            summary.style.cssText = "cursor:pointer;margin:0 0 8px";
-            details.append(summary, settings);
-            controls.append(label, details);
-            wrapper.append(controls, player);
-            await choose();
+            async function filterRuns(preferred) {
+              options(select, runs.filter((run) => runGpu(run) === gpuSelect.value), preferred); await choose();
+            }
+            async function apply(next, initial = false) {
+              const oldGpu = gpuSelect.value, oldRun = select.value;
+              manifest = next; runs = (manifest.runs || []).filter((run) => run && typeof run.id === "string");
+              const gpus = manifest.gpus?.length ? manifest.gpus : [...new Set(runs.map(runGpu))].map((id) => ({id,label:id}));
+              const initialRun = runs.find((run) => run.id === manifest.defaultRun) || runs[0];
+              options(gpuSelect, gpus, initial ? initialRun && runGpu(initialRun) : oldGpu);
+              await filterRuns(initial ? manifest.defaultRun : oldRun);
+            }
+            gpuSelect.addEventListener("change", (event) => {event.stopPropagation(); void filterRuns().catch(console.warn);});
+            select.addEventListener("change", (event) => {event.stopPropagation(); void choose().catch(console.warn);});
+            await apply(manifest, true);
+            let fingerprint = JSON.stringify(manifest), refreshing = false;
+            const timer = setInterval(async () => {
+              if (!block.isConnected) {clearInterval(timer); return;}
+              if (refreshing) return; refreshing = true;
+              try {
+                const { value: next } = await readJson(block.dataset.openleafRuns, fileUrl);
+                const nextFingerprint = JSON.stringify(next);
+                if (nextFingerprint !== fingerprint) {fingerprint = nextFingerprint; await apply(next);}
+              } catch {status.textContent = "Refresh unavailable — showing last saved measurements";}
+              finally {refreshing = false;}
+            }, 45000);
           } else {
             wrapper.append(player);
             await draw(block.dataset.openleafPlot, fileUrl);
