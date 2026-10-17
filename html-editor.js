@@ -29,45 +29,108 @@ window.OpenleafHtmlEditor = (() => {
       });
       doc.head.append(style);
       doc.querySelectorAll("[data-openleaf-plot]").forEach(async (block) => {
-        // Only trusted host code runs. A document supplies a JSON figure, never JavaScript.
+        // Only trusted host code runs. Documents provide local JSON, never JavaScript.
         try {
-          const url = new URL(block.dataset.openleafPlot, fileUrl);
-          if (url.protocol !== "file:" || !/\.json$/i.test(url.pathname)) return;
-          const response = await fetch(url.href);
-          if (!response.ok) throw new Error("Could not read plot data");
-          const figure = await response.json();
-          if (!Array.isArray(figure.data) || !window.Plotly || !block.isConnected) return;
+          async function readJson(path, base) {
+            const url = new URL(path, base);
+            if (url.protocol !== "file:" || !/\.json$/i.test(url.pathname)) throw new Error("Expected local JSON plot data");
+            const response = await fetch(url.href);
+            if (!response.ok) throw new Error("Could not read plot data");
+            return { value: await response.json(), url: url.href };
+          }
+          if (!window.Plotly || !block.isConnected) return;
+          const wrapper = doc.createElement("div");
+          wrapper.dataset.openleafPlotPlayer = "";
+          wrapper.contentEditable = "false";
+          wrapper.setAttribute("aria-label", block.getAttribute("aria-label") || "Interactive chart");
           const player = doc.createElement("div");
-          player.dataset.openleafPlotPlayer = "";
-          player.contentEditable = "false";
-          player.setAttribute("aria-label", block.getAttribute("aria-label") || "Interactive chart");
-          block.prepend(player);
-          const layout = { ...(figure.layout || {}), autosize: true };
-          delete layout.width;
-          await window.Plotly.newPlot(player, figure.data, layout, {
-            responsive: true, displaylogo: false, scrollZoom: true,
-            modeBarButtonsToRemove: ["toImage", "lasso2d", "select2d"],
-          });
-          block.classList.add("openleaf-plot-ready");
-          const baseShapes = Array.isArray(layout.shapes) ? layout.shapes : [];
-          const bands = Array.isArray(figure.openleaf?.stageBands) ? figure.openleaf.stageBands : [];
-          let activeBand = -1;
-          player.on("plotly_hover", (event) => {
-            const index = event.points?.[0]?.customdata?.[0];
-            const band = Number.isInteger(index) ? bands[index] : null;
-            if (!band || activeBand === index || !Number.isFinite(band.start) || !Number.isFinite(band.end)) return;
-            activeBand = index;
-            void window.Plotly.relayout(player, { shapes: [...baseShapes, {
-              type: "rect", xref: "x", yref: "paper", x0: band.start, x1: band.end,
-              y0: 0, y1: 1, fillcolor: "rgba(193,138,45,0.15)",
-              line: { color: "rgba(193,138,45,0.7)", width: 1 }, layer: "below",
-            }] });
-          });
-          player.on("plotly_unhover", () => {
-            if (activeBand < 0) return;
-            activeBand = -1;
-            void window.Plotly.relayout(player, { shapes: baseShapes });
-          });
+          player.dataset.openleafPlotCanvas = "";
+          let revision = 0;
+          async function draw(path, base) {
+            const current = ++revision;
+            const { value: figure } = await readJson(path, base);
+            if (current !== revision || !block.isConnected) return;
+            if (!Array.isArray(figure.data)) throw new Error("Invalid plot data");
+            window.Plotly.purge(player);
+            const layout = { ...(figure.layout || {}), autosize: true };
+            delete layout.width;
+            await window.Plotly.newPlot(player, figure.data, layout, {
+              responsive: true, displaylogo: false, scrollZoom: true,
+              modeBarButtonsToRemove: ["toImage", "lasso2d", "select2d"],
+            });
+            if (current !== revision) return;
+            block.classList.add("openleaf-plot-ready");
+            const baseShapes = Array.isArray(layout.shapes) ? layout.shapes : [];
+            const bands = Array.isArray(figure.openleaf?.stageBands) ? figure.openleaf.stageBands : [];
+            let activeBand = -1;
+            player.on("plotly_hover", (event) => {
+              const index = event.points?.[0]?.customdata?.[0];
+              const band = Number.isInteger(index) ? bands[index] : null;
+              if (!band || activeBand === index || !Number.isFinite(band.start) || !Number.isFinite(band.end)) return;
+              activeBand = index;
+              void window.Plotly.relayout(player, { shapes: [...baseShapes, {
+                type: "rect", xref: "x", yref: "paper", x0: band.start, x1: band.end,
+                y0: 0, y1: 1, fillcolor: "rgba(193,138,45,0.15)",
+                line: { color: "rgba(193,138,45,0.7)", width: 1 }, layer: "below",
+              }] });
+            });
+            player.on("plotly_unhover", () => {
+              if (activeBand < 0) return;
+              activeBand = -1;
+              void window.Plotly.relayout(player, { shapes: baseShapes });
+            });
+          }
+          block.prepend(wrapper);
+          if (block.dataset.openleafRuns) {
+            const { value: manifest, url: manifestUrl } = await readJson(block.dataset.openleafRuns, fileUrl);
+            const runs = (manifest.runs || []).filter((run) => run && typeof run.id === "string" && typeof run.figure === "string");
+            if (!runs.length) throw new Error("No chart runs");
+            const controls = doc.createElement("div");
+            controls.style.cssText = "margin:0 0 18px;font:14px Georgia,serif;color:#28333f";
+            const label = doc.createElement("label");
+            label.textContent = "Run ";
+            const select = doc.createElement("select");
+            select.dataset.openleafRunSelector = "";
+            select.setAttribute("aria-label", "Select benchmark run");
+            select.style.cssText = "font:inherit;background:white;color:inherit;border:1px solid #bbc2c7;padding:6px 10px;margin:0 0 12px 8px;max-width:100%";
+            for (const run of runs) {
+              const option = doc.createElement("option");
+              option.value = run.id;
+              option.textContent = run.label || run.id;
+              select.append(option);
+            }
+            select.value = runs.some((run) => run.id === manifest.defaultRun) ? manifest.defaultRun : runs[0].id;
+            label.append(select);
+            const settings = doc.createElement("dl");
+            settings.dataset.openleafRunSettings = "";
+            settings.style.cssText = "display:grid;grid-template-columns:max-content 1fr;gap:4px 18px;margin:0;line-height:1.45";
+            async function choose() {
+              const run = runs.find((item) => item.id === select.value);
+              settings.replaceChildren();
+              const pairs = Array.isArray(run.settings) ? run.settings : Object.entries(run.settings || {});
+              for (const [key, value] of pairs) {
+                const term = doc.createElement("dt"), detail = doc.createElement("dd");
+                term.textContent = String(key); detail.textContent = String(value); detail.style.margin = "0";
+                settings.append(term, detail);
+              }
+              await draw(run.figure, manifestUrl);
+            }
+            select.addEventListener("input", (event) => event.stopPropagation());
+            select.addEventListener("change", (event) => {
+              event.stopPropagation();
+              void choose().catch((error) => console.warn("Could not switch chart run:", error));
+            });
+            controls.append(label, settings);
+            if (manifest.comparisonNote) {
+              const note = doc.createElement("p"); note.textContent = String(manifest.comparisonNote);
+              note.style.cssText = "margin:10px 0 0;color:#66717b;font-size:12px"; controls.append(note);
+            }
+            wrapper.append(controls, player);
+            await choose();
+          } else {
+            wrapper.append(player);
+            await draw(block.dataset.openleafPlot, fileUrl);
+          }
         } catch (error) {
           console.warn("Could not render document plot:", error);
           // The document's static image remains visible on any failure.
@@ -171,7 +234,7 @@ window.OpenleafHtmlEditor = (() => {
     function update(html, url, force = false) {
       if (!force && sourceText === html && fileUrl === url) return;
       scrollTop = frame.contentDocument?.scrollingElement?.scrollTop || 0;
-      frame.contentDocument?.querySelectorAll("[data-openleaf-plot-player]").forEach((plot) => window.Plotly?.purge(plot));
+      frame.contentDocument?.querySelectorAll("[data-openleaf-plot-canvas]").forEach((plot) => window.Plotly?.purge(plot));
       sourceText = html;
       fileUrl = url;
       sourceDocument = new DOMParser().parseFromString(html, "text/html");
