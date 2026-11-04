@@ -53,11 +53,26 @@ Usage:
   openleaf package    Build dist/mac/Openleaf.app on macOS
   openleaf open       Open /Applications/Openleaf.app, building a local copy if needed
   openleaf dev        Run the Electron app from this source checkout
+  openleaf path LINK  Print the folder of an openleaf://project/<id> link
+  openleaf link PATH  Print the openleaf:// link of the project holding PATH
 
 Notes:
   macOS app installation is explicit on purpose. npm install will not silently
   write to /Applications; run openleaf install when you want that.
 `);
+}
+
+function readProjectStore() {
+  const store = path.join(process.env.HOME || "", "Library", "Application Support", "Openleaf", "projects.json");
+  try {
+    return JSON.parse(fs.readFileSync(store, "utf8")).projects || [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function projectRoot(project) {
+  return path.resolve((project.overleaf && project.overleaf.root) || path.dirname(project.texPath));
 }
 
 if (command === "help" || command === "--help" || command === "-h") {
@@ -89,6 +104,24 @@ if (command === "help" || command === "--help" || command === "-h") {
       if (!fs.existsSync(localApp)) runNode("package-mac.mjs", args);
       if (!process.exitCode) openMacApp(localApp);
     }
+  }
+} else if (command === "path" || command === "link") {
+  const projects = readProjectStore();
+  const target = String(args[0] || "");
+  const match = command === "path"
+    ? projects.find((project) => project.id === target.replace(/^openleaf:\/\/project\//, "").split(/[?#/]/)[0])
+    : projects.find((project) => {
+        const root = projectRoot(project);
+        const resolved = path.resolve(target || ".");
+        return resolved === root || resolved.startsWith(root + path.sep) || resolved === path.resolve(project.texPath);
+      });
+  if (!match) {
+    console.error("No Openleaf project matches that.");
+    process.exitCode = 1;
+  } else if (command === "path") {
+    console.log(projectRoot(match));
+  } else {
+    console.log(`openleaf://project/${match.id}`);
   }
 } else if (command === "dev") {
   run("npm", ["run", "dev", ...args]);

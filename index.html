@@ -1134,6 +1134,10 @@
             <span>PowerPoint</span>
             <small>Open and edit a .pptx deck</small>
           </button>
+          <button type="button" data-project-kind="overleaf">
+            <span>Overleaf</span>
+            <small>Import and sync an Overleaf project</small>
+          </button>
           <button type="button" data-project-kind="folder">
             <span>Folder</span>
             <small>Use a local project directory</small>
@@ -1253,6 +1257,33 @@
           <div id="sshAuthTerminal" class="ssh-auth-terminal" aria-label="SSH authentication terminal"></div>
         </div>
       </div>
+    </section>
+    <section id="overleafProjectPanel" class="new-project-panel ssh-project-panel overleaf-project-panel" role="dialog" aria-modal="true" aria-labelledby="overleafProjectTitle" hidden>
+      <header class="new-project-header">
+        <div>
+          <h2 id="overleafProjectTitle">Overleaf project</h2>
+        </div>
+        <button id="closeOverleafProjectButton" class="settings-close-button" type="button" aria-label="Close Overleaf project" title="Close">
+          <svg class="icon icon-x" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"></path>
+          </svg>
+        </button>
+      </header>
+      <form id="overleafProjectForm" class="new-project-body ssh-project-body">
+        <label class="setting-column">
+          <span>Link</span>
+          <input id="overleafLinkInput" class="settings-text-input" type="text" spellcheck="false" autocomplete="off" placeholder="https://www.overleaf.com/project/…">
+        </label>
+        <label class="setting-column">
+          <span>Git token</span>
+          <input id="overleafTokenInput" class="settings-text-input" type="password" spellcheck="false" autocomplete="off" placeholder="olp_…">
+        </label>
+        <div class="settings-action-row">
+          <button id="importOverleafProjectButton" class="settings-action-button primary" type="submit">Import</button>
+          <button id="cancelOverleafProjectButton" class="settings-action-button" type="button">Cancel</button>
+        </div>
+        <p id="overleafProjectStatus" class="settings-status" role="status"></p>
+      </form>
     </section>
     <aside class="settings-drawer" id="settingsDrawer" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
       <nav class="settings-sidebar" aria-label="Settings sections">

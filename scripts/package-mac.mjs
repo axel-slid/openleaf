@@ -137,6 +137,7 @@ async function copyAppSources() {
     "html-editor.js",
     "video-embed.js",
     "git-file-commit.js",
+    "overleaf-sync.js",
     "index.html",
     "main.js",
     "presentation-editor.js",
@@ -172,6 +173,13 @@ function writeMainPlist() {
   safeSetPlist(plistPath, "NSCameraUsageDescription", "Openleaf does not use the camera.");
   safeSetPlist(plistPath, "NSMicrophoneUsageDescription", "Openleaf does not use the microphone.");
   safeSetPlistBoolean(plistPath, "NSPrefersDisplaySafeAreaCompatibilityMode", false);
+  // openleaf:// links (openleaf://project/<id>, openleaf://overleaf?url=...).
+  try { plist("Delete :CFBundleURLTypes", plistPath); } catch (_error) { /* not present */ }
+  plist("Add :CFBundleURLTypes array", plistPath);
+  plist("Add :CFBundleURLTypes:0 dict", plistPath);
+  plist("Add :CFBundleURLTypes:0:CFBundleURLName string com.openleaf.link", plistPath);
+  plist("Add :CFBundleURLTypes:0:CFBundleURLSchemes array", plistPath);
+  plist("Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string openleaf", plistPath);
 }
 
 async function main() {

@@ -264,6 +264,12 @@ const onlineTemplateGrid = document.getElementById("onlineTemplateGrid");
 const customTemplateGrid = document.getElementById("customTemplateGrid");
 const customTemplateEmpty = document.getElementById("customTemplateEmpty");
 const sshProjectPanel = document.getElementById("sshProjectPanel");
+const overleafProjectPanel = document.getElementById("overleafProjectPanel");
+const overleafProjectForm = document.getElementById("overleafProjectForm");
+const overleafLinkInput = document.getElementById("overleafLinkInput");
+const overleafTokenInput = document.getElementById("overleafTokenInput");
+const overleafProjectStatus = document.getElementById("overleafProjectStatus");
+const importOverleafProjectButton = document.getElementById("importOverleafProjectButton");
 const closeSshProjectButton = document.getElementById("closeSshProjectButton");
 const cancelSshProjectButton = document.getElementById("cancelSshProjectButton");
 const connectSshProjectButton = document.getElementById("connectSshProjectButton");
@@ -6635,6 +6641,7 @@ function wireEvents() {
     button.addEventListener("click", () => addProject(button.dataset.projectKind));
   });
   wireProjectDrop(projectDropZone);
+  wireOverleafProjectPanel();
   refreshProjectsButton.addEventListener("click", loadProjects);
   projectSearch.addEventListener("input", renderProjectGrid);
   if (projectSortButton) projectSortButton.addEventListener("click", toggleProjectSortMenu);
@@ -7166,6 +7173,12 @@ function handleGlobalShortcut(event) {
       return;
     }
 
+    if (overleafProjectPanel && !overleafProjectPanel.hidden) {
+      event.preventDefault();
+      closeOverleafProjectPanel();
+      return;
+    }
+
     if (projectSortMenu && !projectSortMenu.hidden) {
       event.preventDefault();
       setProjectSortMenuOpen(false);
@@ -7296,6 +7309,7 @@ function closeOverlayModals() {
   closeNewProjectPanel({ keepBackdrop: true });
   closeTemplatesPanel({ keepBackdrop: true });
   closeSshProjectPanel({ keepBackdrop: true });
+  closeOverleafProjectPanel({ keepBackdrop: true });
   if (historyPanel && !historyPanel.hidden) {
     historyPanel.hidden = true;
     historyButton?.classList.remove("active");
@@ -7305,7 +7319,7 @@ function closeOverlayModals() {
 
 function updateOverlayBackdrop() {
   settingsBackdrop.hidden = settingsDrawer.hidden && newProjectPanel.hidden && templatesPanel.hidden && commandPalette.hidden && sshProjectPanel.hidden
-    && (!automationsPanel || automationsPanel.hidden) && (!historyPanel || historyPanel.hidden);
+    && (!overleafProjectPanel || overleafProjectPanel.hidden) && (!automationsPanel || automationsPanel.hidden) && (!historyPanel || historyPanel.hidden);
 }
 
 // Automations are DAGs of steps (choose files, template, agent, compile) that
@@ -10720,7 +10734,28 @@ function showProjectContextMenu(event, project) {
     removeProject(project);
   });
 
-  const items = [openTabButton, renameButton, favoriteButton, removeButton];
+  const copyLinkButton = document.createElement("button");
+  copyLinkButton.type = "button";
+  copyLinkButton.textContent = "Copy Link";
+  copyLinkButton.addEventListener("click", async (clickEvent) => {
+    clickEvent.stopPropagation();
+    closeProjectContextMenu();
+    await window.localOverleaf.copyProjectLink(project.id);
+  });
+
+  const items = [openTabButton, renameButton, favoriteButton, copyLinkButton];
+  if (project.overleaf) {
+    const overleafButton = document.createElement("button");
+    overleafButton.type = "button";
+    overleafButton.textContent = "Open in Overleaf";
+    overleafButton.addEventListener("click", (clickEvent) => {
+      clickEvent.stopPropagation();
+      closeProjectContextMenu();
+      window.localOverleaf.openExternalLink(project.overleaf.url);
+    });
+    items.push(overleafButton);
+  }
+  items.push(removeButton);
   items.forEach((item) => item.setAttribute("role", "menuitem"));
   menu.append(...items);
   menu.addEventListener("keydown", (keyEvent) => {
@@ -11012,6 +11047,10 @@ function closeNewProjectPanel({ keepBackdrop = false } = {}) {
 }
 
 async function addProject(kind) {
+  if (kind === "overleaf") {
+    openOverleafProjectPanel();
+    return;
+  }
   setProjectBusy(true);
 
   try {
@@ -11385,6 +11424,7 @@ async function loadPresentationPdf(pdfBuffer, thumbnailPdfBuffer) {
 async function openPresentationProject(project) {
   clearTimeout(autoCompileTimer);
   stopExternalSourcePolling();
+  stopOverleafSync();
   stopPresentationCollaborationPolling();
   activeProject = project;
   activePresentation = null;
@@ -13905,6 +13945,7 @@ async function openProject(projectId, { pdfRelativePath = "", sourceRelativePath
   await loadProjectFiles();
   if (typeof loadNotesForActiveProject === "function") loadNotesForActiveProject();
   startExternalSourcePolling();
+  startOverleafSync();
 }
 
 function showEditorShell() {
@@ -13931,6 +13972,7 @@ async function showProjects({ discardChanges = false } = {}) {
   clearTimeout(autoCompileTimer);
   stopPdfSpeech({ resetCursor: true, updateStatus: false });
   stopExternalSourcePolling();
+  stopOverleafSync();
   stopPresentationCollaborationPolling();
   updateProjectHeroGreeting({ rotate: true });
   document.title = "Projects — Openleaf";
@@ -15198,6 +15240,7 @@ async function saveManuscript({ auto = false } = {}) {
     updateEditorFileTitle();
     updateActiveDocumentTitle();
     setSaveState(`${auto ? "Auto-saved" : "Saved"} ${timeStamp()}`, "ok");
+    scheduleOverleafSyncAfterSave();
     return true;
   } catch (error) {
     setSaveState("Save failed", "error");
@@ -15335,6 +15378,7 @@ async function compileManuscript({ manual = false } = {}) {
     compileLog.textContent = formatError(error);
   } finally {
     isCompiling = false;
+    scheduleOverleafSyncAfterSave();
     setBusy(false);
 
     if (pendingCompile) {
@@ -21139,4 +21183,132 @@ function setupNotesPanel() {
   setNotesOpen(false, { persist: false });
   setNotesMode(localStorage.getItem("latexStudioNotesMode") === "draw" ? "draw" : "text", { persist: false });
   loadNotesForActiveProject();
+}
+
+// ---- Overleaf -----------------------------------------------------------------
+
+const OVERLEAF_SYNC_INTERVAL_MS = 15000;
+const OVERLEAF_SYNC_AFTER_SAVE_MS = 2500;
+let overleafSyncTimer = 0;
+let overleafSyncAfterSaveTimer = 0;
+let overleafSyncBusy = false;
+
+async function openOverleafProjectPanel(link = "") {
+  if (!overleafProjectPanel) return;
+  closeCommandPalette({ keepBackdrop: true });
+  closeSettings({ keepBackdrop: true });
+  closeNewProjectPanel({ keepBackdrop: true });
+  closeTemplatesPanel({ keepBackdrop: true });
+  closeSshProjectPanel({ keepBackdrop: true });
+  settingsBackdrop.hidden = false;
+  overleafProjectPanel.hidden = false;
+  overleafProjectStatus.textContent = "";
+  overleafProjectStatus.classList.remove("error");
+  overleafLinkInput.value = link;
+  overleafTokenInput.value = "";
+  importOverleafProjectButton.disabled = false;
+  const status = await window.localOverleaf.overleafStatus().catch(() => ({ hasToken: false }));
+  overleafTokenInput.placeholder = status.hasToken ? "Saved" : "olp_…";
+  requestAnimationFrame(() => (link ? importOverleafProjectButton : overleafLinkInput).focus());
+}
+
+function closeOverleafProjectPanel({ keepBackdrop = false } = {}) {
+  if (overleafProjectPanel) overleafProjectPanel.hidden = true;
+  if (!keepBackdrop) updateOverlayBackdrop();
+}
+
+function wireOverleafProjectPanel() {
+  if (!overleafProjectPanel) return;
+  document.getElementById("closeOverleafProjectButton").addEventListener("click", () => closeOverleafProjectPanel());
+  document.getElementById("cancelOverleafProjectButton").addEventListener("click", () => closeOverleafProjectPanel());
+  overleafProjectForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    importOverleafProjectFromPanel();
+  });
+  if (window.localOverleaf && window.localOverleaf.onOpenLink) {
+    window.localOverleaf.onOpenLink(handleOpenleafLink);
+  }
+}
+
+async function importOverleafProjectFromPanel() {
+  const link = overleafLinkInput.value.trim();
+  if (!link) {
+    overleafLinkInput.focus();
+    return;
+  }
+  importOverleafProjectButton.disabled = true;
+  overleafProjectStatus.classList.remove("error");
+  overleafProjectStatus.textContent = "Importing…";
+  try {
+    const result = await window.localOverleaf.importOverleafProject(link, overleafTokenInput.value.trim());
+    projects = result.projects || projects;
+    renderProjectGrid();
+    closeOverleafProjectPanel();
+    if (result.project) await openProject(result.project.id);
+  } catch (error) {
+    overleafProjectStatus.classList.add("error");
+    overleafProjectStatus.textContent = formatError(error).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+  } finally {
+    importOverleafProjectButton.disabled = false;
+  }
+}
+
+async function handleOpenleafLink(payload = {}) {
+  if (payload.kind === "project" && payload.projectId) {
+    await openProject(payload.projectId);
+  } else if (payload.kind === "overleaf" && payload.link) {
+    await openOverleafProjectPanel(payload.link);
+  }
+}
+
+function activeOverleafProject() {
+  return activeProject && activeProject.overleaf && !isRemoteProject() ? activeProject : null;
+}
+
+function startOverleafSync() {
+  stopOverleafSync();
+  if (!activeOverleafProject()) return;
+  void syncActiveOverleafProject();
+  overleafSyncTimer = setInterval(() => void syncActiveOverleafProject(), OVERLEAF_SYNC_INTERVAL_MS);
+}
+
+function stopOverleafSync() {
+  clearInterval(overleafSyncTimer);
+  clearTimeout(overleafSyncAfterSaveTimer);
+  overleafSyncTimer = 0;
+  overleafSyncAfterSaveTimer = 0;
+}
+
+function scheduleOverleafSyncAfterSave() {
+  if (!activeOverleafProject()) return;
+  clearTimeout(overleafSyncAfterSaveTimer);
+  overleafSyncAfterSaveTimer = setTimeout(() => void syncActiveOverleafProject(), OVERLEAF_SYNC_AFTER_SAVE_MS);
+}
+
+// Only syncs while the editor matches disk, so a pull never races unsaved typing.
+async function syncActiveOverleafProject() {
+  const project = activeOverleafProject();
+  if (!project || overleafSyncBusy || document.hidden) return;
+  if (!activeMediaFile && getSourceText() !== savedText) return;
+  overleafSyncBusy = true;
+  try {
+    const result = await window.localOverleaf.syncOverleafProject(project.id);
+    if (!activeProject || activeProject.id !== project.id) return;
+    if (result.status === "conflict") {
+      setSaveState("Overleaf conflict", "error");
+      return;
+    }
+    if (result.pulled && result.pulled.length) {
+      setSaveState(`Pulled from Overleaf ${timeStamp()}`, "ok");
+      await loadProjectFiles();
+      if (!isCompiling) compileManuscript();
+    } else if (result.pushed) {
+      setSaveState(`Synced to Overleaf ${timeStamp()}`, "ok");
+    }
+  } catch (error) {
+    setSaveState("Overleaf sync failed", "error");
+    if (compileLog) compileLog.textContent = formatError(error);
+  } finally {
+    overleafSyncBusy = false;
+  }
 }

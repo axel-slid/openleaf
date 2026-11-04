@@ -100,5 +100,13 @@ contextBridge.exposeInMainWorld("localOverleaf", {
   },
   onCommand: (callback) => {
     ipcRenderer.on("editor-command", (_event, command) => callback(command));
+  },
+  overleafStatus: () => ipcRenderer.invoke("overleaf-status"),
+  setOverleafToken: (token) => ipcRenderer.invoke("overleaf-set-token", { token }),
+  importOverleafProject: (link, token = "") => ipcRenderer.invoke("overleaf-import", { link, token }),
+  syncOverleafProject: (projectId, keep = "") => ipcRenderer.invoke("overleaf-sync", { projectId, keep }),
+  copyProjectLink: (projectId) => ipcRenderer.invoke("copy-project-link", projectId),
+  onOpenLink: (callback) => {
+    ipcRenderer.on("open-link", (_event, payload) => callback(payload));
   }
 });

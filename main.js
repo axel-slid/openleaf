@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, screen } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, screen, safeStorage } = require("electron");
 const { execFile, execFileSync, spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -21,6 +21,7 @@ const {
   automationAgentCommand
 } = require("./automations");
 const historyStore = require("./history-store");
+const overleafSync = require("./overleaf-sync");
 const {
   loadPresentationEditor: loadPresentationEditorFile,
   savePresentationEditor: savePresentationEditorFile
@@ -3077,6 +3078,231 @@ async function toggleProjectFavorite(_event, projectId) {
   return listProjects();
 }
 
+// ---- Overleaf link import + two-way sync -------------------------------------
+
+function overleafStorePath() {
+  return path.join(app.getPath("userData"), "overleaf.json");
+}
+
+async function readOverleafToken() {
+  try {
+    const stored = JSON.parse(await fsp.readFile(overleafStorePath(), "utf8"));
+    if (!stored.token) return "";
+    const buffer = Buffer.from(stored.token, "base64");
+    return stored.encrypted && safeStorage.isEncryptionAvailable()
+      ? safeStorage.decryptString(buffer)
+      : buffer.toString("utf8");
+  } catch (_error) {
+    return "";
+  }
+}
+
+async function saveOverleafToken(token) {
+  const value = String(token || "").trim();
+  const encrypted = Boolean(value) && safeStorage.isEncryptionAvailable();
+  const buffer = encrypted ? safeStorage.encryptString(value) : Buffer.from(value, "utf8");
+  await fsp.writeFile(overleafStorePath(), JSON.stringify({ token: value ? buffer.toString("base64") : "", encrypted }), { mode: 0o600 });
+}
+
+async function overleafStatus() {
+  return { hasToken: Boolean(await readOverleafToken()) };
+}
+
+async function setOverleafToken(_event, payload = {}) {
+  await saveOverleafToken(payload.token);
+  return overleafStatus();
+}
+
+// Share links only expose the project id after a signed-in browser follows
+// them, so open the link in an Overleaf session and wait for /project/<id>.
+function resolveOverleafShareLink(shareUrl, parent) {
+  return new Promise((resolve, reject) => {
+    const window = new BrowserWindow({
+      width: 1100,
+      height: 800,
+      parent: parent && !parent.isDestroyed() ? parent : undefined,
+      title: "Overleaf",
+      webPreferences: { partition: "persist:overleaf", contextIsolation: true, nodeIntegration: false, sandbox: true }
+    });
+    let settled = false;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      if (!window.isDestroyed()) window.close();
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const inspect = (_event, url) => {
+      const match = /overleaf\.com\/project\/([0-9a-f]{24})/i.exec(String(url || ""));
+      if (!match) return;
+      const projectId = match[1].toLowerCase();
+      const name = String(window.webContents.getTitle() || "").replace(/\s*-\s*Overleaf.*$/i, "").trim();
+      finish(null, { projectId, name: /^overleaf/i.test(name) ? "" : name });
+    };
+    window.webContents.on("did-navigate", inspect);
+    window.webContents.on("did-navigate-in-page", inspect);
+    window.webContents.on("did-redirect-navigation", inspect);
+    window.on("closed", () => finish(new Error("Overleaf sign-in was closed before the project opened.")));
+    window.loadURL(shareUrl).catch((error) => finish(error));
+  });
+}
+
+function overleafProjectFolderName(name) {
+  const clean = String(name || "").replace(/[/:\\]/g, "-").trim();
+  return clean || "Overleaf Project";
+}
+
+async function importOverleafProject(event, payload = {}) {
+  const parsed = overleafSync.parseOverleafLink(payload.link);
+  if (payload.token) await saveOverleafToken(payload.token);
+  const token = await readOverleafToken();
+  if (!token) throw new Error("Add your Overleaf Git token first.");
+
+  let { projectId } = parsed;
+  let name = String(payload.name || "").trim();
+  if (!projectId) {
+    const parent = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : mainWindow;
+    const resolved = await resolveOverleafShareLink(parsed.shareUrl, parent);
+    projectId = resolved.projectId;
+    name = name || resolved.name;
+  }
+
+  const existing = (await readProjects()).find((project) => project.overleaf && project.overleaf.projectId === projectId && fs.existsSync(project.texPath));
+  if (existing) {
+    await syncOverleafProjectRecord(existing).catch(() => {});
+    return { project: decorateProject(existing), ...(await listProjects()) };
+  }
+
+  const destination = await uniqueDirectory(projectLibraryRoot(), overleafProjectFolderName(name));
+  await overleafSync.cloneProject({ projectId, destination, token, userDataDir: app.getPath("userData") });
+  const entryPath = await findOverleafEntry(destination);
+  if (!entryPath) throw new Error("The Overleaf project has no .tex file.");
+
+  const projects = await readProjects();
+  const project = makeProject(entryPath, name || undefined);
+  project.overleaf = {
+    projectId,
+    root: destination,
+    url: `https://www.overleaf.com/project/${projectId}`,
+    syncedAt: new Date().toISOString()
+  };
+  projects.unshift(project);
+  await writeProjects(dedupeProjects(projects));
+  await compileProjectIfPossible(project.id);
+  return { project: decorateProject(project), ...(await listProjects()) };
+}
+
+// Prefer the file that declares \documentclass, then main.tex, then the shallowest .tex.
+async function findOverleafEntry(root) {
+  const candidates = [];
+  async function visit(dir, depth) {
+    if (depth > 4) return;
+    for (const entry of await fsp.readdir(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) await visit(full, depth + 1);
+      else if (entry.isFile() && entry.name.toLowerCase().endsWith(".tex")) candidates.push({ full, depth });
+    }
+  }
+  await visit(root, 0);
+  const scored = await Promise.all(candidates.map(async (candidate) => {
+    const head = (await fsp.readFile(candidate.full, "utf8").catch(() => "")).slice(0, 20000);
+    const declares = /^[^%\n]*\\documentclass/m.test(head);
+    const isMain = path.basename(candidate.full).toLowerCase() === "main.tex";
+    return { ...candidate, score: (declares ? 0 : 100) + (isMain ? 0 : 10) + candidate.depth };
+  }));
+  scored.sort((a, b) => a.score - b.score || a.full.localeCompare(b.full));
+  return scored[0] ? scored[0].full : "";
+}
+
+async function syncOverleafProjectRecord(project, resolveKeep = "") {
+  if (!project.overleaf) throw new Error("This project is not linked to Overleaf.");
+  const token = await readOverleafToken();
+  if (!token) throw new Error("Add your Overleaf Git token in New project → Overleaf.");
+  const root = project.overleaf.root || projectRootFor(project);
+  const options = { root, token, userDataDir: app.getPath("userData") };
+  const result = resolveKeep
+    ? await overleafSync.resolveConflict({ ...options, keep: resolveKeep })
+    : await overleafSync.syncProject(options);
+  if (result.status === "synced") {
+    const projects = await readProjects();
+    const record = projects.find((item) => item.id === project.id);
+    if (record && record.overleaf) {
+      record.overleaf.syncedAt = result.syncedAt;
+      await writeProjects(projects);
+    }
+  }
+  return {
+    ...result,
+    pulled: (result.pulled || []).map((file) => relativeProjectPath(project, path.join(root, file)))
+  };
+}
+
+const overleafConflictPrompts = new Set();
+
+async function syncOverleafProject(event, payload = {}) {
+  const project = await getProject(payload.projectId);
+  const result = await syncOverleafProjectRecord(project, payload.keep || "");
+  if (result.status !== "conflict" || payload.keep || overleafConflictPrompts.has(project.id)) return result;
+
+  // Both sides edited the same lines; ask once which side wins those hunks.
+  overleafConflictPrompts.add(project.id);
+  try {
+    const parent = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : mainWindow;
+    const files = (result.conflicts || []).slice(0, 6).join("\n");
+    const choice = await dialog.showMessageBox(parent, {
+      type: "warning",
+      title: "Overleaf conflict",
+      message: "Overleaf and Openleaf changed the same lines.",
+      detail: files,
+      buttons: ["Keep Overleaf", "Keep Openleaf", "Later"],
+      defaultId: 0,
+      cancelId: 2
+    });
+    if (choice.response === 2) return result;
+    return await syncOverleafProjectRecord(project, choice.response === 0 ? "overleaf" : "local");
+  } finally {
+    overleafConflictPrompts.delete(project.id);
+  }
+}
+
+// ---- openleaf:// links ------------------------------------------------------
+// openleaf://project/<id> opens a project; openleaf://overleaf?url=<link>
+// imports an Overleaf project. Agents resolve project links to folders with
+// `openleaf path <link>`.
+
+let pendingOpenleafUrl = "";
+
+function handleOpenleafUrl(rawUrl) {
+  let url;
+  try {
+    url = new URL(String(rawUrl || ""));
+  } catch (_error) {
+    return;
+  }
+  if (url.protocol !== "openleaf:") return;
+  const target = activeWindow();
+  if (!target) {
+    pendingOpenleafUrl = rawUrl;
+    return;
+  }
+  if (target.isMinimized()) target.restore();
+  target.show();
+  target.focus();
+  const parts = [url.hostname, ...url.pathname.split("/")].filter(Boolean);
+  if (parts[0] === "project" && parts[1]) {
+    target.webContents.send("open-link", { kind: "project", projectId: decodeURIComponent(parts[1]) });
+  } else if (parts[0] === "overleaf" && url.searchParams.get("url")) {
+    target.webContents.send("open-link", { kind: "overleaf", link: url.searchParams.get("url") });
+  }
+}
+
+function openleafProjectLink(_event, projectId) {
+  const link = `openleaf://project/${encodeURIComponent(String(projectId || ""))}`;
+  clipboard.writeText(link);
+  return { link };
+}
+
 async function getProject(projectId) {
   const projects = await readProjects();
   const project = projects.find((item) => item.id === projectId);
@@ -5584,6 +5810,11 @@ ipcMain.handle("power-status", getPowerStatus);
 ipcMain.handle("recreate-window", recreateWindow);
 ipcMain.handle("toggle-fullscreen", toggleFullscreen);
 ipcMain.handle("open-external-link", openExternalLink);
+ipcMain.handle("overleaf-status", overleafStatus);
+ipcMain.handle("overleaf-set-token", setOverleafToken);
+ipcMain.handle("overleaf-import", importOverleafProject);
+ipcMain.handle("overleaf-sync", syncOverleafProject);
+ipcMain.handle("copy-project-link", openleafProjectLink);
 ipcMain.handle("open-history-window", openHistoryWindow);
 ipcMain.handle("read-agents", readAgents);
 ipcMain.handle("save-agents", saveAgents);
@@ -5608,10 +5839,24 @@ app.on("before-quit", () => {
   killPdfSpeechSession();
 });
 
+// Dev runs (electron .) leave the installed app as the openleaf:// handler.
+if (app.isPackaged || !process.defaultApp) app.setAsDefaultProtocolClient("openleaf");
+
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  if (app.isReady()) handleOpenleafUrl(url);
+  else pendingOpenleafUrl = url;
+});
+
 app.whenReady().then(() => {
   app.setName("Openleaf");
   buildMenu();
   createWindow();
+  const launchUrl = pendingOpenleafUrl || process.argv.find((arg) => String(arg).startsWith("openleaf://"));
+  if (launchUrl) {
+    pendingOpenleafUrl = "";
+    mainWindow.webContents.once("did-finish-load", () => setTimeout(() => handleOpenleafUrl(launchUrl), 400));
+  }
   // Desktop YouTube embeds require the installed application's identity as Referer.
   // Only player-frame requests in Openleaf windows are affected; document sandboxes stay unchanged.
   mainWindow.webContents.session.webRequest.onBeforeSendHeaders({
