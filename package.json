@@ -15,7 +15,7 @@
     "start": "node scripts/start.mjs",
     "dev": "electron \"$PWD\"",
     "check": "node --check main.js && node --check preload.js && node --check app.js && node --check html-editor.js && node --check presentation-editor.js && node --check scripts/package-mac.mjs",
-    "test": "npm run test:production && npm run test:include-compile",
+    "test": "npm run test:production && npm run test:include-compile && npm run test:handwritten",
     "test:production": "node --test --test-concurrency=1 tests/production/ui-production.test.mjs",
     "test:pptx": "npm run test:pptx-preview && npm run test:pptx-editor",
     "test:pptx-image-drag": "node scripts/verify-presentation-image-drag.mjs",
@@ -27,6 +27,7 @@
     "package:mac": "node scripts/package-mac.mjs",
     "install:mac": "node scripts/package-mac.mjs --install",
     "test:include-compile": "node scripts/verify-include-compile.mjs",
+    "test:handwritten": "node scripts/verify-handwritten-transcription.mjs",
     "test:pptx-preview": "node scripts/verify-pptx-preview.mjs",
     "test:pptx-editor": "node scripts/verify-presentation-editor-ui.mjs"
   },
