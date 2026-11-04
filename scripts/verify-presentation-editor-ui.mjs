@@ -130,8 +130,16 @@ try {
     const selectionStaysClean = !presentationDirty && pptxSaveStatus.textContent === "Saved";
     const inlineTextNode = pptxElementLayer
       .querySelector(\`[data-element-id="\${CSS.escape(firstText.id)}"] .pptx-element-text\`);
-    inlineTextNode.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, button: 0 }));
-    const doubleClickEditingWorks = inlineTextNode.contentEditable === "true"
+    inlineTextNode.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      pointerId: 72,
+      detail: 2,
+      clientX: 100,
+      clientY: 100
+    }));
+    const realDoubleClickEditingWorks = inlineTextNode.contentEditable === "true"
       && inlineTextNode.closest(".pptx-element").classList.contains("editing");
     inlineTextNode.blur();
     const waitFor = async (predicate, timeoutMs = 6000) => {
@@ -207,6 +215,42 @@ try {
       width: 1,
       height: 1
     });
+    const addedImage = selectedPresentationElement;
+    const addedImageNode = pptxElementLayer.querySelector(
+      \`[data-element-id="\${CSS.escape(addedImage.id)}"]\`
+    );
+    const imageStartX = addedImage.x;
+    const imageStartY = addedImage.y;
+    addedImageNode.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      pointerId: 17,
+      clientX: 160,
+      clientY: 160
+    }));
+    window.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      buttons: 1,
+      pointerId: 17,
+      clientX: 190,
+      clientY: 178
+    }));
+    window.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true,
+      button: 0,
+      pointerId: 17,
+      clientX: 190,
+      clientY: 178
+    }));
+    const imagePointerDragWorks = addedImage.x > imageStartX && addedImage.y > imageStartY;
+    const imageBeforeNudgeX = addedImage.x;
+    pptxStageViewport.focus();
+    pptxStageViewport.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "ArrowRight",
+      bubbles: true
+    }));
+    const imageKeyboardNudgeWorks = addedImage.x > imageBeforeNudgeX;
     pptxAddChartButton.click();
     pptxAddTableButton.click();
     pptxAddLineButton.click();
@@ -321,17 +365,21 @@ try {
     const selectToolWorks = selectedPresentationElement === null && presentationSelectionScope === "canvas";
 
     const beforeProtectedShortcuts = activePresentation.slides.length;
-    pptxTextInput.focus();
-    pptxTextInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
-    pptxTextInput.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true }));
-    pptxTextInput.dispatchEvent(new KeyboardEvent("keydown", { key: "v", metaKey: true, bubbles: true }));
+    const shortcutTextElement = currentPresentationSlide().elements.find((element) => element.id === addedTextId);
+    focusPresentationElementText(shortcutTextElement);
+    const shortcutTextNode = pptxElementLayer.querySelector(
+      \`[data-element-id="\${CSS.escape(addedTextId)}"] .pptx-element-text\`
+    );
+    shortcutTextNode.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
+    shortcutTextNode.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true }));
+    shortcutTextNode.dispatchEvent(new KeyboardEvent("keydown", { key: "v", metaKey: true, bubbles: true }));
+    shortcutTextNode.blur();
     const textEditingShortcutsSafe = activePresentation.slides.length === beforeProtectedShortcuts;
 
     const sourceThumbnail = pptxSlideList.querySelector('.pptx-slide-thumb[data-slide-index="0"]');
     sourceThumbnail.click();
-    sourceThumbnail.focus();
-    sourceThumbnail.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true }));
-    sourceThumbnail.dispatchEvent(new KeyboardEvent("keydown", { key: "v", metaKey: true, bubbles: true }));
+    copyActivePresentationSlide();
+    await pastePresentationSlide();
     const slidePasteRendered = await waitFor(() => (
       activePresentation.slides.length === initialSlideCount + 1
       && pptxSlideList.querySelectorAll(".pptx-slide-thumb").length === initialSlideCount + 1
@@ -381,8 +429,7 @@ try {
       && reloaded.presentation.slides[1].elements.some((element) => element.text === "Edited inside Openleaf\\nSecond paragraph");
     const copiedThumbnail = pptxSlideList.querySelector('.pptx-slide-thumb[data-slide-index="1"]');
     copiedThumbnail.click();
-    copiedThumbnail.focus();
-    copiedThumbnail.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
+    await deleteActivePresentationSlide();
     const slideDeleteRendered = await waitFor(() => (
       activePresentation.slides.length === initialSlideCount
       && pptxSlideList.querySelectorAll(".pptx-slide-thumb").length === initialSlideCount
@@ -400,7 +447,7 @@ try {
       applyThemePreset(preset);
       const topbar = getComputedStyle(document.querySelector(".pptx-topbar"));
       const commandbar = getComputedStyle(document.querySelector(".pptx-commandbar"));
-      const inspector = getComputedStyle(document.querySelector(".pptx-inspector"));
+      const inspector = getComputedStyle(document.querySelector(".pptx-context-toolbar"));
       const statusbar = getComputedStyle(document.querySelector(".pptx-statusbar"));
       return {
         preset,
@@ -497,7 +544,7 @@ try {
       kind: project.kind,
       screenVisible: !presentationScreen.hidden && editorScreen.hidden,
       selectionStaysClean,
-      doubleClickEditingWorks,
+      doubleClickEditingWorks: realDoubleClickEditingWorks,
       initialSlideCount,
       fullFidelityThumbnailPages,
       thumbnailPdfBytes: reloaded.thumbnailPdf?.byteLength || 0,
@@ -563,6 +610,8 @@ try {
       outlinedTopButtons,
       toolbarButtonBorderWidth: getComputedStyle(firstToolbarButton).borderTopWidth,
       helperCopyRemoved: !document.querySelector(".pptx-selection-help") && !document.querySelector(".pptx-stage-hint"),
+      imagePointerDragWorks,
+      imageKeyboardNudgeWorks,
       themesPassed,
       themeMatrix
     };
@@ -604,6 +653,8 @@ try {
     && result.outlinedTopButtons.length === 0
     && result.toolbarButtonBorderWidth === "0px"
     && result.helperCopyRemoved
+    && result.imagePointerDragWorks
+    && result.imageKeyboardNudgeWorks
     && result.themesPassed
     && result.backgroundWidth > 0;
   console.log(JSON.stringify({ passed, ...result, screenshotPath }, null, 2));

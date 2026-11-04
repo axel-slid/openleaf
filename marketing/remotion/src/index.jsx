@@ -1,18 +1,14 @@
 import {Composition, registerRoot} from "remotion";
-import {
-  OPENLEAF_DIGITAL_SHOWCASE_DURATION,
-  OpenleafDigitalShowcase,
-} from "./openleaf-digital-showcase";
+import {OPENLEAF_DURATION, OpenleafWebsiteFilm} from "./openleaf-website-film";
 
 const RemotionRoot = () => (
   <Composition
     id="OpenleafDemo"
-    component={OpenleafDigitalShowcase}
-    durationInFrames={OPENLEAF_DIGITAL_SHOWCASE_DURATION}
+    component={OpenleafWebsiteFilm}
+    durationInFrames={OPENLEAF_DURATION}
     fps={30}
     width={1920}
     height={1080}
-    defaultProps={{matteBackground: false}}
   />
 );
 

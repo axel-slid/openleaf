@@ -3,22 +3,25 @@ import {AbsoluteFill, Easing, interpolate, useCurrentFrame} from "remotion";
 import {CodeEditor, FileTree, Icon, PdfPage, VisualEditor} from "./openleaf-digital-twin";
 
 const clamp = {extrapolateLeft: "clamp", extrapolateRight: "clamp"};
-const PLAYBACK_SCALE = 1.4;
+const PLAYBACK_SCALE = 1.2;
 const TRANSITION = 18;
 const baseScenes = {
-  projects: [0, 50],
-  latex: [50, 205],
-  powerpoint: [205, 350],
-  python: [350, 495],
-  agents: [495, 625],
-  remote: [625, 705],
-  settings: [705, 780],
+  projects: [0, 80],
+  latex: [80, 235],
+  pdfReview: [235, 335],
+  powerpoint: [335, 480],
+  python: [480, 625],
+  agents: [625, 755],
+  history: [755, 870],
+  remote: [870, 960],
+  settings: [960, 1050],
 };
-const scenes = Object.fromEntries(Object.entries(baseScenes).map(([name, range]) => [
+export const OPENLEAF_SCENES = Object.fromEntries(Object.entries(baseScenes).map(([name, range]) => [
   name,
   range.map((frame) => Math.round(frame * PLAYBACK_SCALE)),
 ]));
-export const OPENLEAF_DURATION = Math.round(780 * PLAYBACK_SCALE);
+const scenes = OPENLEAF_SCENES;
+export const OPENLEAF_DURATION = Math.round(1050 * PLAYBACK_SCALE);
 
 const ease = (value) => Easing.out(Easing.cubic)(value);
 const transitionEase = (value) => Easing.inOut(Easing.cubic)(value);
@@ -26,20 +29,14 @@ const transitionEase = (value) => Easing.inOut(Easing.cubic)(value);
 const Scene = ({range, children, first = false, last = false}) => {
   const frame = useCurrentFrame();
   const [start, end] = range;
-  if (frame < start - TRANSITION || frame >= end + TRANSITION) return null;
-  const enter = first ? 1 : transitionEase(interpolate(frame, [start - TRANSITION, start + TRANSITION], [0, 1], clamp));
-  const leave = last ? 1 : transitionEase(interpolate(frame, [end - TRANSITION, end + TRANSITION], [1, 0], clamp));
+  if (frame < start || frame >= end) return null;
+  const enter = first ? 1 : transitionEase(interpolate(frame, [start, start + 8], [0, 1], clamp));
+  const leave = last ? 1 : transitionEase(interpolate(frame, [end - 8, end], [1, 0], clamp));
   const opacity = Math.min(enter, leave);
-  const translate = (1 - enter) * 18 - (1 - leave) * 10;
-  const scale = 0.994 + enter * 0.006 + (1 - leave) * 0.006;
   return (
     <AbsoluteFill
       className="twin-scene"
-      style={{
-        opacity,
-        filter: `blur(${(1 - opacity) * 2.5}px) saturate(${0.92 + opacity * 0.08})`,
-        transform: `translateX(${translate}px) scale(${scale})`,
-      }}
+      style={{opacity}}
     >
       {children((frame - start) / PLAYBACK_SCALE)}
     </AbsoluteFill>
@@ -103,7 +100,12 @@ const ProjectPreview = ({kind}) => (
 );
 
 const ProjectsScene = (frame) => {
-  const actions = [{x: 442, y: 620, arrive: 24, click: 25}, {x: 442, y: 620, arrive: 25, click: 25}];
+  const createOpen = frame >= 17 && frame < 55;
+  const actions = [
+    {x: 1270, y: 250, arrive: 15, click: 16},
+    {x: 1495, y: 540, arrive: 38, click: 39},
+    {x: 442, y: 620, arrive: 62, click: 63},
+  ];
   return (
     <section className="project-screen twin-project-screen">
       <div className="project-shell">
@@ -121,12 +123,33 @@ const ProjectsScene = (frame) => {
             ["Transformer Analysis", "analysis.ipynb", "python"],
             ["Remote GPU Lab", "ssh · gpu-lab", "remote"],
           ].map(([name, file, kind], index) => (
-            <button className={`project-card ${index === 0 && frame >= 26 ? "opening" : ""}`} key={name}>
+            <button className={`project-card ${index === 0 && frame >= 64 ? "opening" : ""}`} key={name}>
               <ProjectPreview kind={kind} /><div className="project-card-copy"><strong className="project-name">{name}</strong><span className="project-file">{file}</span><span className="project-meta">Edited just now</span></div>
             </button>
           ))}
         </div>
       </div>
+      {createOpen ? (
+        <>
+          <div className="twin-modal-backdrop" />
+          <section className="twin-create-project-panel">
+            <header><div><p>NEW PROJECT</p><h2>Create or import</h2></div><button>×</button></header>
+            <div className="twin-create-grid">
+              {[
+                ["＋", "Blank paper", "Start with main.tex"],
+                ["TeX", "TeX file", "Open existing source"],
+                ["P", "PowerPoint", "Edit a native .pptx"],
+                ["▣", "Folder", "Use a local project"],
+                ["⌑", "Archive", "ZIP, TAR, TGZ"],
+              ].map(([icon, title, detail], index) => (
+                <button className={frame >= 39 && index === 4 ? "active" : ""} key={title}>
+                  <b>{icon}</b><strong>{title}</strong><span>{detail}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : null}
       <Cursor frame={frame} actions={actions} />
     </section>
   );
@@ -167,6 +190,51 @@ const LatexScene = (frame) => {
         <div className="twin-notes-animation" style={{"--draw-progress": drawProgress}}><NotesPanel open={notes} draw={draw} /></div>
       </main>
       {compiled && frame < 121 ? <div className="twin-toast"><span>✓</span>PDF compiled in 0.8s</div> : null}
+      <Cursor frame={frame} actions={actions} />
+    </section>
+  );
+};
+
+const VoicePdfPage = ({frame, playing}) => {
+  const words = ["Attention", "connects", "positions", "across", "the", "document", "without", "recurrence."];
+  const active = playing ? Math.floor(Math.max(0, frame - 44) / 5) % words.length : -1;
+  return (
+    <article className="twin-voice-pdf-page">
+      <div className="paper-rule" />
+      <h1>Attention Is All You Need</h1>
+      <div className="paper-rule thin" />
+      <div className="paper-authors"><b>A. Researcher</b><b>B. Researcher</b><b>C. Researcher</b></div>
+      <h2>Abstract</h2>
+      <p>The dominant sequence transduction models are based on complex recurrent or convolutional neural networks. We propose a new architecture based entirely on attention mechanisms.</p>
+      <h2>1　Introduction</h2>
+      <p className="twin-read-line">{words.map((word, index) => <mark className={index === active ? "active" : ""} key={`${word}-${index}`}>{word} </mark>)}</p>
+      <p>Experiments establish strong quality while requiring significantly less time to train. The model is more parallelizable and reaches a new state of the art.</p>
+      <div className="paper-columns"><p>Residual connections surround each sublayer.</p><p>The decoder attends to the encoder output.</p></div>
+    </article>
+  );
+};
+
+const PdfReviewScene = (frame) => {
+  const analyzed = frame >= 24;
+  const playing = frame >= 45;
+  const faster = frame >= 73;
+  const actions = [
+    {x: 1455, y: 78, arrive: 21, click: 22},
+    {x: 760, y: 947, arrive: 42, click: 43},
+    {x: 1180, y: 947, arrive: 70, click: 71},
+  ];
+  return (
+    <section className="editor-screen twin-editor-screen">
+      <Topbar title="Attention Is All You Need" />
+      <main className="workspace twin-pdf-review-workspace">
+        <aside className="file-pane"><div className="file-pane-header"><h2>Files</h2></div><FileTree methodsActive={false} /><footer className="file-pane-footer"><span>15 pages</span><span>PDF ready</span></footer></aside>
+        <div className="file-splitter" />
+        <section className="preview-pane twin-pdf-review-pane">
+          <div className="pane-header twin-preview-header"><div className="pdf-title-block"><h2>main.pdf</h2><p>{analyzed ? "15 pages · voice ready" : "15 pages"}</p></div><div className="pdf-header-actions twin-pdf-actions"><button className={analyzed ? "pdf-action-button active" : "pdf-action-button"}>◉ Read aloud</button><button className="pdf-action-button">Open PDF</button><button className="pdf-action-button">Download PDF</button><div className="pdf-controls"><button>−</button><span>87%</span><button>+</button></div></div></div>
+          <div className="twin-pdf-review-viewer"><VoicePdfPage frame={frame} playing={playing} /></div>
+          <div className="twin-voice-controls"><button className={playing ? "playing" : ""}>{playing ? "Ⅱ" : "▶"}</button><div><b>{playing ? "Reading page 1" : analyzed ? "Ready to read" : "Analyzing document…"}</b><span>{playing ? "Following text word by word" : "Offline voice · no upload"}</span></div><div className="twin-voice-progress"><i style={{width: `${playing ? Math.min(88, 18 + (frame - 45) * 1.05) : 5}%`}} /></div><button className={faster ? "active" : ""}>{faster ? "1.5×" : "1.0×"}</button></div>
+        </section>
+      </main>
       <Cursor frame={frame} actions={actions} />
     </section>
   );
@@ -257,6 +325,41 @@ const AgentsScene = (frame) => {
   );
 };
 
+const HistoryScene = (frame) => {
+  const selected = frame >= 34;
+  const restored = frame >= 66;
+  const pushed = frame >= 94;
+  const actions = [
+    {x: 1810, y: 20, arrive: 15, click: 16},
+    {x: 1500, y: 335, arrive: 32, click: 33},
+    {x: 1620, y: 835, arrive: 64, click: 65},
+    {x: 1760, y: 170, arrive: 92, click: 93},
+  ];
+  return (
+    <section className="editor-screen twin-editor-screen">
+      <Topbar title="Attention Is All You Need" />
+      <main className="workspace twin-history-workspace">
+        <aside className="file-pane"><div className="file-pane-header"><h2>Files</h2></div><FileTree methodsActive /></aside><div className="file-splitter" />
+        <section className="source-pane twin-history-source"><div className="pane-header"><div className="source-heading"><h2>methods.tex</h2><p>{restored ? "Restored · saved" : "Working tree"}</p></div></div><div className="editor-stack twin-editor-stack"><CodeEditor methodsActive /></div></section>
+        <aside className="twin-history-panel">
+          <header><div><p>PROJECT REVIEW</p><h2>History & GitHub</h2></div><span className="twin-github-badge">● axel-slid/openleaf</span></header>
+          <div className="twin-git-actions"><button>Pull</button><button className={pushed ? "complete" : ""}>{pushed ? "Pushed ✓" : "Push workspace"}</button></div>
+          <div className="twin-history-list">
+            {[
+              ["Just now", "Clarify attention method", "+14 −3"],
+              ["18 min", "Update Figure 3 reference", "+6 −2"],
+              ["Yesterday", "Camera-ready baseline", "+82 −41"],
+            ].map(([time, title, delta], index) => <button className={selected && index === 1 ? "active" : ""} key={title}><small>{time}</small><strong>{title}</strong><span>{delta}</span></button>)}
+          </div>
+          <div className="twin-history-diff"><b>sections/methods.tex</b><code>− Attention is computed independently.</code><code>+ Multi-head attention learns complementary representations.</code><code>+ Figure 3 now matches the compiled result.</code></div>
+          <button className={restored ? "twin-restore complete" : "twin-restore"}>{restored ? "Restored ✓" : "Restore this version"}</button>
+        </aside>
+      </main>
+      <Cursor frame={frame} actions={actions} />
+    </section>
+  );
+};
+
 const RemoteScene = (frame) => {
   const modal = frame >= 20;
   const connected = frame >= 55;
@@ -267,11 +370,25 @@ const RemoteScene = (frame) => {
 };
 
 const SettingsScene = (frame) => {
-  const agents = frame >= 22;
-  const saved = frame >= 58;
-  const actions = [{x:486,y:479,arrive:20,click:21},{x:1438,y:676,arrive:56,click:57}];
+  const view = frame < 22 ? "Appearance" : frame < 44 ? "Editor" : frame < 66 ? "PDF" : "Agents";
+  const saved = frame >= 84;
+  const actions = [
+    {x:486,y:316,arrive:20,click:21},
+    {x:486,y:400,arrive:42,click:43},
+    {x:486,y:479,arrive:64,click:65},
+    {x:1438,y:676,arrive:82,click:83},
+  ];
+  const settingsContent = view === "Appearance" ? (
+    <section className="settings-section active twin-appearance-settings"><h3>Theme</h3><div className="twin-theme-grid"><button>Light+</button><button className="active">Dark+</button><button>Glass</button></div><h3>Accent color</h3><div className="twin-swatches"><i/><i/><i/><i/><i/></div></section>
+  ) : view === "Editor" ? (
+    <section className="settings-section active twin-settings-options"><h3>Editor</h3><label><span>Vim keybindings</span><input type="checkbox" defaultChecked /></label><label><span>Minimap</span><input type="checkbox" defaultChecked /></label><label><span>Relative line numbers</span><input type="checkbox" /></label><label><span>Word wrap</span><select><option>On</option></select></label><label><span>Typography</span><select><option>JetBrains Mono · 14</option></select></label></section>
+  ) : view === "PDF" ? (
+    <section className="settings-section active twin-settings-options"><h3>PDF & voice review</h3><label><span>Automatic compilation</span><input type="checkbox" defaultChecked /></label><label><span>Compiler</span><select><option>tectonic</option></select></label><label><span>Offline voice</span><select><option>System enhanced</option></select></label><label><span>Reading speed</span><select><option>1.5×</option></select></label><label><span>Follow words on page</span><input type="checkbox" defaultChecked /></label></section>
+  ) : (
+    <section className="settings-section active twin-agents-settings"><div><b>AGENTS.md</b><small>Project instructions for coding agents</small></div><textarea className="settings-code-editor" readOnly value={"# Openleaf project instructions\n\n- compile main.tex after edits\n- preserve bibliography keys\n- keep figures inside /figures\n- run Python checks before committing\n- report LaTeX warnings"}/><div className="settings-action-row"><button className="settings-action-button">Reload</button><button className="settings-action-button primary">{saved?"Saved ✓":"Save AGENTS.md"}</button></div><p className="settings-status">{saved?"Project instructions saved.":"Project instructions loaded."}</p></section>
+  );
   return (
-    <section className="editor-screen twin-editor-screen"><Topbar title="Attention Is All You Need"/><main className="workspace twin-workspace"><aside className="file-pane"><div className="file-pane-header"><h2>Files</h2></div><FileTree methodsActive/></aside><div className="file-splitter"/><section className="source-pane twin-source-pane"><div className="pane-header"><h2>methods.tex</h2></div><div className="editor-stack twin-editor-stack"><CodeEditor methodsActive/></div></section><div className="splitter"/><section className="preview-pane twin-preview-pane"><div className="pane-header"><h2>main.pdf</h2></div><div className="pdf-viewer-shell"><div className="pdf-viewer pdf-dark-render"><PdfPage compiled methodsActive/></div></div></section></main><div className="twin-modal-backdrop"/><section className="settings-drawer twin-settings"><aside className="settings-sidebar"><button className="settings-close-button">×</button>{["General","Appearance","Editor","LaTeX","PDF","Terminal","Agents","Documentation"].map(label=><button className={`settings-nav-button ${agents&&label==="Agents"?"active":!agents&&label==="Appearance"?"active":""}`} key={label}>{label}</button>)}</aside><main className="settings-main"><header className="settings-header"><h2>{agents?"Agents":"Appearance"}</h2><input className="settings-search-input" readOnly placeholder="Search settings"/></header><div className="settings-content">{agents?<section className="settings-section active twin-agents-settings"><div><b>AGENTS.md</b><small>Project instructions for coding agents</small></div><textarea className="settings-code-editor" readOnly value={"# Openleaf project instructions\n\n- compile main.tex after edits\n- preserve bibliography keys\n- keep figures inside /figures\n- run Python checks before committing\n- report LaTeX warnings"}/><div className="settings-action-row"><button className="settings-action-button">Reload</button><button className="settings-action-button primary">{saved?"Saved ✓":"Save AGENTS.md"}</button></div><p className="settings-status">{saved?"Project instructions saved.":"Project instructions loaded."}</p></section>:<section className="settings-section active twin-appearance-settings"><h3>Theme</h3><div className="twin-theme-grid"><button>Light+</button><button className="active">Dark+</button><button>Glass</button></div><h3>Accent color</h3><div className="twin-swatches"><i/><i/><i/><i/><i/></div></section>}</div></main></section><Cursor frame={frame} actions={actions}/></section>
+    <section className="editor-screen twin-editor-screen"><Topbar title="Attention Is All You Need"/><main className="workspace twin-workspace"><aside className="file-pane"><div className="file-pane-header"><h2>Files</h2></div><FileTree methodsActive/></aside><div className="file-splitter"/><section className="source-pane twin-source-pane"><div className="pane-header"><h2>methods.tex</h2></div><div className="editor-stack twin-editor-stack"><CodeEditor methodsActive/></div></section><div className="splitter"/><section className="preview-pane twin-preview-pane"><div className="pane-header"><h2>main.pdf</h2></div><div className="pdf-viewer-shell"><div className="pdf-viewer pdf-dark-render"><PdfPage compiled methodsActive/></div></div></section></main><div className="twin-modal-backdrop"/><section className="settings-drawer twin-settings"><aside className="settings-sidebar"><button className="settings-close-button">×</button>{["General","Appearance","Editor","LaTeX","PDF","Terminal","Agents","Documentation"].map(label=><button className={`settings-nav-button ${label===view?"active":""}`} key={label}>{label}</button>)}</aside><main className="settings-main"><header className="settings-header"><h2>{view}</h2><input className="settings-search-input" readOnly placeholder="Search settings"/></header><div className="settings-content">{settingsContent}</div></main></section><Cursor frame={frame} actions={actions}/></section>
   );
 };
 
@@ -295,9 +412,11 @@ export const OpenleafProfessional = () => {
     <AbsoluteFill className="openleaf-twin twin-professional">
       <Scene range={scenes.projects} first>{(frame)=>ProjectsScene(frame)}</Scene>
       <Scene range={scenes.latex}>{(frame)=>LatexScene(frame)}</Scene>
+      <Scene range={scenes.pdfReview}>{(frame)=>PdfReviewScene(frame)}</Scene>
       <Scene range={scenes.powerpoint}>{(frame)=>PresentationScene(frame)}</Scene>
       <Scene range={scenes.python}>{(frame)=>PythonScene(frame)}</Scene>
       <Scene range={scenes.agents}>{(frame)=>AgentsScene(frame)}</Scene>
+      <Scene range={scenes.history}>{(frame)=>HistoryScene(frame)}</Scene>
       <Scene range={scenes.remote}>{(frame)=>RemoteScene(frame)}</Scene>
       <Scene range={scenes.settings} last>{(frame)=>SettingsScene(frame)}</Scene>
       <TransitionBloom/>

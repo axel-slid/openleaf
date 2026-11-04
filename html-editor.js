@@ -6,11 +6,15 @@ window.OpenleafHtmlEditor = (() => {
     frame.title = editable ? "Visual HTML editor" : "Live HTML preview";
     frame.setAttribute("sandbox", "allow-same-origin");
     let sourceDocument, sourceText = "", fileUrl = "", scrollTop = 0;
+    const matrixIntents=new Map(), matrixPins=new Map(), runManifests=new Map();
+    const matrixPreviewCache = new Map();
 
     function serialize() {
       const body = frame.contentDocument.body.cloneNode(true);
       body.querySelectorAll("[data-openleaf-video-player]").forEach((player) => player.remove());
-      body.querySelectorAll("[data-openleaf-plot-player]").forEach((player) => player.remove());
+      body.querySelectorAll("[data-openleaf-plot-player],[data-openleaf-matrix-player]").forEach((player) => player.remove());
+      body.querySelectorAll(".openleaf-matrix-ready").forEach((block) => block.classList.remove("openleaf-matrix-ready"));
+      body.querySelectorAll(".openleaf-matrix-pinned").forEach((block) => block.classList.remove("openleaf-matrix-pinned"));
       body.querySelectorAll(".openleaf-plot-ready").forEach((block) => block.classList.remove("openleaf-plot-ready"));
       body.querySelectorAll("[data-openleaf-latex]").forEach((token) => {
         token.replaceWith(body.ownerDocument.createTextNode(token.dataset.openleafLatex));
@@ -20,24 +24,120 @@ window.OpenleafHtmlEditor = (() => {
       return (sourceDocument.doctype ? "<!DOCTYPE html>\n" : "") + clean.documentElement.outerHTML;
     }
 
+    async function readLocalJson(path, base, signal) {
+      const url = new URL(path, base);
+      if (url.protocol !== "file:" || !/\.json$/i.test(url.pathname)) throw new Error("Expected local JSON data");
+      const response = await fetch(url.href, { cache: "no-store", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error("Could not read local JSON data");
+      return { value: await response.json(), url: url.href };
+    }
+
+    function renderMatrices(doc) {
+      const labels={pending:"Pending",queued:"Queued",running:"Running",failed:"Failed",unknown:"Unknown",completed:"Done",unqualified:"Done",blocked:"Blocked",cancelled:"Cancelled",prepared:"Prepared",awaiting_initial:"Awaiting initial"};
+      const style=doc.createElement("style");
+      style.textContent=`table.openleaf-matrix-ready{display:none!important}
+        .openleaf-benchmark-matrix{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:2px;margin:16px 0;font:11px/1.25 Georgia,"Times New Roman",serif;color:#344653;font-variant-numeric:tabular-nums}
+        .openleaf-benchmark-matrix th{padding:7px 1px;text-align:center;font-size:9px;font-weight:normal;line-height:1.2;white-space:pre-line;border:0;border-bottom:1px solid #c5cfd4;color:#556472;background:white;overflow-wrap:anywhere}
+        .openleaf-benchmark-matrix td{height:32px;box-sizing:border-box;padding:4px 1px;text-align:center;font:14px/1 Georgia,serif;border:0;color:#8a7549;background:#faf3df;border-radius:2px;white-space:nowrap}
+        .openleaf-benchmark-matrix th:first-child,.openleaf-benchmark-matrix td:first-child{width:58px;text-align:left;padding-left:0;background:white;color:#344653;font-size:10px;border-radius:0}
+        .openleaf-benchmark-matrix td[data-state=running]{background:#dfeef8;color:#2675a5}
+        .openleaf-benchmark-matrix td[data-state=completed],.openleaf-benchmark-matrix td[data-state=unqualified]{background:#e5f1e9;color:#32654b}
+        .openleaf-benchmark-matrix td[data-state=failed]{background:#f7e2e1;color:#a3504c}
+        .openleaf-benchmark-matrix td[data-state=blocked],.openleaf-benchmark-matrix td[data-state=cancelled],.openleaf-benchmark-matrix td[data-state=unknown],.openleaf-benchmark-matrix [data-availability=occupied]{background:#eceff1!important;color:#7b858c!important}
+        .openleaf-benchmark-matrix td[data-graph-link]{cursor:pointer}
+        .openleaf-benchmark-matrix td[data-selected=true]{box-shadow:inset 0 0 0 1px #698ca3}
+        .openleaf-benchmark-matrix td[data-graph-link]:hover,.openleaf-benchmark-matrix td[data-graph-link]:focus{outline:1px solid #68899e;outline-offset:-1px}
+      `;doc.head.append(style);
+      doc.querySelectorAll("table[data-openleaf-benchmark-matrix]").forEach(block=>{
+        const matrixId=block.dataset.openleafMatrixId || "default",selected=()=>matrixIntents.get(matrixId);
+        const wrapper=doc.createElement("div");wrapper.dataset.openleafMatrixPlayer="";wrapper.contentEditable="false";wrapper.style.cssText="width:100%;max-width:100%;position:relative";
+        wrapper.setAttribute("aria-label","Production comparison matrix");
+        const table=doc.createElement("table");table.className="openleaf-benchmark-matrix";table.setAttribute("aria-label","Measured GPU and pipeline comparisons");wrapper.append(table);block.after(wrapper);
+        const preview=doc.createElement("div"),title=doc.createElement("div"),status=doc.createElement("span"),eta=doc.createElement("span"),detail=doc.createElement("div");
+        preview.dataset.openleafMatrixPreview="";preview.hidden=true;preview.id="matrix-tip-"+Math.random().toString(36).slice(2);preview.setAttribute("role","tooltip");
+        preview.style.cssText="position:fixed;z-index:10000;box-sizing:border-box;width:250px;max-width:calc(100vw - 24px);padding:10px 12px;background:white;border:1px solid #ccd6dc;box-shadow:0 4px 16px #20394a14;font:12px/1.45 Georgia,serif;color:#344653;pointer-events:none";
+        title.style.cssText="margin-bottom:4px;font-size:11px;color:#667783";eta.dataset.openleafCellEta="";eta.style.cssText="font-size:15px;font-variant-numeric:tabular-nums";
+        detail.style.cssText="font-size:11px;color:#71808b;margin-top:3px";preview.append(title,status,doc.createTextNode(" · "),eta,detail);wrapper.append(preview);
+        let active=null,hoverBase=null,hoverTimer=null,hideTimer=null,revision=0,fingerprint="",refreshing=false;
+        function info(cell,gpu){
+          const state=cell.state || "pending",paused=(gpu.enabled===false || gpu.availability==="occupied")&&!["completed","unqualified","failed"].includes(state);
+          const stateLabel=paused ? "Paused":labels[state] || "Pending";let clock="—";
+          const value=cell.estimated_ready_at;let target=typeof value==="number" ? value*(value<1e12?1000:1):typeof value==="string" ? Date.parse(value):NaN;
+          const evidence=typeof cell.eta_evidence==="string" ? cell.eta_evidence.trim():"";
+          const duration=cell.estimated_duration_s,offset=cell.estimated_offset_s,budget=Number.isFinite(duration)&&duration>0&&Number.isFinite(offset)&&offset>=0 ? duration+offset:NaN;
+          if(!Number.isFinite(target)&&Number.isFinite(cell.scheduler_start_unix_s)&&Number.isFinite(budget))target=(cell.scheduler_start_unix_s+budget)*1000;
+          if(!paused&&!["completed","unqualified","failed","blocked","cancelled"].includes(state)&&evidence){
+            if(Number.isFinite(target)){const seconds=Math.ceil((target-Date.now())/1000);if(seconds<=0)clock=state==="queued"?"Start unknown":"ETA unavailable";else{const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=seconds%60;clock="~"+(h?h+":"+String(m).padStart(2,"0"):m)+":"+String(s).padStart(2,"0");}}
+            else if(Number.isFinite(budget)){const minutes=Math.ceil(budget/60);clock="~"+(Math.floor(minutes/60)?Math.floor(minutes/60)+"h ":"")+(minutes%60)+"m"+(cell.eta_waiting_for_allocation ? " + queue":"");}
+          }
+          if(state==="queued"&&cell.scheduler_state==="PENDING"&&Number.isFinite(cell.scheduler_checked_unix_s)&&!Number.isFinite(target)&&!Number.isFinite(cell.scheduler_start_unix_s))clock="Start unknown";
+          const done=["completed","unqualified"].includes(state),run=runManifests.get(matrixId)?.value?.runs?.find(r=>r.id===cell.run_id),elapsed=Number.isFinite(cell.wall_seconds)?cell.wall_seconds:run?.progress?.runtime_s;
+          if(done&&Number.isFinite(elapsed)&&elapsed>=0){const seconds=Math.round(elapsed),h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=seconds%60;clock=(h?h+"h ":"")+(m?m+"m ":"")+s+"s elapsed";}
+          const mark=done?"✓":paused||["blocked","cancelled","unknown"].includes(state)?"—":state==="failed"?"×":state==="running"?"●":"○";
+          const schedulerReason=typeof cell.scheduler_reason==="string"&&!/^(Unknown|None|\(None\))$/i.test(cell.scheduler_reason)?cell.scheduler_reason:"";
+          const partition=typeof cell.scheduler_partition==="string"?cell.scheduler_partition:"";
+          const stage=typeof run?.progress?.stage==="string"&&!/^(unknown|telemetry missing|pending)$/i.test(run.progress.stage)?run.progress.stage:"";
+          const reason=cell.blocked_reason || (state==="queued"?[schedulerReason?"Queue: "+schedulerReason:"",partition?"Partition: "+partition:""].filter(Boolean).join(" · "):state==="running"&&stage?"Stage: "+stage:"");
+          const checked=Number.isFinite(cell.scheduler_checked_unix_s)?"Queue checked "+new Date(cell.scheduler_checked_unix_s*1000).toLocaleTimeString():"";
+          return {state,stateLabel,clock,mark,evidence:done?"":[evidence,cell.eta_basis || "",checked].filter(Boolean).join(" · "),reason,done};
+        }
+        function updateTooltip(){if(!active || preview.hidden)return;const current=info(active.cell,active.gpu);title.textContent=(active.gpu.label || active.gpu.id)+" · "+(active.workload.label || active.workload.id);status.textContent=current.stateLabel;eta.textContent=current.clock;detail.textContent=current.reason;detail.hidden=!current.reason;preview.title=current.evidence;}
+        function emit(intent){doc.dispatchEvent(new CustomEvent("openleaf-select-run",{detail:intent}));}
+        function hidePreview(){
+          clearTimeout(hoverTimer);++revision;preview.hidden=true;if(active)active.td.removeAttribute("aria-describedby");active=null;
+          if(selected()?.hover){const restore=matrixPins.get(matrixId)||hoverBase;if(restore){matrixIntents.set(matrixId,restore);emit({...restore,restore:true});}else{matrixIntents.delete(matrixId);emit({matrix_id:matrixId,clear:true,restore:true});}}
+          hoverBase=null;
+        }
+        function schedulePreview(td,gpu,workload,runId,cell){
+          clearTimeout(hideTimer);clearTimeout(hoverTimer);const request=++revision;
+          hoverTimer=setTimeout(()=>{
+            if(request!==revision || !td.isConnected)return;
+            if(!selected()?.hover)hoverBase=selected();active={td,gpu,workload,runId,cell};preview.hidden=false;updateTooltip();td.setAttribute("aria-describedby",preview.id);
+            const rect=td.getBoundingClientRect(),width=Math.min(250,doc.defaultView.innerWidth-24);preview.style.width=width+"px";preview.style.left=Math.max(12,Math.min(rect.left,doc.defaultView.innerWidth-width-12))+"px";preview.style.top=(rect.bottom+100<doc.defaultView.innerHeight?rect.bottom+6:Math.max(8,rect.top-100))+"px";
+            matrixIntents.set(matrixId,{matrix_id:matrixId,gpu_id:gpu.id,workload_id:workload.id,run_id:runId,label:workload.label || workload.id,state:info(cell,gpu).stateLabel,pinned:false,hover:true});emit(selected());
+          },120);
+        }
+        function apply(matrix){
+          hidePreview();const {gpus,workloads,cells}=matrix;
+          if(!Array.isArray(gpus)||!Array.isArray(workloads)||!Array.isArray(cells)||!gpus.length||gpus.length>32||!workloads.length||workloads.length>16)throw new Error("Invalid matrix");
+          const head=doc.createElement("thead"),headers=doc.createElement("tr"),body=doc.createElement("tbody");
+          const short={blackwell:"Blackwell","4060ti":"4060 Ti\n16GB",a100:"A100\nSXM","a100-pcie":"A100\nPCIe",rtx3090:"RTX\n3090","v100-pcie":"V100\nPCIe","v100s-pcie":"V100S\nPCIe","v100-sxm2":"V100\nSXM2"};
+          for(const [index,label] of ["Workload",...gpus.map(g=>short[g.id] || g.short_label || g.label || g.id)].entries()){
+            const th=doc.createElement("th");th.scope="col";th.textContent=label;const gpu=gpus[index-1];if(gpu){th.title=gpu.label || gpu.id;if(gpu.enabled===false||gpu.availability==="occupied"){th.dataset.availability="occupied";th.setAttribute("aria-label",th.title+" — Occupied");}}headers.append(th);
+          }
+          head.append(headers);
+          for(const work of workloads){const tr=doc.createElement("tr"),name=doc.createElement("td");name.textContent=work.label || work.id;tr.append(name);
+            for(const gpu of gpus){const cell=cells.find(c=>c.gpu_id===gpu.id&&c.workload_id===work.id)||{},current=info(cell,gpu),td=doc.createElement("td"),value=doc.createElement("span");td.dataset.gpu=gpu.id;td.dataset.workload=work.id;td.dataset.state=current.state;
+              if(gpu.enabled===false||gpu.availability==="occupied")td.dataset.availability="occupied";
+              value.dataset.openleafCellValue="";value.textContent=current.mark;td.append(value);td.dataset.benchmarkEligible=String(cell.benchmark_eligible===true);td.setAttribute("aria-label",current.stateLabel+(current.done&&current.clock!=="—"?" · "+current.clock:""));
+              const runId=cell.run_id || gpu.id+"-"+work.id+(matrix.run_id_suffix || "");td.dataset.graphLink="";td.tabIndex=0;td.dataset.selected=matrixPins.get(matrixId)?.run_id===runId?"true":"false";
+              function choose(){const intent={matrix_id:matrixId,gpu_id:gpu.id,workload_id:work.id,run_id:runId,label:work.label || work.id,state:current.stateLabel,pinned:true};matrixPins.set(matrixId,intent);matrixIntents.set(matrixId,intent);wrapper.querySelectorAll("td[data-graph-link]").forEach(c=>c.dataset.selected=c===td?"true":"false");emit(intent);}
+              td.addEventListener("click",choose);td.addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){event.preventDefault();choose();}});
+              td.addEventListener("pointerenter",()=>schedulePreview(td,gpu,work,runId,cell));td.addEventListener("focus",()=>schedulePreview(td,gpu,work,runId,cell));td.addEventListener("pointerleave",()=>{hideTimer=setTimeout(hidePreview,80);});td.addEventListener("blur",()=>{hideTimer=setTimeout(hidePreview,80);});tr.append(td);
+            }body.append(tr);
+          }
+          table.replaceChildren(head,body);wrapper.dataset.updatedAt=matrix.updatedAt || "";block.classList.add("openleaf-matrix-ready");
+        }
+        async function refresh(){if(!block.isConnected||refreshing)return;refreshing=true;try{const {value}=await readLocalJson(block.dataset.openleafBenchmarkMatrix,fileUrl);if(!block.isConnected)return;const next=JSON.stringify(value);if(next!==fingerprint){apply(value);fingerprint=next;}wrapper.removeAttribute("data-stale");}catch{wrapper.dataset.stale="true";}finally{refreshing=false;}}
+        void refresh();const clock=setInterval(()=>{if(!block.isConnected){clearInterval(clock);return;}updateTooltip();},1000);
+        const timer=setInterval(()=>{if(!block.isConnected){clearInterval(timer);return;}void refresh();},45000);
+      });
+    }
+
     function renderPlots(doc) {
       const style = doc.createElement("style");
-      style.textContent = ".openleaf-plot-ready [data-openleaf-plot-fallback]{display:none!important}";
+      style.textContent = ".openleaf-plot-ready [data-openleaf-plot-fallback]{display:none!important}[data-openleaf-matrix-hover-only=true]:not(.openleaf-matrix-pinned){display:none!important}";
       // Plotly installs its stylesheet in the host document; plots live in this iframe.
       document.querySelectorAll('style[id^="plotly.js-style"]').forEach((hostStyle) => {
         style.textContent += [...(hostStyle.sheet?.cssRules || [])].map((rule) => rule.cssText).join("\n");
       });
       doc.head.append(style);
       doc.querySelectorAll("[data-openleaf-plot]").forEach(async (block) => {
+        const matrixId=block.dataset.openleafMatrixId || "default";
+        const selected=()=>matrixIntents.get(matrixId);
         // Only trusted host code runs. Documents provide local JSON, never JavaScript.
         try {
-          async function readJson(path, base) {
-            const url = new URL(path, base);
-            if (url.protocol !== "file:" || !/\.json$/i.test(url.pathname)) throw new Error("Expected local JSON plot data");
-            const response = await fetch(url.href, { cache: "no-store" });
-            if (!response.ok) throw new Error("Could not read plot data");
-            return { value: await response.json(), url: url.href };
-          }
+          const readJson = readLocalJson;
           if (!window.Plotly || !block.isConnected) return;
           const wrapper = doc.createElement("div");
           wrapper.dataset.openleafPlotPlayer = "";
@@ -45,26 +145,68 @@ window.OpenleafHtmlEditor = (() => {
           wrapper.setAttribute("aria-label", block.getAttribute("aria-label") || "Interactive chart");
           const player = doc.createElement("div");
           player.dataset.openleafPlotCanvas = "";
-          let revision = 0;
-          async function draw(path, base) {
+          let revision = 0, renderedSource = null, renderedBounds = null;
+          async function draw(path, base, runIdentity = null) {
             const current = ++revision;
-            const { value: figure } = await readJson(path, base);
+            const { value: figure, url: figureUrl } = await readJson(path, base);
             if (current !== revision || !block.isConnected) return;
             if (!Array.isArray(figure.data)) throw new Error("Invalid plot data");
+            const sourceIdentity = runIdentity || figureUrl;
+            const previousRange = renderedSource === sourceIdentity ? player._fullLayout?.xaxis?.range : null;
+            const wasOverview = Array.isArray(previousRange) && Array.isArray(renderedBounds)
+              && previousRange.every((value, index) => Math.abs(value - renderedBounds[index]) <= 1e-8 * Math.max(1, Math.abs(renderedBounds[index])));
+            delete player.dataset.openleafPendingRun;
             window.Plotly.purge(player);
-            const layout = { ...(figure.layout || {}), autosize: true };
+            const layout = { ...(figure.layout || {}), autosize: true, uirevision: sourceIdentity };
             delete layout.width;
             const range = layout.xaxis?.range;
-            if (Array.isArray(range) && range.length === 2 && range.every(Number.isFinite)) {
-              const [lower, upper] = [...range].sort((a, b) => a - b);
-              layout.xaxis = { ...layout.xaxis, minallowed: lower, maxallowed: upper,
-                autorangeoptions: { ...(layout.xaxis.autorangeoptions || {}), minallowed: lower, maxallowed: upper } };
+            const bounds = Array.isArray(range) && range.length === 2 && range.every(Number.isFinite)
+              ? [...range].sort((a, b) => a - b) : null;
+            function clampRange(requested) {
+              if (!bounds) return requested;
+              if (!Array.isArray(requested) || requested.length !== 2 || !requested.every(Number.isFinite)) return [...bounds];
+              const sorted = [...requested].sort((a, b) => a - b);
+              const width = Math.min(sorted[1] - sorted[0], bounds[1] - bounds[0]);
+              if (width <= 0) return [...bounds];
+              const start = Math.max(bounds[0], Math.min(sorted[0], bounds[1] - width));
+              return [start, start + width];
             }
+            if (bounds) {
+              layout.xaxis = { ...layout.xaxis, autorange: false, range: clampRange(wasOverview ? bounds : previousRange || bounds),
+                minallowed: bounds[0], maxallowed: bounds[1],
+                autorangeoptions: { ...(layout.xaxis.autorangeoptions || {}), minallowed: bounds[0], maxallowed: bounds[1] } };
+            }
+            const reset = () => bounds && window.Plotly.relayout(player, { "xaxis.autorange": false, "xaxis.range": [...bounds] });
             await window.Plotly.newPlot(player, figure.data, layout, {
               responsive: true, displaylogo: false, scrollZoom: true,
-              modeBarButtonsToRemove: ["toImage", "lasso2d", "select2d"],
+              modeBarButtonsToRemove: ["toImage", "lasso2d", "select2d", "autoScale2d", "resetScale2d"],
+              modeBarButtonsToAdd: bounds ? [{name: "Reset time range", icon: window.Plotly.Icons.home, click: reset}] : [],
             });
             if (current !== revision) return;
+            renderedSource = sourceIdentity;
+            renderedBounds = bounds;
+            // A bar whose customdata names a run ({matrix_id, gpu_id, run_id}) opens that run in the linked runs figure.
+            player.on("plotly_click", (event) => {
+              const link = event?.points?.[0]?.customdata;
+              if (!link || typeof link !== "object" || typeof link.run_id !== "string" || typeof link.gpu_id !== "string") return;
+              doc.dispatchEvent(new CustomEvent("openleaf-select-run", {detail: {matrix_id: String(link.matrix_id || "default"),
+                gpu_id: link.gpu_id, run_id: link.run_id, label: String(link.label || link.run_id), pinned: true}}));
+            });
+            let clamping = false;
+            player.on("plotly_relayout", (event) => {
+              if (!bounds || clamping || current !== revision) return;
+              const requested = event["xaxis.range"] || [
+                event["xaxis.range[0]"] ?? player.layout.xaxis?.range?.[0],
+                event["xaxis.range[1]"] ?? player.layout.xaxis?.range?.[1],
+              ];
+              const target = event["xaxis.autorange"] === true ? [...bounds] : clampRange(requested);
+              const actual = player.layout.xaxis?.range;
+              if (player.layout.xaxis?.autorange === false && Array.isArray(actual)
+                  && actual.every((value, index) => Math.abs(value - target[index]) < 1e-9)) return;
+              clamping = true;
+              void window.Plotly.relayout(player, { "xaxis.autorange": false, "xaxis.range": target })
+                .finally(() => { clamping = false; });
+            });
             block.classList.add("openleaf-plot-ready");
             const baseShapes = Array.isArray(layout.shapes) ? layout.shapes : [];
             const bands = Array.isArray(figure.openleaf?.stageBands) ? figure.openleaf.stageBands : [];
@@ -90,7 +232,9 @@ window.OpenleafHtmlEditor = (() => {
           if (block.dataset.openleafRuns) {
             let { value: manifest, url: manifestUrl } = await readJson(block.dataset.openleafRuns, fileUrl);
             let runs = [];
-            const controls = doc.createElement("div");
+            const intention = () => selected() && selected().gpu_id === gpuSelect.value ? selected() : null;
+            const hoverOnly = block.dataset.openleafMatrixHoverOnly === "true";
+            const controls = doc.createElement("div"); controls.hidden = hoverOnly;
             controls.style.cssText = "margin:0 0 18px;font:14px Georgia,serif;color:#28333f";
             const row = doc.createElement("div");
             row.style.cssText = "display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-bottom:10px";
@@ -103,6 +247,8 @@ window.OpenleafHtmlEditor = (() => {
             }
             const gpuSelect = makeSelect("GPU", "data-openleaf-gpu-selector");
             const select = makeSelect("Run", "data-openleaf-run-selector");
+            // one run per GPU: data-openleaf-hide-run-selector hides the run menu; the GPU menu (or a linked bar) picks the run
+            if (block.dataset.openleafHideRunSelector === "true") select.parentElement.hidden = true;
             const status = doc.createElement("p");
             status.dataset.openleafRunProgress = "";
             status.style.cssText = "margin:0 0 10px;color:#66717b;font-size:12px";
@@ -123,10 +269,16 @@ window.OpenleafHtmlEditor = (() => {
             }
             async function choose() {
               const run = runs.find((item) => item.id === select.value);
+              if (hoverOnly && !intention()) {
+                ++revision; window.Plotly.purge(player); player.replaceChildren(); block.classList.remove("openleaf-matrix-pinned"); return;
+              }
               settings.replaceChildren(); details.hidden = !run;
               if (!run || !run.figure) {
-                ++revision; window.Plotly.purge(player); player.replaceChildren();
-                status.textContent = run?.progress?.state || "Pending — no measured run yet";
+                ++revision; window.Plotly.purge(player); player.replaceChildren(); block.classList.remove("openleaf-matrix-pinned");
+                player.removeAttribute("style");
+                const intent = intention();
+                player.dataset.openleafPendingRun = intent?.run_id || "";
+                status.textContent = intent ? [gpuSelect.selectedOptions[0]?.textContent, intent.label, run?.progress?.state || intent.state].filter(Boolean).join(" · ") : run?.progress?.state || "Pending — no measured run yet";
                 block.classList.add("openleaf-plot-ready"); return;
               }
               const pairs = Array.isArray(run.settings) ? run.settings : Object.entries(run.settings || {});
@@ -143,21 +295,43 @@ window.OpenleafHtmlEditor = (() => {
               if (stamp) parts.push((manifest.stale ? "Last sync " : "Updated ") + new Date(stamp).toLocaleTimeString());
               if (manifest.source === "local-offline") parts.push("offline records");
               status.textContent = parts.filter(Boolean).join(" · ");
-              await draw(run.figure, manifestUrl);
+              if (hoverOnly) block.classList.add("openleaf-matrix-pinned");
+              wrapper.setAttribute("aria-label",run.label || run.id);
+              player.dataset.openleafRunId=run.id;
+              await draw(run.figure, manifestUrl, run.id);
             }
             async function filterRuns(preferred) {
-              options(select, runs.filter((run) => runGpu(run) === gpuSelect.value), preferred); await choose();
+              const intent = intention(), values = runs.filter((run) => runGpu(run) === gpuSelect.value);
+              if (intent && !values.some((run) => run.id === intent.run_id)) values.unshift({id:intent.run_id,label:intent.label + " · " + intent.state});
+              options(select, values, intent?.run_id || preferred); await choose();
             }
             async function apply(next, initial = false) {
               const oldGpu = gpuSelect.value, oldRun = select.value;
-              manifest = next; runs = (manifest.runs || []).filter((run) => run && typeof run.id === "string");
+              manifest = next; runManifests.set(matrixId,{value:manifest,url:manifestUrl}); runs = (manifest.runs || []).filter((run) => run && typeof run.id === "string");
               const gpus = manifest.gpus?.length ? manifest.gpus : [...new Set(runs.map(runGpu))].map((id) => ({id,label:id}));
+              if(hoverOnly && !selected()) {
+                const canonical=runs.filter(run=>{
+                  const config=Array.isArray(run.settings) ? Object.fromEntries(run.settings):run.settings || {};
+                  const workload=(config.pipeline==="SLAM" ? "slam":config.pipeline==="HA-Hand2.0" ? "hand":"")+"-"+config.fps;
+                  return run.figure && config.benchmark_kind===(block.dataset.openleafBenchmarkKind || "production single-task matrix") && ["30","60"].includes(String(config.fps)) && run.id===runGpu(run)+"-"+workload+(block.dataset.openleafRunSuffix || "");
+                });
+                const candidate=canonical.find(run=>run.progress?.state==="running"&&!run.stale) || canonical.find(run=>run.id===manifest.defaultRun) || canonical[0];
+                if(candidate)matrixIntents.set(matrixId,{matrix_id:matrixId,gpu_id:runGpu(candidate),run_id:candidate.id,label:candidate.label || candidate.id,state:candidate.progress?.state || "Measured",pinned:false});
+              }
               const initialRun = runs.find((run) => run.id === manifest.defaultRun) || runs[0];
-              options(gpuSelect, gpus, initial ? initialRun && runGpu(initialRun) : oldGpu);
+              options(gpuSelect, gpus, selected()?.gpu_id || (initial ? initialRun && runGpu(initialRun) : oldGpu));
               await filterRuns(initial ? manifest.defaultRun : oldRun);
             }
-            gpuSelect.addEventListener("change", (event) => {event.stopPropagation(); void filterRuns().catch(console.warn);});
-            select.addEventListener("change", (event) => {event.stopPropagation(); void choose().catch(console.warn);});
+            gpuSelect.addEventListener("change", (event) => {event.stopPropagation(); matrixIntents.delete(matrixId); void filterRuns().catch(console.warn);});
+            select.addEventListener("change", (event) => {event.stopPropagation(); matrixIntents.delete(matrixId); void choose().catch(console.warn);});
+            doc.addEventListener("openleaf-select-run", (event) => {
+              if (!block.isConnected) return;
+              const intent = event.detail;
+              if(intent?.clear && (intent.matrix_id || "default")===matrixId){void choose().catch(console.warn);return;}
+              if (!intent || (intent.matrix_id || "default")!==matrixId || ![...gpuSelect.options].some((option) => option.value === intent.gpu_id)) return;
+              gpuSelect.value = intent.gpu_id;
+              void filterRuns(intent.run_id).then(() => {if(!intent.hover && !intent.restore)block.scrollIntoView({block:"nearest",behavior:"smooth"});}).catch(console.warn);
+            });
             await apply(manifest, true);
             let fingerprint = JSON.stringify(manifest), refreshing = false;
             const timer = setInterval(async () => {
@@ -278,6 +452,7 @@ window.OpenleafHtmlEditor = (() => {
       if (!force && sourceText === html && fileUrl === url) return;
       scrollTop = frame.contentDocument?.scrollingElement?.scrollTop || 0;
       frame.contentDocument?.querySelectorAll("[data-openleaf-plot-canvas]").forEach((plot) => window.Plotly?.purge(plot));
+      if (fileUrl && fileUrl !== url) { matrixIntents.clear(); matrixPins.clear(); runManifests.clear(); matrixPreviewCache.clear(); }
       sourceText = html;
       fileUrl = url;
       sourceDocument = new DOMParser().parseFromString(html, "text/html");
@@ -297,6 +472,7 @@ window.OpenleafHtmlEditor = (() => {
         renderMath(doc);
         renderVideos(doc);
         renderPlots(doc);
+        renderMatrices(doc);
         doc.designMode = editable ? "on" : "off";
         doc.scrollingElement.scrollTop = scrollTop;
         doc.addEventListener("click", (event) => {
