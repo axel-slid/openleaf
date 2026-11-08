@@ -212,7 +212,7 @@ function setDisplayFrameAppearance(window, active) {
   // display-frame fullscreen. Hide Cocoa's controls so its green button does
   // not sit underneath that pill, then restore all native controls on exit.
   if (process.platform === "darwin" && typeof window.setWindowButtonVisibility === "function") {
-    window.setWindowButtonVisibility(!active);
+    window.setWindowButtonVisibility(!active && !window.openleafThemedTrafficLights);
     if (typeof window.setWindowButtonPosition === "function") {
       window.setWindowButtonPosition(active ? { x: -120, y: -120 } : TRAFFIC_LIGHTS);
     }
@@ -304,11 +304,39 @@ function setTabActive(member, active) {
   member.openleafActiveTab = active;
 }
 
+// A tab takes over its neighbour's frame: same bounds, or the same display-frame
+// fullscreen (simple fullscreen switches instantly, without an animation).
+// The green button toggles simple fullscreen directly (simpleFullscreen) and
+// emits no fullscreen or resize events in the main process; the renderer
+// reports its resize and this applies the display-frame state.
+function syncSimpleFullscreen(event) {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (process.platform !== "darwin" || !window || window.isDestroyed()) return { fullscreen: false };
+  if (window.isSimpleFullScreen() && !window.openleafDisplayFrameFullscreen) {
+    const display = screen.getAllDisplays().find((candidate) => candidate.internal)
+      || screen.getDisplayMatching(window.openleafNormalBounds || window.getBounds());
+    setDisplayFrameAppearance(window, true);
+    window.openleafDisplayFrameFullscreen = true;
+    applyDisplayFrameBounds(window, display);
+    sendEditorCommand("fullscreen-enter", window);
+  }
+  return { fullscreen: Boolean(window.openleafDisplayFrameFullscreen) };
+}
+
+function matchTabFrame(target, fullscreen, bounds) {
+  if (process.platform === "darwin" && fullscreen) {
+    if (!target.isSimpleFullScreen()) target.setSimpleFullScreen(true);
+    return;
+  }
+  if (process.platform === "darwin" && target.isSimpleFullScreen()) target.setSimpleFullScreen(false);
+  if (bounds && !target.isFullScreen()) target.setBounds(bounds, false);
+}
+
 function showTab(target, from) {
   if (!target || target.isDestroyed()) return;
   const group = liveTabs(tabGroups.get(target) || []);
   const current = from && !from.isDestroyed() ? from : group.find((member) => member !== target && member.openleafActiveTab);
-  if (current && current !== target && !current.isFullScreen()) target.setBounds(current.getBounds(), false);
+  if (current && current !== target) matchTabFrame(target, Boolean(current.openleafDisplayFrameFullscreen), current.getBounds());
   if (!target.isVisible() && current) {
     // A new tab's first appearance would play the window-open animation;
     // run it transparent, then reveal the finished frame.
@@ -362,6 +390,10 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
           titleBarStyle: "hiddenInset",
           trafficLightPosition: TRAFFIC_LIGHTS,
           fullscreenable: true,
+          // The green button goes straight to Openleaf's display-frame
+          // fullscreen (simple fullscreen), skipping the native Space
+          // animation that used to play and then reverse.
+          simpleFullscreen: true,
           enableLargerThanScreen: true,
           ...(glass ? { vibrancy: "under-window", visualEffectState: "active" } : {})
         }
@@ -415,11 +447,28 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
   window.openleafNormalBounds = windowBounds;
   window.openleafConvertingFullscreen = false;
   window.openleafDisplayFrameFullscreen = false;
+  // Simple fullscreen has no will-enter event, so remember the windowed frame
+  // as it changes.
+  const rememberNormalBounds = () => {
+    if (window.isDestroyed() || window.isSimpleFullScreen() || window.isFullScreen() || window.openleafDisplayFrameFullscreen) return;
+    window.openleafNormalBounds = window.getBounds();
+  };
+  window.on("resized", rememberNormalBounds);
+  window.on("moved", rememberNormalBounds);
   window.on("will-enter-full-screen", () => {
     if (!window.openleafDisplayFrameFullscreen) window.openleafNormalBounds = window.getBounds();
   });
   window.on("enter-full-screen", () => {
     if (process.platform === "darwin" && window.openleafDisplayFrameFullscreen) {
+      sendEditorCommand("fullscreen-enter", window);
+      return;
+    }
+    if (process.platform === "darwin" && window.isSimpleFullScreen()) {
+      const display = screen.getAllDisplays().find((candidate) => candidate.internal)
+        || screen.getDisplayMatching(window.openleafNormalBounds || windowBounds);
+      setDisplayFrameAppearance(window, true);
+      window.openleafDisplayFrameFullscreen = true;
+      applyDisplayFrameBounds(window, display);
       sendEditorCommand("fullscreen-enter", window);
       return;
     }
@@ -442,7 +491,7 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
       sendEditorCommand("fullscreen-enter", window);
       return;
     }
-    if (process.platform === "darwin" && window.openleafDisplayFrameFullscreen) {
+    if (process.platform === "darwin" && window.openleafDisplayFrameFullscreen && window.isSimpleFullScreen()) {
       sendEditorCommand("fullscreen-enter", window);
       return;
     }
@@ -470,7 +519,9 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
 
   let closingVisibleTab = null;
   window.on("close", () => {
-    closingVisibleTab = window.openleafActiveTab ? { bounds: window.getBounds(), fullScreen: window.isFullScreen() } : null;
+    closingVisibleTab = window.openleafActiveTab
+      ? { bounds: window.openleafDisplayFrameFullscreen ? null : window.getBounds(), fullScreen: Boolean(window.openleafDisplayFrameFullscreen) }
+      : null;
   });
 
   window.on("closed", () => {
@@ -480,7 +531,7 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
     const survivors = liveTabs(tabGroup);
     if (closingVisibleTab && survivors.length) {
       const next = survivors[Math.min(Math.max(index, 0), survivors.length - 1)];
-      if (!closingVisibleTab.fullScreen) next.setBounds(closingVisibleTab.bounds, false);
+      matchTabFrame(next, closingVisibleTab.fullScreen, closingVisibleTab.bounds);
       showTab(next, null);
     }
     syncTabGroup(tabGroup);
@@ -593,6 +644,11 @@ function buildMenu() {
           label: "Find",
           accelerator: "CommandOrControl+F",
           click: () => sendEditorCommand("find")
+        },
+        {
+          label: "Find and Replace",
+          accelerator: "CommandOrControl+Alt+F",
+          click: () => sendEditorCommand("replace")
         },
         {
           label: "Find Next",
@@ -1332,9 +1388,12 @@ function decorateProject(project) {
   const rootPath = projectRootFor(project);
   const readingProfile = projectReadingProfile(project, rootPath);
   const pdfExists = presentation ? texExists : fs.existsSync(pdfPath);
-  const previewImageUrl = pdfExists
-    ? freshPreviewUrl(projectPreviewPngPath(project.id), presentation ? project.texPath : pdfPath)
-    : "";
+  const htmlPage = /\.html?$/i.test(project.texPath || "");
+  const previewImageUrl = htmlPage
+    ? (texExists ? freshPreviewUrl(projectPreviewPngPath(project.id), project.texPath) : "")
+    : pdfExists
+      ? freshPreviewUrl(projectPreviewPngPath(project.id), presentation ? project.texPath : pdfPath)
+      : "";
   const detectedTitle = texExists && !presentation ? detectTexTitle(project.texPath) : "";
   let modifiedAt = project.updatedAt;
 
@@ -1358,6 +1417,7 @@ function decorateProject(project) {
     pdfName: path.basename(pdfPath),
     texExists,
     pdfExists,
+    htmlPage,
     readingCollection: readingProfile ? { subject: readingProfile.subject, division: readingProfile.division } : null,
     readingFiles: projectReadingFiles(project, rootPath, readingProfile),
     previewImageUrl,
@@ -2974,6 +3034,54 @@ async function cachePdfViewPreview(_event, payload = {}) {
   await fsp.mkdir(path.dirname(previewPath), { recursive: true });
   await fsp.writeFile(previewPath, imageBufferFromDataUrl(payload.dataUrl, ["webp"]));
   return { previewImageUrl: freshPreviewUrl(previewPath, sourcePath) };
+}
+
+// Project-card preview for an HTML page project: render the page offscreen and
+// keep a screenshot of its first screen (refreshed whenever the page changes).
+const htmlPreviewJobs = new Map();
+
+function renderHtmlProjectPreview(_event, projectId) {
+  const key = String(projectId || "");
+  if (!htmlPreviewJobs.has(key)) {
+    const job = buildHtmlProjectPreview(key).finally(() => htmlPreviewJobs.delete(key));
+    htmlPreviewJobs.set(key, job);
+  }
+  return htmlPreviewJobs.get(key);
+}
+
+async function buildHtmlProjectPreview(projectId) {
+  const project = await getProject(projectId);
+  if (!/\.html?$/i.test(project.texPath || "") || !fs.existsSync(project.texPath)) return { previewImageUrl: "" };
+  const page = new BrowserWindow({
+    show: false,
+    width: 900,
+    height: 1165,
+    paintWhenInitiallyHidden: true,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, offscreen: true }
+  });
+  try {
+    page.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    await Promise.race([
+      page.loadFile(project.texPath),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("The page took too long to load.")), 15000))
+    ]).catch(() => {});
+    // Give web fonts and MathJax a moment to typeset before the capture.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    if (page.isDestroyed()) return { previewImageUrl: "" };
+    const image = await page.webContents.capturePage();
+    const previewPath = projectPreviewPngPath(project.id);
+    await fsp.mkdir(path.dirname(previewPath), { recursive: true });
+    await fsp.writeFile(previewPath, image.resize({ width: 720 }).toPNG());
+    return { previewImageUrl: freshPreviewUrl(previewPath, project.texPath) };
+  } finally {
+    if (!page.isDestroyed()) page.destroy();
+  }
+}
+
+// A LaTeX project that was never built has no PDF to preview: build it once.
+async function buildProjectPreviewPdf(_event, projectId) {
+  const result = await compileProjectIfPossible(String(projectId || ""));
+  return { ok: Boolean(result.ok) };
 }
 
 async function compileProjectIfPossible(projectId) {
@@ -5815,6 +5923,8 @@ ipcMain.handle("list-templates", listTemplates);
 ipcMain.handle("template-preview-pdf", templatePreviewPdf);
 ipcMain.handle("cache-template-preview", cacheTemplatePreview);
 ipcMain.handle("cache-project-preview", cacheProjectPreview);
+ipcMain.handle("render-html-project-preview", renderHtmlProjectPreview);
+ipcMain.handle("build-project-preview-pdf", buildProjectPreviewPdf);
 ipcMain.handle("get-pdf-view-preview", getPdfViewPreview);
 ipcMain.handle("cache-pdf-view-preview", cachePdfViewPreview);
 ipcMain.handle("import-template", importTemplate);
@@ -5914,6 +6024,15 @@ ipcMain.handle("close-window", closeWindow);
 ipcMain.handle("open-project-in-tab", openProjectInTab);
 ipcMain.handle("open-new-tab", openNewTab);
 ipcMain.handle("select-tab", selectTab);
+ipcMain.handle("sync-simple-fullscreen", syncSimpleFullscreen);
+// Themed traffic lights: the renderer draws them, so hide Cocoa's.
+ipcMain.handle("set-themed-traffic-lights", (event, enabled) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || window.isDestroyed() || process.platform !== "darwin") return { enabled: false };
+  window.openleafThemedTrafficLights = Boolean(enabled);
+  if (!window.openleafDisplayFrameFullscreen) window.setWindowButtonVisibility(!window.openleafThemedTrafficLights);
+  return { enabled: window.openleafThemedTrafficLights };
+});
 ipcMain.handle("close-tab", closeTab);
 ipcMain.handle("minimize-window", minimizeWindow);
 ipcMain.handle("set-window-glass", setWindowGlass);

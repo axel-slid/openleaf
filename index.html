@@ -30,6 +30,12 @@
     <nav id="windowTabStrip" class="window-tab-strip" aria-label="Open projects" hidden></nav>
   <div id="startupExperience" class="startup-experience" role="status" aria-live="polite" aria-label="Openleaf is starting">
     <div class="startup-content">
+      <div id="startupLeaf" class="startup-leaf" aria-hidden="true">
+        <span class="startup-leaf-ghost"></span>
+        <span class="startup-leaf-fill"></span>
+        <span class="startup-leaf-sheen"></span>
+        <span class="startup-leaf-veins"></span>
+      </div>
       <div class="startup-wordmark">Openleaf</div>
       <div class="startup-progress-wrap">
         <div id="startupProgressTrack" class="startup-progress-track" role="progressbar" aria-label="Starting Openleaf" aria-valuemin="0" aria-valuemax="100" aria-valuenow="8">
@@ -247,9 +253,9 @@
       </div>
       <div id="fullscreenTopReveal" class="fullscreen-top-reveal" aria-label="Window controls">
         <div class="fullscreen-traffic-lights">
-          <button id="fullscreenCloseTrafficLight" class="fullscreen-traffic-light fullscreen-traffic-light-close" type="button" aria-label="Close window" title="Close window"></button>
-          <button id="fullscreenMinimizeTrafficLight" class="fullscreen-traffic-light fullscreen-traffic-light-minimize" type="button" aria-label="Minimize window" title="Minimize window"></button>
-          <button id="fullscreenExitTrafficLight" class="fullscreen-exit-traffic-light" type="button" aria-label="Exit full screen" title="Exit full screen"></button>
+          <button id="fullscreenCloseTrafficLight" class="fullscreen-traffic-light fullscreen-traffic-light-close" type="button" aria-label="Close window" title="Close window"><svg class="traffic-light-glyph" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.6 3.6l4.8 4.8M8.4 3.6l-4.8 4.8"></path></svg></button>
+          <button id="fullscreenMinimizeTrafficLight" class="fullscreen-traffic-light fullscreen-traffic-light-minimize" type="button" aria-label="Minimize window" title="Minimize window"><svg class="traffic-light-glyph" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.8 6h6.4"></path></svg></button>
+          <button id="fullscreenExitTrafficLight" class="fullscreen-exit-traffic-light" type="button" aria-label="Full screen" title="Full screen"><svg class="traffic-light-glyph" viewBox="0 0 12 12" aria-hidden="true"><path class="glyph-fill" d="M3.3 8.7V5.6l3.1 3.1z M8.7 3.3v3.1L5.6 3.3z"></path></svg></button>
         </div>
       </div>
 
@@ -1462,6 +1468,10 @@
             <label class="setting-row">
               <span>Accent color</span>
               <input id="settingsAccentPicker" type="color" value="#f97316">
+            </label>
+            <label class="setting-row">
+              <span>Themed traffic lights</span>
+              <input id="settingsThemedTrafficLights" type="checkbox">
             </label>
             <div class="setting-column">
               <span>PDF pages</span>

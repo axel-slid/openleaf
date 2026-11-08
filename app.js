@@ -258,6 +258,11 @@ const fullscreenTopReveal = document.getElementById("fullscreenTopReveal");
 const fullscreenCloseTrafficLight = document.getElementById("fullscreenCloseTrafficLight");
 const fullscreenMinimizeTrafficLight = document.getElementById("fullscreenMinimizeTrafficLight");
 const fullscreenExitTrafficLight = document.getElementById("fullscreenExitTrafficLight");
+
+let lastWindowTabStrip = { tabs: [], activeId: null };
+// Themed traffic lights: Openleaf draws the window controls in accent shades
+// instead of Cocoa's red, yellow and green (windowed and fullscreen).
+const THEMED_TRAFFIC_LIGHTS_KEY = "openleafThemedTrafficLights";
 const editTitleButton = document.getElementById("editTitleButton");
 const topSaveStatusButton = document.getElementById("topSaveStatusButton");
 const topSaveStatusLabel = document.getElementById("topSaveStatusLabel");
@@ -3182,6 +3187,8 @@ function updateStartupExperience(progress, message) {
   const value = clampNumber(Number(progress), 0, 100, 0);
   if (startupProgressTrack) startupProgressTrack.setAttribute("aria-valuenow", String(Math.round(value)));
   if (startupProgressFill) startupProgressFill.style.transform = `scaleX(${value / 100})`;
+  const startupLeaf = document.getElementById("startupLeaf");
+  if (startupLeaf) startupLeaf.style.setProperty("--startup-progress", String(value / 100));
   if (startupPercent) startupPercent.textContent = `${Math.round(value)}%`;
   if (!startupStatus || startupStatus.textContent === message) return;
   startupStatus.classList.add("is-changing");
@@ -3755,7 +3762,23 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
 
 // Project tabs: every window in a tab group draws the same strip; the strip
 // only appears once a window holds two or more projects.
+
+
+function applyThemedTrafficLights(enabled) {
+  if (!window.localOverleaf.supportsNativeTabs) return;
+  document.body.classList.toggle("themed-traffic-lights", enabled);
+  const toggle = document.getElementById("settingsThemedTrafficLights");
+  if (toggle) toggle.checked = enabled;
+  if (window.localOverleaf.setThemedTrafficLights) void window.localOverleaf.setThemedTrafficLights(enabled);
+}
+
+// A notched built-in display has a taller menu bar area (about 37pt vs 24pt).
+function displayHasNotch() {
+  return Number(window.screen.availTop || 0) >= 32;
+}
+
 function renderWindowTabStrip({ tabs = [], activeId = null } = {}) {
+  lastWindowTabStrip = { tabs, activeId };
   const strip = document.getElementById("windowTabStrip");
   if (!strip) return;
   const visible = tabs.length > 1;
@@ -3764,9 +3787,15 @@ function renderWindowTabStrip({ tabs = [], activeId = null } = {}) {
   strip.replaceChildren();
   if (!visible) return;
 
+  // In fullscreen on a notched display the tabs split around the notch.
+  const splitAroundNotch = document.body.classList.contains("window-fullscreen") && displayHasNotch();
+  strip.classList.toggle("around-notch", splitAroundNotch);
+  const leftCount = splitAroundNotch ? Math.ceil(tabs.length / 2) : tabs.length;
   const list = document.createElement("div");
   list.className = "window-tab-list";
-  for (const tab of tabs) {
+  const rightList = document.createElement("div");
+  rightList.className = "window-tab-list";
+  tabs.forEach((tab, index) => {
     const item = document.createElement("div");
     item.className = "window-tab";
     item.classList.toggle("active", tab.id === activeId);
@@ -3793,10 +3822,16 @@ function renderWindowTabStrip({ tabs = [], activeId = null } = {}) {
     });
 
     item.append(label, close);
-    list.append(item);
-  }
+    (index < leftCount ? list : rightList).append(item);
+  });
 
-  strip.append(list);
+  if (!splitAroundNotch) {
+    strip.append(list);
+    return;
+  }
+  const notchGap = document.createElement("div");
+  notchGap.className = "window-tab-notch-gap";
+  strip.append(list, notchGap, rightList);
 }
 
 function syncSurfaceThemesToAppTheme(theme, { persist = true } = {}) {
@@ -6704,7 +6739,23 @@ function wireEvents() {
   if (editorFullscreenButton) editorFullscreenButton.addEventListener("click", () => setEditorFullscreen(!editorFullscreenActive));
   if (fullscreenCloseTrafficLight) fullscreenCloseTrafficLight.addEventListener("click", () => window.localOverleaf && window.localOverleaf.closeWindow());
   if (fullscreenMinimizeTrafficLight) fullscreenMinimizeTrafficLight.addEventListener("click", () => window.localOverleaf && window.localOverleaf.minimizeWindow());
-  if (fullscreenExitTrafficLight) fullscreenExitTrafficLight.addEventListener("click", exitWindowFullscreen);
+  if (fullscreenExitTrafficLight) {
+    fullscreenExitTrafficLight.addEventListener("click", () => {
+      if (document.body.classList.contains("window-fullscreen")) exitWindowFullscreen();
+      else if (window.localOverleaf) void window.localOverleaf.setFullscreen(true);
+    });
+  }
+  const themedTrafficLightsToggle = document.getElementById("settingsThemedTrafficLights");
+  applyThemedTrafficLights(localStorage.getItem(THEMED_TRAFFIC_LIGHTS_KEY) === "true");
+  if (themedTrafficLightsToggle) {
+    themedTrafficLightsToggle.addEventListener("change", () => {
+      localStorage.setItem(THEMED_TRAFFIC_LIGHTS_KEY, String(themedTrafficLightsToggle.checked));
+      applyThemedTrafficLights(themedTrafficLightsToggle.checked);
+    });
+  }
+  window.addEventListener("storage", (event) => {
+    if (event.key === THEMED_TRAFFIC_LIGHTS_KEY) applyThemedTrafficLights(event.newValue === "true");
+  });
   if (fileHeaderRefreshButton) fileHeaderRefreshButton.addEventListener("click", refreshActiveProject);
   newFileButton.addEventListener("click", () => createProjectFile("file"));
   newFolderButton.addEventListener("click", () => createProjectFile("folder"));
@@ -6964,6 +7015,13 @@ function wireEvents() {
   if (pushGithubButton) pushGithubButton.addEventListener("click", pushActiveProjectToGithub);
   if (pullGithubButton) pullGithubButton.addEventListener("click", pullActiveProjectFromGithub);
   if (window.localOverleaf.onTabStrip) window.localOverleaf.onTabStrip(renderWindowTabStrip);
+  if (window.localOverleaf.syncSimpleFullscreen) {
+    let fullscreenSyncTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(fullscreenSyncTimer);
+      fullscreenSyncTimer = setTimeout(() => void window.localOverleaf.syncSimpleFullscreen(), 60);
+    });
+  }
   const newProjectTabButton = document.getElementById("newProjectTabButton");
   if (newProjectTabButton) {
     newProjectTabButton.addEventListener("click", async () => {
@@ -7221,13 +7279,18 @@ function wireEvents() {
       if (command === "open-pdf") openPdf();
       if (command === "reload") reloadFromDisk();
       if (command === "find") openFind();
+      if (command === "replace") openFind({ replace: true });
       if (command === "find-next") findNextMatch(false);
       if (command === "find-previous") findNextMatch(true);
       if (command === "history") openHistoryWindow();
-      if (command === "fullscreen-enter") document.body.classList.add("window-fullscreen");
+      if (command === "fullscreen-enter") {
+        document.body.classList.add("window-fullscreen");
+        renderWindowTabStrip(lastWindowTabStrip);
+      }
       if (command === "fullscreen-leave") {
         document.body.classList.remove("window-fullscreen");
         if (editorFullscreenActive) setEditorFullscreen(false, { syncWindow: false });
+        renderWindowTabStrip(lastWindowTabStrip);
       }
     });
   }
@@ -8540,7 +8603,139 @@ function updateSettingsNavGroups() {
   });
 }
 
-function openFind() {
+// Find and replace bar for the source editor (Cmd+F, Cmd+Option+F).
+let findBar = null;
+
+function ensureFindBar() {
+  if (findBar) return findBar;
+  const bar = document.createElement("div");
+  bar.className = "find-bar";
+  bar.hidden = true;
+  bar.innerHTML = `
+    <div class="find-bar-row">
+      <button type="button" class="find-bar-icon find-bar-toggle" aria-label="Toggle replace" title="Replace"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg></button>
+      <input class="find-bar-input find-bar-query" type="text" spellcheck="false" placeholder="Find" aria-label="Find">
+      <span class="find-bar-count" aria-live="polite"></span>
+      <button type="button" class="find-bar-icon find-bar-prev" aria-label="Previous match" title="Previous match"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg></button>
+      <button type="button" class="find-bar-icon find-bar-next" aria-label="Next match" title="Next match"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+      <button type="button" class="find-bar-icon find-bar-close" aria-label="Close find" title="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"></path></svg></button>
+    </div>
+    <div class="find-bar-row find-bar-replace-row">
+      <span class="find-bar-spacer"></span>
+      <input class="find-bar-input find-bar-replacement" type="text" spellcheck="false" placeholder="Replace" aria-label="Replace">
+      <button type="button" class="find-bar-text-button find-bar-replace-one">Replace</button>
+      <button type="button" class="find-bar-text-button find-bar-replace-all">All</button>
+    </div>`;
+  const query = bar.querySelector(".find-bar-query");
+  const replacement = bar.querySelector(".find-bar-replacement");
+  const count = bar.querySelector(".find-bar-count");
+
+  const refresh = () => {
+    highlightFindMatches(query.value);
+    updateFindCount(count);
+  };
+  query.addEventListener("input", () => {
+    refresh();
+    if (query.value) findNextTextMatch(query.value, false, { fromSelectionStart: true });
+    updateFindCount(count);
+  });
+  const step = (reverse) => {
+    if (!query.value) return;
+    findNextTextMatch(query.value, reverse);
+    updateFindCount(count);
+  };
+  bar.querySelector(".find-bar-next").addEventListener("click", () => step(false));
+  bar.querySelector(".find-bar-prev").addEventListener("click", () => step(true));
+  bar.querySelector(".find-bar-close").addEventListener("click", closeFindBar);
+  bar.querySelector(".find-bar-toggle").addEventListener("click", () => {
+    bar.classList.toggle("with-replace");
+    if (bar.classList.contains("with-replace")) replacement.focus();
+  });
+  bar.querySelector(".find-bar-replace-one").addEventListener("click", () => {
+    replaceCurrentMatch(query.value, replacement.value);
+    refresh();
+  });
+  bar.querySelector(".find-bar-replace-all").addEventListener("click", () => {
+    replaceAllMatches(query.value, replacement.value);
+    refresh();
+  });
+  const onKey = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeFindBar();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (event.target === replacement && !event.shiftKey) {
+        if (event.metaKey || event.ctrlKey) replaceAllMatches(query.value, replacement.value);
+        else replaceCurrentMatch(query.value, replacement.value);
+        refresh();
+      } else {
+        step(event.shiftKey);
+      }
+    }
+  };
+  query.addEventListener("keydown", onKey);
+  replacement.addEventListener("keydown", onKey);
+
+  const host = editor.getWrapperElement().parentElement;
+  host.classList.add("find-bar-host");
+  host.append(bar);
+  findBar = bar;
+  return bar;
+}
+
+function updateFindCount(countElement) {
+  if (!countElement) return;
+  const total = findHighlightMarks.length;
+  if (!lastFindQuery) {
+    countElement.textContent = "";
+    return;
+  }
+  if (!total) {
+    countElement.textContent = "No results";
+    return;
+  }
+  const from = editor.getCursor("from");
+  const to = editor.getCursor("to");
+  const index = findHighlightMarks.findIndex((mark) => {
+    const range = mark.find();
+    return range && CodeMirror.cmpPos(range.from, from) === 0 && CodeMirror.cmpPos(range.to, to) === 0;
+  });
+  countElement.textContent = index >= 0 ? `${index + 1} of ${total}` : `${total} found`;
+}
+
+function selectionMatchesQuery(query) {
+  const selected = editor.getSelection();
+  return Boolean(query) && selected.toLowerCase() === query.toLowerCase();
+}
+
+function replaceCurrentMatch(query, replacement) {
+  if (!query) return;
+  if (!selectionMatchesQuery(query)) {
+    findNextTextMatch(query, false);
+    if (!selectionMatchesQuery(query)) return;
+  }
+  editor.replaceSelection(replacement, "start");
+  findNextTextMatch(query, false);
+}
+
+function replaceAllMatches(query, replacement) {
+  if (!query) return;
+  editor.operation(() => {
+    const cursor = editor.getSearchCursor(query, CodeMirror.Pos(editor.firstLine(), 0), { caseFold: true });
+    while (cursor.findNext()) cursor.replace(replacement);
+  });
+}
+
+function closeFindBar() {
+  if (!findBar) return;
+  findBar.hidden = true;
+  clearFindHighlights();
+  editor.focus();
+}
+
+function openFind({ replace = false } = {}) {
   if (editorScreen.hidden) {
     projectSearch.focus();
     projectSearch.select();
@@ -8551,11 +8746,17 @@ function openFind() {
   closeSettings();
   setMode("source");
   requestAnimationFrame(() => {
-    editor.focus();
-    const query = window.prompt("Find in current file", lastFindQuery);
-    if (query === null) return;
-    highlightFindMatches(query);
-    findNextTextMatch(query, false);
+    const bar = ensureFindBar();
+    const query = bar.querySelector(".find-bar-query");
+    const selected = editor.getSelection();
+    if (selected && !selected.includes("\n")) query.value = selected;
+    else if (!query.value && lastFindQuery) query.value = lastFindQuery;
+    if (replace) bar.classList.add("with-replace");
+    bar.hidden = false;
+    highlightFindMatches(query.value);
+    updateFindCount(bar.querySelector(".find-bar-count"));
+    (replace && query.value ? bar.querySelector(".find-bar-replacement") : query).focus();
+    query.select();
   });
 }
 
@@ -8569,9 +8770,13 @@ function findNextMatch(reverse = false) {
 
   setMode("source");
   requestAnimationFrame(() => {
-    editor.focus();
-    if (!lastFindQuery) openFind();
-    else findNextTextMatch(lastFindQuery, reverse);
+    if (!lastFindQuery) {
+      openFind();
+      return;
+    }
+    if (!findBar || findBar.hidden) editor.focus();
+    findNextTextMatch(lastFindQuery, reverse);
+    if (findBar && !findBar.hidden) updateFindCount(findBar.querySelector(".find-bar-count"));
   });
 }
 
@@ -8591,10 +8796,18 @@ function highlightFindMatches(query) {
   }
 }
 
-function findNextTextMatch(query, reverse = false) {
+function findNextTextMatch(query, reverse = false, { fromSelectionStart = false } = {}) {
   if (!query) return;
   lastFindQuery = query;
-  const cursorPosition = editor.getCursor();
+  const cursorPosition = fromSelectionStart ? editor.getCursor("from") : editor.getCursor();
+  if (fromSelectionStart) {
+    const cursor = editor.getSearchCursor(query, cursorPosition, { caseFold: true });
+    if (cursor.findNext()) {
+      editor.setSelection(cursor.from(), cursor.to());
+      editor.scrollIntoView(cursor.from(), 96);
+      return;
+    }
+  }
   const start = reverse
     ? { line: cursorPosition.line, ch: Math.max(0, cursorPosition.ch - 1) }
     : { line: cursorPosition.line, ch: cursorPosition.ch + 1 };
@@ -10995,6 +11208,8 @@ async function toggleProjectFavorite(project) {
   }
 }
 
+const previewBuildAttempts = new Set();
+
 async function renderProjectPreview(card, project) {
   const preview = card.matches("[data-project-preview]") ? card : card.querySelector(".project-preview");
   if (!preview) return;
@@ -11010,6 +11225,33 @@ async function renderProjectPreview(card, project) {
     } catch (error) {
       // Regenerate stale or unreadable cache entries from the actual PDF.
       preview.replaceChildren();
+    }
+    if (!card.isConnected) return;
+  }
+  if (project.htmlPage && window.localOverleaf.renderHtmlProjectPreview) {
+    try {
+      const result = await window.localOverleaf.renderHtmlProjectPreview(project.id);
+      if (result?.previewImageUrl && card.isConnected) {
+        project.previewImageUrl = result.previewImageUrl;
+        const image = previewImageElement(result.previewImageUrl, `${project.name} preview`);
+        image.loading = "eager";
+        image.classList.add("project-preview-raster");
+        preview.replaceChildren(image);
+        return;
+      }
+    } catch (error) {
+      preview.dataset.previewError = formatError(error);
+    }
+  }
+  // Build never-compiled LaTeX projects once so every card has a first page.
+  if (!project.pdfExists && !project.htmlPage && project.kind !== "presentation"
+    && window.localOverleaf.buildProjectPreviewPdf && !previewBuildAttempts.has(project.id)) {
+    previewBuildAttempts.add(project.id);
+    try {
+      const result = await window.localOverleaf.buildProjectPreviewPdf(project.id);
+      if (result?.ok) project.pdfExists = true;
+    } catch (error) {
+      preview.dataset.previewError = formatError(error);
     }
     if (!card.isConnected) return;
   }
@@ -11058,6 +11300,8 @@ async function renderProjectPreview(card, project) {
   }
 }
 
+let lastActivePreviewCacheAt = 0;
+
 function cacheActiveProjectPreview(sourceCanvas) {
   if (
     !sourceCanvas
@@ -11065,9 +11309,10 @@ function cacheActiveProjectPreview(sourceCanvas) {
     || isRemoteProject()
     || pdfDarkMode
     || !activeProject.pdfExists
-    || activeProject.previewImageUrl
     || !window.localOverleaf.cacheProjectPreview
+    || Date.now() - lastActivePreviewCacheAt < 4000
   ) return;
+  lastActivePreviewCacheAt = Date.now();
   const sourceWidth = sourceCanvas.width;
   const sourceHeight = sourceCanvas.height;
   if (!(sourceWidth > 1) || !(sourceHeight > 1)) return;
