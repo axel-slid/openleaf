@@ -10528,7 +10528,6 @@ function renderProjectGrid() {
           <span class="project-card-title-row">
             <span class="project-name">${escapeHtml(displayName)}</span>
           </span>
-          <span class="project-file">${escapeHtml(sourceLabel)} · ${escapeHtml(project.folderName)}</span>
           <span class="project-card-meta-row">
             <span class="project-meta">Edited ${escapeHtml(relativeTime(project.modifiedAt))}</span>
           </span>

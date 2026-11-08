@@ -19332,6 +19332,17 @@ body.themed-traffic-lights .fullscreen-traffic-light-minimize {
 body.themed-traffic-lights .fullscreen-exit-traffic-light {
   background: color-mix(in srgb, var(--accent) 26%, var(--muted)) !important;
 }
+/* Light themes: fade toward white (mixing with the dark muted grey turned
+   them muddy), with a hairline ring so the palest light still reads. */
+body[data-theme="light"].themed-traffic-lights .fullscreen-traffic-light-minimize {
+  background: color-mix(in srgb, var(--accent) 62%, #ffffff) !important;
+}
+body[data-theme="light"].themed-traffic-lights .fullscreen-exit-traffic-light {
+  background: color-mix(in srgb, var(--accent) 34%, #ffffff) !important;
+}
+body[data-theme="light"].themed-traffic-lights :is(.fullscreen-traffic-light, .fullscreen-exit-traffic-light) {
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.22) !important;
+}
 body.themed-traffic-lights:not(.window-fullscreen) .fullscreen-top-reveal {
   display: block;
   height: 38px;
@@ -19443,7 +19454,7 @@ body.themed-traffic-lights:not(.window-fullscreen) .fullscreen-traffic-lights {
   opacity: 0;
   stroke: rgba(0, 0, 0, 0.55);
   stroke-linecap: round;
-  stroke-width: 1.1;
+  stroke-width: 1.7;
   width: 10px;
 }
 .fullscreen-traffic-light-close .traffic-light-glyph {
