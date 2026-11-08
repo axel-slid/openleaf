@@ -382,7 +382,15 @@ function closeTab(_event, windowId) {
   return { ok: true };
 }
 
-function createWindow({ projectId = "", tabParent = null, bounds = null, replaces = null } = {}) {
+const MAX_TABS_PER_WINDOW = 10;
+
+function createWindow({ projectId = "", tabParent: requestedTabParent = null, bounds = null, replaces = null } = {}) {
+  // A window holds at most 10 tabs; the 11th opens as its own window.
+  const tabParent = requestedTabParent
+    && !requestedTabParent.isDestroyed()
+    && liveTabs(tabGroups.get(requestedTabParent) || []).length < MAX_TABS_PER_WINDOW
+    ? requestedTabParent
+    : null;
   const tabFrame = tabParent && !tabParent.isDestroyed() && !tabParent.isFullScreen() ? tabParent.getBounds() : null;
   const windowBounds = bounds || tabFrame || widestDisplayWindowBounds(1520, 980);
   const prefs = readWindowPrefs();
