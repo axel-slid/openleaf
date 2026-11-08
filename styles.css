@@ -19220,13 +19220,15 @@ body.transparent-theme[data-theme] .window-tab-strip {
 .window-tab-strip[hidden] {
   display: none !important;
 }
-body.has-window-tabs .app {
-  height: calc(100vh - 38px) !important;
-  margin-top: 38px !important;
-}
+/* Screens keep their full height and backgrounds (gradients included) and run
+   under the strip; only their content moves down. */
 body.has-window-tabs :is(.project-screen, .editor-screen, .presentation-screen) {
-  height: 100% !important;
-  max-height: 100% !important;
+  box-sizing: border-box !important;
+  padding-top: 38px !important;
+}
+body:has(#projectScreen:not([hidden])) .window-tab-strip {
+  backdrop-filter: none;
+  background: transparent;
 }
 body.has-window-tabs .topbar {
   padding-left: 14px !important;
