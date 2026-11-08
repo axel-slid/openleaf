@@ -3740,7 +3740,6 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   document.body.style.setProperty("--accent", normalizedAccent);
   document.body.style.setProperty("--accent-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
   applyThemeVariables(preset);
-  syncNativeTabBar(normalizedTheme);
 
   settingsThemePreset.value = normalizedPreset;
   updateThemeGallerySelection();
@@ -3754,15 +3753,57 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   updateVimModeIndicator();
 }
 
-// The macOS tab bar overlays the window top: paint the strip under it with the
-// top bar's color and switch the native chrome to the theme's light/dark mode.
-function syncNativeTabBar(theme) {
-  if (!window.localOverleaf.supportsNativeTabs) return;
-  const topbar = document.querySelector(".topbar");
-  const color = topbar ? getComputedStyle(topbar).backgroundColor : "";
-  const usable = color && color !== "transparent" && !/rgba\([^)]*,\s*0\)$/.test(color);
-  document.body.style.setProperty("--native-tabbar-bg", usable ? color : getComputedStyle(document.body).backgroundColor);
-  void window.localOverleaf.setNativeAppearance(theme === "dark" ? "dark" : "light");
+// Project tabs: every window in a tab group draws the same strip; the strip
+// only appears once a window holds two or more projects.
+function renderWindowTabStrip({ tabs = [], activeId = null } = {}) {
+  const strip = document.getElementById("windowTabStrip");
+  if (!strip) return;
+  const visible = tabs.length > 1;
+  strip.hidden = !visible;
+  document.body.classList.toggle("has-window-tabs", visible);
+  strip.replaceChildren();
+  if (!visible) return;
+
+  const list = document.createElement("div");
+  list.className = "window-tab-list";
+  for (const tab of tabs) {
+    const item = document.createElement("div");
+    item.className = "window-tab";
+    item.classList.toggle("active", tab.id === activeId);
+    item.title = tab.title;
+    item.addEventListener("click", () => {
+      if (tab.id !== activeId) void window.localOverleaf.selectTab(tab.id);
+    });
+    item.addEventListener("auxclick", (event) => {
+      if (event.button === 1) void window.localOverleaf.closeTab(tab.id);
+    });
+
+    const label = document.createElement("span");
+    label.className = "window-tab-label";
+    label.textContent = String(tab.title || "Openleaf").replace(/\s+[—-]\s+Openleaf$/, "");
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "window-tab-close";
+    close.setAttribute("aria-label", `Close ${label.textContent}`);
+    close.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"></path></svg>';
+    close.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void window.localOverleaf.closeTab(tab.id);
+    });
+
+    item.append(label, close);
+    list.append(item);
+  }
+
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "window-tab-add";
+  add.setAttribute("aria-label", "New Tab");
+  add.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>';
+  add.addEventListener("click", () => void window.localOverleaf.openNewTab());
+
+  strip.append(list, add);
 }
 
 function syncSurfaceThemesToAppTheme(theme, { persist = true } = {}) {
@@ -6929,7 +6970,7 @@ function wireEvents() {
   }
   if (pushGithubButton) pushGithubButton.addEventListener("click", pushActiveProjectToGithub);
   if (pullGithubButton) pullGithubButton.addEventListener("click", pullActiveProjectFromGithub);
-  if (window.localOverleaf.supportsNativeTabs) document.body.classList.add("native-tabbar");
+  if (window.localOverleaf.onTabStrip) window.localOverleaf.onTabStrip(renderWindowTabStrip);
   const newProjectTabButton = document.getElementById("newProjectTabButton");
   if (newProjectTabButton) {
     newProjectTabButton.addEventListener("click", async () => {

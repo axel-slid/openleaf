@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, screen, safeStorage, nativeTheme } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, screen, safeStorage } = require("electron");
 const { execFile, execFileSync, spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -213,8 +213,8 @@ function setDisplayFrameAppearance(window, active) {
   // not sit underneath that pill, then restore all native controls on exit.
   if (process.platform === "darwin" && typeof window.setWindowButtonVisibility === "function") {
     window.setWindowButtonVisibility(!active);
-    if (typeof window.setTrafficLightPosition === "function") {
-      window.setTrafficLightPosition(active ? { x: -120, y: -120 } : { x: 14, y: 13 });
+    if (typeof window.setWindowButtonPosition === "function") {
+      window.setWindowButtonPosition(active ? { x: -120, y: -120 } : TRAFFIC_LIGHTS);
     }
   }
 }
@@ -271,8 +271,54 @@ function writeWindowPrefs(prefs) {
   }
 }
 
-function createWindow({ projectId = "", tabParent = null, bounds = null } = {}) {
-  const windowBounds = bounds || widestDisplayWindowBounds(1520, 980);
+const TRAFFIC_LIGHTS = { x: 14, y: 13 };
+
+// ---- Project tabs -------------------------------------------------------------
+// Each tab is its own window (one project per renderer). Windows in a group
+// share one frame: only the selected tab is visible, and every member draws the
+// same tab strip, sent from here.
+const tabGroups = new Map(); // window -> shared array of windows, in tab order
+
+function liveTabs(group) {
+  return group.filter((member) => !member.isDestroyed());
+}
+
+function syncTabGroup(group) {
+  if (!group) return;
+  const tabs = liveTabs(group).map((member) => ({ id: member.id, title: member.getTitle() || "Openleaf" }));
+  for (const member of liveTabs(group)) {
+    member.webContents.send("tab-strip", { tabs, activeId: member.id });
+  }
+}
+
+function showTab(target, from) {
+  if (!target || target.isDestroyed()) return;
+  if (from && !from.isDestroyed() && from !== target) {
+    if (!from.isFullScreen()) target.setBounds(from.getBounds(), false);
+  }
+  target.show();
+  target.focus();
+  for (const member of liveTabs(tabGroups.get(target) || [])) {
+    if (member !== target && member.isVisible()) member.hide();
+  }
+  mainWindow = target;
+}
+
+function selectTab(event, windowId) {
+  const from = BrowserWindow.fromWebContents(event.sender);
+  showTab(BrowserWindow.fromId(Number(windowId)), from);
+  return { ok: true };
+}
+
+function closeTab(_event, windowId) {
+  const target = BrowserWindow.fromId(Number(windowId));
+  if (target && !target.isDestroyed()) target.close();
+  return { ok: true };
+}
+
+function createWindow({ projectId = "", tabParent = null, bounds = null, replaces = null } = {}) {
+  const tabFrame = tabParent && !tabParent.isDestroyed() && !tabParent.isFullScreen() ? tabParent.getBounds() : null;
+  const windowBounds = bounds || tabFrame || widestDisplayWindowBounds(1520, 980);
   const prefs = readWindowPrefs();
   const glass = Boolean(prefs.glass);
   const opaqueBackground = /^#[0-9a-f]{6}$/i.test(prefs.background || "") ? prefs.background : "#202020";
@@ -288,8 +334,7 @@ function createWindow({ projectId = "", tabParent = null, bounds = null } = {}) 
     ...(process.platform === "darwin"
       ? {
           titleBarStyle: "hiddenInset",
-          trafficLightPosition: { x: 14, y: 13 },
-          tabbingIdentifier: "openleaf-projects",
+          trafficLightPosition: TRAFFIC_LIGHTS,
           fullscreenable: true,
           enableLargerThanScreen: true,
           ...(glass ? { vibrancy: "under-window", visualEffectState: "active" } : {})
@@ -322,19 +367,12 @@ function createWindow({ projectId = "", tabParent = null, bounds = null } = {}) 
     // the launch bounds after Cocoa restores state so the green control and
     // the whole window are always reachable.
     window.setBounds(windowBounds, false);
-    if (process.platform === "darwin" && tabParent && !tabParent.isDestroyed()) {
-      tabParent.addTabbedWindow(window);
-    }
-    window.show();
-    window.focus();
-    // Every window keeps the native tab bar visible so open projects read as
-    // tabs; tabs added to a group inherit the group's already-visible bar.
-    if (process.platform === "darwin" && !tabParent) window.toggleTabBar();
+    showTab(window, null);
+    syncTabGroup(tabGroups.get(window));
   };
   window.once("ready-to-show", revealWindow);
   window.webContents.once("did-finish-load", revealWindow);
   window.loadFile(path.join(__dirname, "index.html"), { query: projectId ? { projectId } : {} });
-  window.on("new-window-for-tab", () => createWindow({ tabParent: window }));
   window.webContents.on("before-input-event", (event, input) => {
     if (input.type === "keyDown" && input.control && !input.alt && !input.meta && !input.shift && input.key.toLowerCase() === "t") {
       event.preventDefault();
@@ -393,7 +431,33 @@ function createWindow({ projectId = "", tabParent = null, bounds = null } = {}) 
     }, 250);
   });
 
+  // Join the parent's tab group right after the parent (or replace a window
+  // that is being rebuilt), otherwise start a new group.
+  const tabGroup = (tabParent && tabGroups.get(tabParent)) || (replaces && tabGroups.get(replaces)) || [];
+  const anchor = tabParent || replaces;
+  const anchorIndex = anchor ? tabGroup.indexOf(anchor) : -1;
+  if (anchorIndex >= 0) tabGroup.splice(anchorIndex + (replaces ? 0 : 1), 0, window);
+  else tabGroup.push(window);
+  tabGroups.set(window, tabGroup);
+  window.webContents.on("did-finish-load", () => syncTabGroup(tabGroups.get(window)));
+  window.on("page-title-updated", () => setImmediate(() => syncTabGroup(tabGroups.get(window))));
+
+  let closingVisibleTab = null;
+  window.on("close", () => {
+    closingVisibleTab = window.isVisible() ? { bounds: window.getBounds(), fullScreen: window.isFullScreen() } : null;
+  });
+
   window.on("closed", () => {
+    const index = tabGroup.indexOf(window);
+    if (index >= 0) tabGroup.splice(index, 1);
+    tabGroups.delete(window);
+    const survivors = liveTabs(tabGroup);
+    if (closingVisibleTab && survivors.length) {
+      const next = survivors[Math.min(Math.max(index, 0), survivors.length - 1)];
+      if (!closingVisibleTab.fullScreen) next.setBounds(closingVisibleTab.bounds, false);
+      showTab(next, null);
+    }
+    syncTabGroup(tabGroup);
     killTerminalSessionsForWebContents(windowWebContentsId);
     const remainingWindows = BrowserWindow.getAllWindows().filter((candidate) => !candidate.isDestroyed());
     if (remainingWindows.length === 0) {
@@ -668,7 +732,7 @@ function recreateWindow(event, projectId = "") {
   const oldWindow = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
   if (!oldWindow || oldWindow.isDestroyed()) return { ok: false };
   const bounds = oldWindow.getBounds();
-  const next = createWindow({ projectId: String(projectId || ""), bounds });
+  const next = createWindow({ projectId: String(projectId || ""), bounds, replaces: oldWindow });
   next.once("ready-to-show", () => {
     if (!oldWindow.isDestroyed()) oldWindow.destroy();
   });
@@ -5823,11 +5887,8 @@ ipcMain.handle("list-ssh-hosts", listSshHosts);
 ipcMain.handle("close-window", closeWindow);
 ipcMain.handle("open-project-in-tab", openProjectInTab);
 ipcMain.handle("open-new-tab", openNewTab);
-// The native tab bar and traffic lights follow the app theme (light or dark).
-ipcMain.handle("set-native-appearance", (_event, mode) => {
-  nativeTheme.themeSource = mode === "dark" ? "dark" : "light";
-  return { mode: nativeTheme.themeSource };
-});
+ipcMain.handle("select-tab", selectTab);
+ipcMain.handle("close-tab", closeTab);
 ipcMain.handle("minimize-window", minimizeWindow);
 ipcMain.handle("set-window-glass", setWindowGlass);
 ipcMain.handle("app-version", () => app.getVersion());

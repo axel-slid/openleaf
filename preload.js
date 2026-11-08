@@ -6,7 +6,8 @@ contextBridge.exposeInMainWorld("localOverleaf", {
   supportsNativeTabs: process.platform === "darwin",
   openProjectInTab: (projectId) => ipcRenderer.invoke("open-project-in-tab", projectId),
   openNewTab: () => ipcRenderer.invoke("open-new-tab"),
-  setNativeAppearance: (mode) => ipcRenderer.invoke("set-native-appearance", mode),
+  selectTab: (windowId) => ipcRenderer.invoke("select-tab", windowId),
+  closeTab: (windowId) => ipcRenderer.invoke("close-tab", windowId),
   addProject: (kind, paths = []) => ipcRenderer.invoke("add-project", { kind, paths }),
   addProjectFromPath: (paths) => ipcRenderer.invoke("add-project-from-path", { paths }),
   listTemplates: () => ipcRenderer.invoke("list-templates"),
@@ -110,5 +111,8 @@ contextBridge.exposeInMainWorld("localOverleaf", {
   copyProjectLink: (projectId) => ipcRenderer.invoke("copy-project-link", projectId),
   onOpenLink: (callback) => {
     ipcRenderer.on("open-link", (_event, payload) => callback(payload));
+  },
+  onTabStrip: (callback) => {
+    ipcRenderer.on("tab-strip", (_event, payload) => callback(payload));
   }
 });

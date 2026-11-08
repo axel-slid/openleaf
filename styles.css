@@ -19195,16 +19195,113 @@ body.high-contrast .preview-stage {
   overflow-y: clip !important;
 }
 
-/* macOS native tab bar: it overlays the top of the full-size content view, so
-   the app starts below it on a strip in the top bar's color and the traffic lights live in the
-   tab bar instead of the app's top bar. */
-body.native-tabbar {
-  background: var(--native-tabbar-bg, var(--bg)) !important;
+/* Project tabs (two or more projects in a window). The strip takes the window's
+   top row, so the traffic lights sit in it and the app starts below. */
+.window-tab-strip {
+  -webkit-app-region: drag;
+  align-items: center;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  box-sizing: border-box;
+  display: flex;
+  gap: 8px;
+  height: 38px;
+  left: 0;
+  padding: 0 8px 0 84px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 2147483000;
 }
-body.native-tabbar .app {
-  height: calc(100vh - var(--native-tabbar-height, 32px)) !important;
-  margin-top: var(--native-tabbar-height, 32px) !important;
+.window-tab-strip[hidden] {
+  display: none !important;
 }
-body.native-tabbar .topbar {
+body.has-window-tabs .app {
+  height: calc(100vh - 38px) !important;
+  margin-top: 38px !important;
+}
+body.has-window-tabs .topbar {
   padding-left: 14px !important;
+}
+.window-tab-list {
+  background: color-mix(in srgb, var(--text) 8%, var(--bg));
+  border-radius: 999px;
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  height: 28px;
+  min-width: 0;
+  padding: 2px;
+}
+.window-tab {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  border-radius: 999px;
+  box-sizing: border-box;
+  color: var(--muted);
+  cursor: default;
+  display: flex;
+  flex: 1 1 0;
+  font-size: 12px;
+  height: 24px;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 28px;
+  position: relative;
+}
+.window-tab:not(.active):hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.window-tab.active {
+  background: color-mix(in srgb, var(--panel-solid, var(--panel)) 92%, white);
+  box-shadow: 0 0 0 0.5px var(--border-strong), 0 1px 2px rgba(0, 0, 0, 0.12);
+  color: var(--text);
+}
+.window-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.window-tab-close,
+.window-tab-add {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--muted);
+  display: inline-flex;
+  justify-content: center;
+  padding: 0;
+}
+.window-tab-close {
+  border-radius: 999px;
+  height: 18px;
+  left: 4px;
+  opacity: 0;
+  position: absolute;
+  width: 18px;
+}
+.window-tab:hover .window-tab-close {
+  opacity: 1;
+}
+.window-tab-close:hover,
+.window-tab-add:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+}
+.window-tab-add {
+  border-radius: 999px;
+  flex: none;
+  height: 26px;
+  width: 26px;
+}
+.window-tab-close svg,
+.window-tab-add svg {
+  fill: none;
+  height: 14px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+  width: 14px;
 }
