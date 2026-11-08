@@ -19234,7 +19234,7 @@ body.has-window-tabs .topbar {
   padding-left: 14px !important;
 }
 .window-tab-list {
-  background: color-mix(in srgb, var(--text) 8%, var(--bg));
+  background: rgb(from var(--text) r g b / 0.07);
   border-radius: 999px;
   box-sizing: border-box;
   display: flex;
@@ -19260,11 +19260,11 @@ body.has-window-tabs .topbar {
   position: relative;
 }
 .window-tab:not(.active):hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
+  background: rgb(from var(--text) r g b / 0.06);
 }
 .window-tab.active {
-  background: color-mix(in srgb, var(--panel-solid, var(--panel)) 92%, white);
-  box-shadow: 0 0 0 0.5px var(--border-strong), 0 1px 2px rgba(0, 0, 0, 0.12);
+  background: rgb(from var(--text) r g b / 0.12);
+  box-shadow: 0 0 0 0.5px rgb(from var(--text) r g b / 0.18), 0 1px 2px rgba(0, 0, 0, 0.12);
   color: var(--text);
 }
 .window-tab-label {
