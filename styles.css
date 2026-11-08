@@ -19785,3 +19785,12 @@ body #projectGrid .project-card :is(.project-favorite-button, .project-remove-bu
   border-radius: 999px;
   background-clip: padding-box;
 }
+
+/* Welcome actions: hover is the soft pill only, no underline. */
+body #projectScreen .hero-actions > button::after {
+  content: none !important;
+  display: none !important;
+}
+body #projectScreen .hero-actions > button {
+  text-decoration: none !important;
+}

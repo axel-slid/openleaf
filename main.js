@@ -3,6 +3,7 @@ const { execFile, execFileSync, spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
+const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -6099,8 +6100,235 @@ ipcMain.handle("terminal-kill", killTerminal);
 ipcMain.on("terminal-write", writeTerminal);
 ipcMain.on("terminal-resize", resizeTerminal);
 
+// ---- Agent control socket ------------------------------------------------------
+// `openleaf` CLI commands (status, open, tabs, panel, compile, screenshot, ...)
+// talk to the running app over a user-only Unix socket with one JSON request
+// per line: {"id", "method", "params"} -> {"id", "result"} | {"id", "error"}.
+// Renderer actions go through the whitelisted window.openleafAgentApi only.
+function controlSocketPath() {
+  return process.env.OPENLEAF_CONTROL_SOCKET || path.join(app.getPath("userData"), "control.sock");
+}
+
+function agentWindows() {
+  return BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed() && tabGroups.has(window));
+}
+
+function agentWindowInfo(window) {
+  const group = liveTabs(tabGroups.get(window) || []);
+  return {
+    id: window.id,
+    title: window.getTitle(),
+    active: window.openleafActiveTab !== false,
+    tabIndex: group.indexOf(window) + 1,
+    group: group[0] ? group[0].id : window.id,
+    fullscreen: Boolean(window.openleafDisplayFrameFullscreen)
+  };
+}
+
+function agentTargetWindow(params = {}) {
+  if (params.window) {
+    const window = BrowserWindow.fromId(Number(params.window));
+    if (!window || window.isDestroyed()) throw new Error(`No Openleaf window ${params.window}.`);
+    return window;
+  }
+  const focused = BrowserWindow.getFocusedWindow();
+  if (focused && tabGroups.has(focused)) return focused;
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.openleafActiveTab !== false) return mainWindow;
+  const visible = agentWindows().find((window) => window.openleafActiveTab !== false);
+  if (!visible) throw new Error("Openleaf has no open window.");
+  return visible;
+}
+
+async function agentRenderer(window, method, ...args) {
+  const call = `window.openleafAgentApi.${method}(${args.map((arg) => JSON.stringify(arg)).join(", ")})`;
+  return window.webContents.executeJavaScript(`Promise.resolve(${call})`, true);
+}
+
+async function agentWaitFor(window, predicate, timeoutMs = 20000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const state = await agentRenderer(window, "state");
+      if (predicate(state)) return state;
+    } catch (_error) {
+      // The page is still loading.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error("Timed out waiting for Openleaf.");
+}
+
+async function agentResolveProject(target) {
+  const value = String(target || "").trim();
+  if (!value) throw new Error("Name a project: id, name, or a path inside it.");
+  const projects = await readProjects();
+  const id = value.replace(/^openleaf:\/\/project\//, "").split(/[?#/]/)[0];
+  const byId = projects.find((project) => project.id === id);
+  if (byId) return byId;
+  const resolved = path.resolve(value);
+  const byPath = projects.find((project) => {
+    const root = projectRootFor(project);
+    return resolved === path.resolve(project.texPath) || resolved === root || resolved.startsWith(root + path.sep);
+  });
+  if (byPath) return byPath;
+  const lower = value.toLowerCase();
+  const exact = projects.filter((project) => String(project.name || "").toLowerCase() === lower);
+  const partial = exact.length ? exact : projects.filter((project) => String(project.name || "").toLowerCase().includes(lower));
+  if (partial.length === 1) return partial[0];
+  if (partial.length > 1) throw new Error(`"${value}" matches ${partial.length} projects: ${partial.map((p) => `${p.name} (${p.id})`).join(", ")}.`);
+  if (fs.existsSync(resolved)) return registerProjectFromPath(resolved);
+  throw new Error(`No Openleaf project matches "${value}".`);
+}
+
+const agentMethods = {
+  async status() {
+    return { version: app.getVersion(), pid: process.pid, socket: controlSocketPath(), windows: agentWindows().map(agentWindowInfo) };
+  },
+  async projects() {
+    const { projects } = await listProjects();
+    return projects.map((project) => ({
+      id: project.id, name: project.displayName || project.name, kind: project.kind,
+      root: project.rootPath, entry: project.texPath, pdf: project.pdfExists ? project.pdfPath : "",
+      favorite: Boolean(project.favorite), modifiedAt: project.modifiedAt, link: `openleaf://project/${project.id}`
+    }));
+  },
+  async add({ path: filePath }) {
+    const project = await registerProjectFromPath(path.resolve(String(filePath || "")));
+    return { id: project.id, name: project.name, entry: project.texPath };
+  },
+  async open(params = {}) {
+    const project = await agentResolveProject(params.project);
+    const current = agentWindows().length ? agentTargetWindow(params) : null;
+    let mode = params.mode || "";
+    if (!current) mode = "window";
+    if (!mode) {
+      const state = await agentRenderer(current, "state").catch(() => null);
+      mode = state && state.screen === "projects" ? "current" : "tab";
+    }
+    let window = current;
+    if (mode === "current") {
+      await current.webContents.executeJavaScript(`openProject(${JSON.stringify(project.id)})`, true);
+    } else {
+      window = createWindow({ projectId: project.id, tabParent: mode === "tab" ? current : null });
+    }
+    const state = await agentWaitFor(window, (value) => value.project && value.project.id === project.id);
+    return { window: window.id, mode, ...state };
+  },
+  async tabs(params = {}) {
+    const window = agentTargetWindow(params);
+    return liveTabs(tabGroups.get(window) || [window]).map(agentWindowInfo);
+  },
+  async selectTab(params = {}) {
+    const window = agentTargetWindow(params);
+    const group = liveTabs(tabGroups.get(window) || [window]);
+    const target = String(params.tab || "");
+    const index = Number(target);
+    const tab = /^\d+$/.test(target) && index >= 1 && index <= group.length
+      ? group[index - 1]
+      : group.find((member) => member.getTitle().toLowerCase().includes(target.toLowerCase()));
+    if (!tab) throw new Error(`No tab "${target}" (there are ${group.length}).`);
+    showTab(tab, window);
+    return agentWindowInfo(tab);
+  },
+  async closeTab(params = {}) {
+    const window = params.tab ? (await agentMethods.selectTab(params), agentTargetWindow({})) : agentTargetWindow(params);
+    const info = agentWindowInfo(window);
+    window.close();
+    return info;
+  },
+  async state(params = {}) {
+    const window = agentTargetWindow(params);
+    return { window: window.id, ...(await agentRenderer(window, "state")) };
+  },
+  async panel(params = {}) {
+    const window = agentTargetWindow(params);
+    return agentRenderer(window, "setPanel", String(params.name || ""), params.open !== false);
+  },
+  async openFile(params = {}) {
+    return agentRenderer(agentTargetWindow(params), "openFile", String(params.file || ""));
+  },
+  async home(params = {}) {
+    return agentRenderer(agentTargetWindow(params), "showProjects");
+  },
+  async find(params = {}) {
+    return agentRenderer(agentTargetWindow(params), "find", String(params.query || ""));
+  },
+  async compile(params = {}) {
+    if (params.project) {
+      const project = await agentResolveProject(params.project);
+      const result = await compileProjectIfPossible(project.id);
+      return { project: project.id, ok: Boolean(result.ok), pdf: pdfPathFor(project), log: result.output || "" };
+    }
+    return agentRenderer(agentTargetWindow(params), "compile");
+  },
+  async fullscreen(params = {}) {
+    const window = agentTargetWindow(params);
+    return toggleFullscreen({ sender: window.webContents }, params.on === undefined ? undefined : Boolean(params.on));
+  },
+  async screenshot(params = {}) {
+    const window = agentTargetWindow(params);
+    const image = await window.webContents.capturePage();
+    const out = path.resolve(String(params.out || path.join(app.getPath("temp"), `openleaf-${window.id}-${Date.now()}.png`)));
+    await fsp.mkdir(path.dirname(out), { recursive: true });
+    await fsp.writeFile(out, image.toPNG());
+    const size = image.getSize();
+    return { path: out, width: size.width, height: size.height };
+  }
+};
+
+let controlServer = null;
+
+function startControlServer() {
+  const socketPath = controlSocketPath();
+  try {
+    fs.unlinkSync(socketPath);
+  } catch (_error) {
+    // No stale socket.
+  }
+  controlServer = net.createServer((connection) => {
+    let buffer = "";
+    connection.setEncoding("utf8");
+    connection.on("data", (chunk) => {
+      buffer += chunk;
+      let newline;
+      while ((newline = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        if (!line) continue;
+        let request = {};
+        Promise.resolve()
+          .then(() => {
+            request = JSON.parse(line);
+            const handler = Object.prototype.hasOwnProperty.call(agentMethods, request.method) ? agentMethods[request.method] : null;
+            if (!handler) throw new Error(`Unknown method "${request.method}". Methods: ${Object.keys(agentMethods).join(", ")}.`);
+            return handler(request.params || {});
+          })
+          .then((result) => connection.write(`${JSON.stringify({ id: request.id ?? null, result })}\n`))
+          .catch((error) => connection.write(`${JSON.stringify({ id: request.id ?? null, error: formatMainError(error) })}\n`));
+      }
+    });
+    connection.on("error", () => {});
+  });
+  controlServer.on("error", (error) => console.error(`Openleaf control socket unavailable: ${error.message}`));
+  controlServer.listen(socketPath, () => {
+    try {
+      fs.chmodSync(socketPath, 0o600);
+    } catch (_error) {
+      // Best effort; the socket lives in the user's own data folder.
+    }
+  });
+}
+
 app.on("before-quit", () => {
   killTerminalSessions();
+  if (controlServer) {
+    controlServer.close();
+    try {
+      fs.unlinkSync(controlSocketPath());
+    } catch (_error) {
+      // Already removed.
+    }
+  }
   killPythonSessions();
   automationRuns.forEach((child) => child.kill("SIGTERM"));
   killPdfSpeechSession();
@@ -6117,6 +6345,7 @@ app.on("open-url", (event, url) => {
 
 app.whenReady().then(() => {
   app.setName("Openleaf");
+  startControlServer();
   buildMenu();
   createWindow();
   const launchUrl = pendingOpenleafUrl || process.argv.find((arg) => String(arg).startsWith("openleaf://"));

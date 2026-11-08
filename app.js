@@ -21741,3 +21741,82 @@ async function syncActiveOverleafProject() {
     overleafSyncBusy = false;
   }
 }
+
+// ---- Agent control (used by `openleaf` CLI through the main process) -------
+// A small, whitelisted surface the main process calls with executeJavaScript.
+const AGENT_PANELS = {
+  files: {
+    isOpen: () => !workspace.classList.contains("files-hidden"),
+    set: (open) => setFileSidebarVisible(open)
+  },
+  source: {
+    isOpen: () => !workspace.classList.contains("source-hidden"),
+    set: (open) => setSourceCollapsed(!open)
+  },
+  preview: {
+    isOpen: () => !workspace.classList.contains("pdf-hidden"),
+    set: (open) => setPdfCollapsed(!open)
+  },
+  terminal: {
+    isOpen: () => !sourcePane.classList.contains("terminal-collapsed"),
+    set: (open) => setTerminalCollapsed(!open)
+  },
+  log: {
+    isOpen: () => !compileLogPanel.classList.contains("log-collapsed"),
+    set: (open) => setCompileLogCollapsed(!open)
+  },
+  notes: {
+    isOpen: () => Boolean(document.getElementById("notesPanel")?.classList.contains("notes-open")),
+    set: (open) => {
+      if (AGENT_PANELS.notes.isOpen() !== open) document.getElementById("notesRailButton")?.click();
+    }
+  }
+};
+
+window.openleafAgentApi = {
+  state() {
+    const screen = !editorScreen.hidden ? "editor" : !presentationScreen.hidden ? "presentation" : "projects";
+    const panels = {};
+    for (const [name, panel] of Object.entries(AGENT_PANELS)) panels[name] = panel.isOpen();
+    return {
+      screen,
+      project: activeProject && screen !== "projects"
+        ? { id: activeProject.id, name: activeProject.displayName || activeProject.name, root: activeProject.rootPath }
+        : null,
+      file: activeFile ? activeFile.relativePath || activeFile.name || "" : "",
+      panels,
+      fullscreen: document.body.classList.contains("window-fullscreen"),
+      saveStatus: document.getElementById("topSaveStatusButton")?.dataset.saveStatus || "",
+      theme: document.body.dataset.themePreset || document.body.dataset.theme || ""
+    };
+  },
+  setPanel(name, open) {
+    const panel = AGENT_PANELS[String(name)];
+    if (!panel) throw new Error(`Unknown panel "${name}". Panels: ${Object.keys(AGENT_PANELS).join(", ")}.`);
+    if (editorScreen.hidden) throw new Error("Panels exist only while a project is open.");
+    panel.set(Boolean(open));
+    return this.state();
+  },
+  async openFile(relativePath) {
+    if (editorScreen.hidden) throw new Error("Open a project first.");
+    await loadProjectFile(String(relativePath), { confirmUnsaved: false });
+    return this.state();
+  },
+  async showProjects() {
+    await showProjects();
+    return this.state();
+  },
+  async compile() {
+    if (editorScreen.hidden) throw new Error("Open a project first.");
+    await compileManuscript({ manual: true });
+    return { ...this.state(), log: document.getElementById("compileLog")?.textContent || "" };
+  },
+  find(query) {
+    if (editorScreen.hidden || !editor) throw new Error("Open a project first.");
+    highlightFindMatches(String(query || ""));
+    const matches = findHighlightMarks.map((mark) => mark.find()).filter(Boolean)
+      .map((range) => ({ line: range.from.line + 1, ch: range.from.ch }));
+    clearFindHighlights();
+    return { query: String(query || ""), count: matches.length, matches };
+  }
+};
