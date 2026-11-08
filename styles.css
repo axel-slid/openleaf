@@ -19220,6 +19220,10 @@ body.has-window-tabs .app {
   height: calc(100vh - 38px) !important;
   margin-top: 38px !important;
 }
+body.has-window-tabs :is(.project-screen, .editor-screen, .presentation-screen) {
+  height: 100% !important;
+  max-height: 100% !important;
+}
 body.has-window-tabs .topbar {
   padding-left: 14px !important;
 }
