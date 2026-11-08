@@ -19787,3 +19787,12 @@ body #projectScreen .hero-actions > button::after {
 body #projectScreen .hero-actions > button {
   text-decoration: none !important;
 }
+
+/* Default editor/PDF split is even; dragging the divider (which removes
+   .editor-split-even) switches to the dragged --editor-width. */
+.workspace.editor-split-even:not(.source-hidden):not(.pdf-hidden) {
+  grid-template-columns: var(--file-width) 8px minmax(320px, 1fr) 8px minmax(240px, 1fr) auto !important;
+}
+.workspace.editor-split-even.files-hidden:not(.source-hidden):not(.pdf-hidden) {
+  grid-template-columns: 42px minmax(320px, 1fr) 8px minmax(240px, 1fr) auto !important;
+}

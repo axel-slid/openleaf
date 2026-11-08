@@ -20461,6 +20461,7 @@ function setupSplitter() {
     const minRight = Math.min(760, Math.max(getPdfMinimumWidth(), bounds.width * 0.28));
     const maxLeft = Math.max(minLeft, bounds.width - fileWidth - notesWidth - minRight - splitter.offsetWidth);
     const clamped = Math.min(maxLeft, Math.max(minLeft, nextWidth));
+    workspace.classList.remove("editor-split-even");
     workspace.style.setProperty("--editor-width", `${clamped}px`);
   };
 
@@ -20495,6 +20496,7 @@ function setupSplitter() {
       return;
     }
     if (workspace.classList.contains("pdf-hidden")) setPdfCollapsed(false);
+    workspace.classList.remove("editor-split-even");
     workspace.style.setProperty("--editor-width", `${Math.min(maxLeft, Math.max(MIN_EDITOR_WIDTH, nextWidth))}px`);
     renderPdf({ showLoading: false });
   });
