@@ -287,19 +287,45 @@ function syncTabGroup(group) {
   if (!group) return;
   const tabs = liveTabs(group).map((member) => ({ id: member.id, title: member.getTitle() || "Openleaf" }));
   for (const member of liveTabs(group)) {
-    member.webContents.send("tab-strip", { tabs, activeId: member.id });
+    try {
+      if (!member.webContents.isDestroyed()) member.webContents.send("tab-strip", { tabs, activeId: member.id });
+    } catch (_error) {
+      // The app is quitting and this frame is already gone.
+    }
   }
+}
+
+// Inactive tabs stay ordered in (no macOS show/hide animation) but fully
+// transparent and click-through behind the selected one.
+function setTabActive(member, active) {
+  if (!member || member.isDestroyed()) return;
+  member.setOpacity(active ? 1 : 0);
+  member.setIgnoreMouseEvents(!active);
+  member.openleafActiveTab = active;
 }
 
 function showTab(target, from) {
   if (!target || target.isDestroyed()) return;
-  if (from && !from.isDestroyed() && from !== target) {
-    if (!from.isFullScreen()) target.setBounds(from.getBounds(), false);
+  const group = liveTabs(tabGroups.get(target) || []);
+  const current = from && !from.isDestroyed() ? from : group.find((member) => member !== target && member.openleafActiveTab);
+  if (current && current !== target && !current.isFullScreen()) target.setBounds(current.getBounds(), false);
+  if (!target.isVisible() && current) {
+    // A new tab's first appearance would play the window-open animation;
+    // run it transparent, then reveal the finished frame.
+    target.setOpacity(0);
+    target.show();
+    setTimeout(() => {
+      if (!target.isDestroyed() && target.openleafActiveTab) target.setOpacity(1);
+    }, 220);
+    target.setIgnoreMouseEvents(false);
+    target.openleafActiveTab = true;
+  } else {
+    setTabActive(target, true);
+    if (!target.isVisible()) target.show();
   }
-  target.show();
   target.focus();
-  for (const member of liveTabs(tabGroups.get(target) || [])) {
-    if (member !== target && member.isVisible()) member.hide();
+  for (const member of group) {
+    if (member !== target) setTabActive(member, false);
   }
   mainWindow = target;
 }
@@ -444,7 +470,7 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
 
   let closingVisibleTab = null;
   window.on("close", () => {
-    closingVisibleTab = window.isVisible() ? { bounds: window.getBounds(), fullScreen: window.isFullScreen() } : null;
+    closingVisibleTab = window.openleafActiveTab ? { bounds: window.getBounds(), fullScreen: window.isFullScreen() } : null;
   });
 
   window.on("closed", () => {
