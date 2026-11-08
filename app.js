@@ -3740,6 +3740,7 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   document.body.style.setProperty("--accent", normalizedAccent);
   document.body.style.setProperty("--accent-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
   applyThemeVariables(preset);
+  syncNativeTabBar(normalizedTheme);
 
   settingsThemePreset.value = normalizedPreset;
   updateThemeGallerySelection();
@@ -3751,6 +3752,17 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
   refreshTerminalThemes();
   scheduleSourceMinimapUpdate();
   updateVimModeIndicator();
+}
+
+// The macOS tab bar overlays the window top: paint the strip under it with the
+// top bar's color and switch the native chrome to the theme's light/dark mode.
+function syncNativeTabBar(theme) {
+  if (!window.localOverleaf.supportsNativeTabs) return;
+  const topbar = document.querySelector(".topbar");
+  const color = topbar ? getComputedStyle(topbar).backgroundColor : "";
+  const usable = color && color !== "transparent" && !/rgba\([^)]*,\s*0\)$/.test(color);
+  document.body.style.setProperty("--native-tabbar-bg", usable ? color : getComputedStyle(document.body).backgroundColor);
+  void window.localOverleaf.setNativeAppearance(theme === "dark" ? "dark" : "light");
 }
 
 function syncSurfaceThemesToAppTheme(theme, { persist = true } = {}) {
@@ -6917,6 +6929,17 @@ function wireEvents() {
   }
   if (pushGithubButton) pushGithubButton.addEventListener("click", pushActiveProjectToGithub);
   if (pullGithubButton) pullGithubButton.addEventListener("click", pullActiveProjectFromGithub);
+  if (window.localOverleaf.supportsNativeTabs) document.body.classList.add("native-tabbar");
+  const newProjectTabButton = document.getElementById("newProjectTabButton");
+  if (newProjectTabButton) {
+    newProjectTabButton.addEventListener("click", async () => {
+      try {
+        await window.localOverleaf.openNewTab();
+      } catch (error) {
+        window.alert(`Could not open a new tab: ${formatError(error)}`);
+      }
+    });
+  }
   if (pdfReaderButton) pdfReaderButton.addEventListener("click", togglePdfReaderMode);
   if (pdfCinematicButton) pdfCinematicButton.addEventListener("click", openPdfCinematicMode);
   if (pdfCinematicCloseButton) pdfCinematicCloseButton.addEventListener("click", closePdfCinematicMode);

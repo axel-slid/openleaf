@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, screen, safeStorage } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, clipboard, screen, safeStorage, nativeTheme } = require("electron");
 const { execFile, execFileSync, spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -327,6 +327,9 @@ function createWindow({ projectId = "", tabParent = null, bounds = null } = {}) 
     }
     window.show();
     window.focus();
+    // Every window keeps the native tab bar visible so open projects read as
+    // tabs; tabs added to a group inherit the group's already-visible bar.
+    if (process.platform === "darwin" && !tabParent) window.toggleTabBar();
   };
   window.once("ready-to-show", revealWindow);
   window.webContents.once("did-finish-load", revealWindow);
@@ -572,6 +575,12 @@ async function openProjectInTab(event, projectId) {
   if (!parent || parent.isDestroyed()) throw new Error("The originating window is no longer available.");
   const project = await getProject(projectId);
   const tab = createWindow({ projectId: project.id, tabParent: parent });
+  return { windowId: tab.id };
+}
+
+function openNewTab(event) {
+  const parent = BrowserWindow.fromWebContents(event.sender);
+  const tab = createWindow({ tabParent: parent && !parent.isDestroyed() ? parent : null });
   return { windowId: tab.id };
 }
 
@@ -5813,6 +5822,12 @@ ipcMain.handle("pull-project-from-github", pullProjectFromGithub);
 ipcMain.handle("list-ssh-hosts", listSshHosts);
 ipcMain.handle("close-window", closeWindow);
 ipcMain.handle("open-project-in-tab", openProjectInTab);
+ipcMain.handle("open-new-tab", openNewTab);
+// The native tab bar and traffic lights follow the app theme (light or dark).
+ipcMain.handle("set-native-appearance", (_event, mode) => {
+  nativeTheme.themeSource = mode === "dark" ? "dark" : "light";
+  return { mode: nativeTheme.themeSource };
+});
 ipcMain.handle("minimize-window", minimizeWindow);
 ipcMain.handle("set-window-glass", setWindowGlass);
 ipcMain.handle("app-version", () => app.getVersion());

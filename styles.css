@@ -19187,3 +19187,24 @@ body.high-contrast .preview-stage {
 #projectGrid.rows-view .project-collection-card.home-focused {
   box-shadow: inset 3px 0 0 var(--accent) !important;
 }
+
+/* Workspace row must fill the window, not grow to the tallest pane; a taller implicit row let the
+   workspace scroll and clip the editor header (seen in Visual mode). */
+#workspace {
+  grid-template-rows: minmax(0, 1fr) !important;
+  overflow-y: clip !important;
+}
+
+/* macOS native tab bar: it overlays the top of the full-size content view, so
+   the app starts below it on a strip in the top bar's color and the traffic lights live in the
+   tab bar instead of the app's top bar. */
+body.native-tabbar {
+  background: var(--native-tabbar-bg, var(--bg)) !important;
+}
+body.native-tabbar .app {
+  height: calc(100vh - var(--native-tabbar-height, 32px)) !important;
+  margin-top: var(--native-tabbar-height, 32px) !important;
+}
+body.native-tabbar .topbar {
+  padding-left: 14px !important;
+}

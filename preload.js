@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld("localOverleaf", {
   listProjects: () => ipcRenderer.invoke("list-projects"),
   supportsNativeTabs: process.platform === "darwin",
   openProjectInTab: (projectId) => ipcRenderer.invoke("open-project-in-tab", projectId),
+  openNewTab: () => ipcRenderer.invoke("open-new-tab"),
+  setNativeAppearance: (mode) => ipcRenderer.invoke("set-native-appearance", mode),
   addProject: (kind, paths = []) => ipcRenderer.invoke("add-project", { kind, paths }),
   addProjectFromPath: (paths) => ipcRenderer.invoke("add-project-from-path", { paths }),
   listTemplates: () => ipcRenderer.invoke("list-templates"),
