@@ -17,6 +17,7 @@
     "check": "node --check main.js && node --check preload.js && node --check app.js && node --check html-editor.js && node --check presentation-editor.js && node --check scripts/package-mac.mjs",
     "test": "npm run test:production && npm run test:include-compile && npm run test:handwritten",
     "test:production": "node --test --test-concurrency=1 tests/production/ui-production.test.mjs",
+    "test:cli": "node --test --test-concurrency=1 tests/cli-control.test.mjs",
     "test:pptx": "npm run test:pptx-preview && npm run test:pptx-editor",
     "test:pptx-image-drag": "node scripts/verify-presentation-image-drag.mjs",
     "test:pptx-images": "node scripts/verify-presentation-images.mjs",
