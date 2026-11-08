@@ -19313,8 +19313,18 @@ body.window-fullscreen .window-tab-strip {
   padding: 0 12px 0 96px;
   z-index: 9999;
 }
+/* The notch gap is centered on the screen by sizing the left half; the right
+   half runs to the edge, so there is no extra padding on the right. */
 body.window-fullscreen .window-tab-strip.around-notch {
-  padding: 0 96px;
+  gap: 0;
+  padding: 0 12px 0 96px;
+}
+.window-tab-strip.around-notch > .window-tab-list:first-child {
+  flex: none;
+  width: calc(50vw - 96px - 118px);
+}
+.window-tab-strip.around-notch > .window-tab-list:last-child {
+  flex: 1;
 }
 .window-tab-notch-gap {
   flex: none;
@@ -19343,7 +19353,7 @@ body[data-theme="light"].themed-traffic-lights .fullscreen-exit-traffic-light {
 body[data-theme="light"].themed-traffic-lights :is(.fullscreen-traffic-light, .fullscreen-exit-traffic-light) {
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.22) !important;
 }
-body.themed-traffic-lights:not(.window-fullscreen) .fullscreen-top-reveal {
+body.custom-window-controls:not(.window-fullscreen) .fullscreen-top-reveal {
   display: block;
   height: 38px;
   left: 0;
@@ -19353,7 +19363,7 @@ body.themed-traffic-lights:not(.window-fullscreen) .fullscreen-top-reveal {
   z-index: 2147483001;
   -webkit-app-region: no-drag;
 }
-body.themed-traffic-lights:not(.window-fullscreen) .fullscreen-traffic-lights {
+body.custom-window-controls:not(.window-fullscreen) .fullscreen-traffic-lights {
   backdrop-filter: none;
   background: transparent;
   border: 0;
@@ -19364,7 +19374,7 @@ body.themed-traffic-lights:not(.window-fullscreen) .fullscreen-traffic-lights {
   top: 7px;
   transform: none;
 }
-body.themed-traffic-lights:not(.window-fullscreen) .fullscreen-traffic-lights {
+body.custom-window-controls:not(.window-fullscreen) .fullscreen-traffic-lights {
   padding: 7px 8px;
 }
 
@@ -19478,23 +19488,23 @@ body.themed-traffic-lights .traffic-light-glyph {
   opacity: 1;
 }
 
-/* Find and replace bar (source editor). */
+/* Find and replace bar (source editor): a compact floating field in the
+   editor's top-right corner. */
 .find-bar-host {
   position: relative;
 }
 .find-bar {
-  backdrop-filter: blur(24px) saturate(150%);
-  background: color-mix(in srgb, var(--panel-solid, var(--panel)) 94%, transparent);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  background: var(--panel-solid, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
   display: grid;
-  gap: 5px;
-  padding: 6px;
+  gap: 2px;
+  padding: 3px;
   position: absolute;
-  right: 18px;
-  top: 8px;
-  width: min(420px, calc(100% - 36px));
+  right: 14px;
+  top: 6px;
+  width: min(320px, calc(100% - 28px));
   z-index: 40;
 }
 .find-bar[hidden] {
@@ -19503,7 +19513,7 @@ body.themed-traffic-lights .traffic-light-glyph {
 .find-bar-row {
   align-items: center;
   display: flex;
-  gap: 4px;
+  gap: 1px;
 }
 .find-bar-replace-row {
   display: none;
@@ -19512,59 +19522,60 @@ body.themed-traffic-lights .traffic-light-glyph {
   display: flex;
 }
 .find-bar-input {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
   color: var(--text);
   flex: 1;
-  font: 13px var(--sans);
-  height: 26px;
+  font: 12px var(--sans);
+  height: 24px;
   min-width: 0;
   outline: none;
-  padding: 0 8px;
+  padding: 0 6px;
 }
 .find-bar-input:focus {
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 .find-bar-count {
   color: var(--muted);
   flex: none;
   font-size: 11px;
-  min-width: 56px;
-  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+  white-space: nowrap;
 }
 .find-bar-icon,
 .find-bar-text-button {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   color: var(--muted);
   display: inline-flex;
   flex: none;
-  height: 26px;
+  height: 24px;
   justify-content: center;
 }
 .find-bar-icon {
-  width: 26px;
+  width: 22px;
 }
 .find-bar-text-button {
-  font-size: 12px;
-  padding: 0 8px;
+  font-size: 11px;
+  padding: 0 6px;
 }
 .find-bar-icon:hover,
 .find-bar-text-button:hover {
-  background: color-mix(in srgb, var(--text) 10%, transparent);
+  background: color-mix(in srgb, var(--text) 9%, transparent);
   color: var(--text);
 }
 .find-bar-icon svg {
   fill: none;
-  height: 15px;
+  height: 13px;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
-  width: 15px;
+  width: 13px;
 }
 .find-bar-toggle svg {
   transition: transform 120ms ease;
@@ -19574,5 +19585,196 @@ body.themed-traffic-lights .traffic-light-glyph {
 }
 .find-bar-spacer {
   flex: none;
-  width: 26px;
+  width: 22px;
+}
+
+/* With tabs, the projects page scrolls inside its shell so cards never pass
+   under the (transparent) tab strip; the screen's gradient still runs behind it. */
+body.has-window-tabs .project-screen {
+  overflow: hidden !important;
+}
+body.has-window-tabs .project-screen > .project-shell {
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* ---- Welcome page (projects) ------------------------------------------------
+   One compact header row: mark, name and version on the left, actions on the
+   right (New Project emphasised). Cards are paper thumbnails that lift on
+   hover; favorite and remove only show on hover (a favorite star stays). */
+body #projectScreen .project-hero {
+  align-items: center !important;
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  gap: 16px 24px !important;
+  justify-content: space-between !important;
+  margin: 0 !important;
+  padding: 30px 0 22px !important;
+}
+body #projectScreen #projectHeroTitle.project-brand {
+  align-items: center !important;
+  display: flex !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  gap: 10px !important;
+  letter-spacing: -0.5px;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+body #projectScreen #projectHeroTitle .project-brand-logo {
+  height: 32px !important;
+  transform: none !important;
+  width: 32px !important;
+}
+body #projectScreen #projectBrandUnderline {
+  display: none !important;
+}
+body #projectScreen .project-brand-version {
+  align-self: center !important;
+  background: rgb(from var(--text) r g b / 0.07);
+  border-radius: 999px;
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0;
+  margin: 0 !important;
+  padding: 2px 8px;
+  position: static !important;
+  transform: none !important;
+}
+body #projectScreen .hero-actions {
+  align-items: center !important;
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 6px !important;
+  margin: 0 !important;
+}
+body #projectScreen .hero-actions > button {
+  align-items: center;
+  background: rgb(from var(--text) r g b / 0.05) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+  display: inline-flex;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  height: 30px !important;
+  padding: 0 12px !important;
+}
+body #projectScreen .hero-actions > button:hover {
+  background: rgb(from var(--text) r g b / 0.1) !important;
+}
+body #projectScreen .hero-actions > #addProjectButton {
+  background: color-mix(in srgb, var(--accent) 18%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent) !important;
+}
+body #projectScreen .hero-actions > #addProjectButton:hover {
+  background: color-mix(in srgb, var(--accent) 28%, transparent) !important;
+}
+body #projectScreen .hero-actions > #helpButton {
+  justify-content: center;
+  padding: 0 !important;
+  width: 30px !important;
+}
+body #projectScreen #projectSearch {
+  background: rgb(from var(--text) r g b / 0.05) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+  height: 34px !important;
+  padding: 0 12px !important;
+}
+body #projectScreen #projectSearch:focus {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important;
+  outline: none !important;
+}
+
+/* Paper thumbnails. */
+body #projectGrid:not(.rows-view) .project-preview {
+  align-items: stretch !important;
+  aspect-ratio: 8.5 / 11;
+  background: #ffffff !important;
+  border-radius: 6px !important;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06), 0 10px 24px rgba(0, 0, 0, 0.1) !important;
+  flex: none !important;
+  height: auto !important;
+  justify-content: stretch !important;
+  margin: 0 auto;
+  overflow: hidden !important;
+  position: relative;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
+  width: min(100%, 178px) !important;
+}
+body #projectGrid:not(.rows-view) .project-card:hover .project-preview {
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.14), 0 4px 8px rgba(0, 0, 0, 0.08), 0 18px 36px rgba(0, 0, 0, 0.16) !important;
+  transform: translateY(-3px);
+}
+body #projectGrid:not(.rows-view) .project-preview img {
+  height: 100% !important;
+  max-height: none !important;
+  max-width: none !important;
+  object-fit: cover;
+  object-position: top center;
+  width: 100% !important;
+}
+/* No preview yet: a blank page with a faint leaf instead of a caption. */
+body #projectGrid .project-preview .project-preview-message {
+  font-size: 0 !important;
+}
+body #projectGrid:not(.rows-view) .project-preview:has(.project-preview-message)::after {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  content: "";
+  height: 34%;
+  inset: 0;
+  margin: auto;
+  -webkit-mask: url("assets/leaf-mask.png") center / contain no-repeat;
+  mask: url("assets/leaf-mask.png") center / contain no-repeat;
+  position: absolute;
+  width: 34%;
+}
+body #projectGrid:not(.rows-view) .project-card-copy {
+  margin: 12px auto 0;
+  text-align: left;
+  width: min(100%, 178px) !important;
+}
+body #projectGrid:not(.rows-view) .project-name {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+body #projectGrid:not(.rows-view) .project-meta {
+  color: var(--muted) !important;
+  font-size: 12px !important;
+}
+body #projectGrid .project-card :is(.project-favorite-button:not(.active), .project-remove-button) {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+body #projectGrid .project-card:hover :is(.project-favorite-button, .project-remove-button),
+body #projectGrid .project-card :is(.project-favorite-button, .project-remove-button):focus-visible {
+  opacity: 1;
+}
+
+/* Thin overlay-style scroll bar on the projects page. */
+#projectScreen,
+#projectScreen .project-shell {
+  scrollbar-color: rgb(from var(--text) r g b / 0.22) transparent;
+  scrollbar-width: thin;
+}
+#projectScreen ::-webkit-scrollbar,
+#projectScreen::-webkit-scrollbar {
+  background: transparent;
+  width: 8px;
+}
+#projectScreen ::-webkit-scrollbar-track,
+#projectScreen::-webkit-scrollbar-track {
+  background: transparent;
+}
+#projectScreen ::-webkit-scrollbar-thumb,
+#projectScreen::-webkit-scrollbar-thumb {
+  background: rgb(from var(--text) r g b / 0.2);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
 }

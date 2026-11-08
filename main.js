@@ -212,11 +212,19 @@ function setDisplayFrameAppearance(window, active) {
   // display-frame fullscreen. Hide Cocoa's controls so its green button does
   // not sit underneath that pill, then restore all native controls on exit.
   if (process.platform === "darwin" && typeof window.setWindowButtonVisibility === "function") {
-    window.setWindowButtonVisibility(!active && !window.openleafThemedTrafficLights);
+    // Openleaf always draws its own traffic lights (classic or themed colors),
+    // so its green light uses display-frame fullscreen without the native
+    // Space animation; Cocoa's controls stay hidden.
+    window.setWindowButtonVisibility(false);
     if (typeof window.setWindowButtonPosition === "function") {
       window.setWindowButtonPosition(active ? { x: -120, y: -120 } : TRAFFIC_LIGHTS);
     }
   }
+}
+
+function boundsCoverDisplay(bounds) {
+  const display = screen.getDisplayMatching(bounds);
+  return bounds.width >= display.bounds.width && bounds.height >= display.bounds.height - 1;
 }
 
 function displayFrameBounds(display) {
@@ -320,6 +328,10 @@ function syncSimpleFullscreen(event) {
     applyDisplayFrameBounds(window, display);
     sendEditorCommand("fullscreen-enter", window);
   }
+  if (!window.isSimpleFullScreen() && !window.isFullScreen() && window.openleafDisplayFrameFullscreen) {
+    window.openleafDisplayFrameFullscreen = false;
+    setDisplayFrameAppearance(window, false);
+  }
   return { fullscreen: Boolean(window.openleafDisplayFrameFullscreen) };
 }
 
@@ -390,10 +402,6 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
           titleBarStyle: "hiddenInset",
           trafficLightPosition: TRAFFIC_LIGHTS,
           fullscreenable: true,
-          // The green button goes straight to Openleaf's display-frame
-          // fullscreen (simple fullscreen), skipping the native Space
-          // animation that used to play and then reverse.
-          simpleFullscreen: true,
           enableLargerThanScreen: true,
           ...(glass ? { vibrancy: "under-window", visualEffectState: "active" } : {})
         }
@@ -432,6 +440,19 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
   window.webContents.once("did-finish-load", revealWindow);
   window.loadFile(path.join(__dirname, "index.html"), { query: projectId ? { projectId } : {} });
   window.webContents.on("before-input-event", (event, input) => {
+    // Cmd+1...Cmd+8 select that tab and Cmd+9 the last one, once the window
+    // has two or more tabs (with one tab the editor keeps Cmd+1/2/3 for panes).
+    const commandKey = process.platform === "darwin" ? input.meta && !input.control : input.control && !input.meta;
+    if (input.type === "keyDown" && commandKey && !input.alt && !input.shift && /^[1-9]$/.test(input.key)) {
+      const tabs = liveTabs(tabGroups.get(window) || []);
+      if (tabs.length > 1) {
+        event.preventDefault();
+        const number = Number(input.key);
+        const target = number === 9 ? tabs[tabs.length - 1] : tabs[number - 1];
+        if (target && target !== window) showTab(target, window);
+        return;
+      }
+    }
     if (input.type === "keyDown" && input.control && !input.alt && !input.meta && !input.shift && input.key.toLowerCase() === "t") {
       event.preventDefault();
       createWindow({ tabParent: window });
@@ -444,6 +465,7 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
     return { action: "deny" };
   });
 
+  if (process.platform === "darwin") window.setWindowButtonVisibility(false);
   window.openleafNormalBounds = windowBounds;
   window.openleafConvertingFullscreen = false;
   window.openleafDisplayFrameFullscreen = false;
@@ -451,7 +473,11 @@ function createWindow({ projectId = "", tabParent = null, bounds = null, replace
   // as it changes.
   const rememberNormalBounds = () => {
     if (window.isDestroyed() || window.isSimpleFullScreen() || window.isFullScreen() || window.openleafDisplayFrameFullscreen) return;
-    window.openleafNormalBounds = window.getBounds();
+    const bounds = window.getBounds();
+    // The frame passes through screen size on its way into simple
+    // fullscreen; never remember that as the windowed size.
+    if (boundsCoverDisplay(bounds)) return;
+    window.openleafNormalBounds = bounds;
   };
   window.on("resized", rememberNormalBounds);
   window.on("moved", rememberNormalBounds);
@@ -705,7 +731,8 @@ function toggleFullscreen(event, requestedState) {
       if (window.isFullScreen()) window.setFullScreen(false);
       if (window.isSimpleFullScreen()) window.setSimpleFullScreen(false);
       setDisplayFrameAppearance(window, false);
-      const normalBounds = window.openleafNormalBounds || widestDisplayWindowBounds(1520, 980);
+      let normalBounds = window.openleafNormalBounds || widestDisplayWindowBounds(1520, 980);
+      if (boundsCoverDisplay(normalBounds)) normalBounds = widestDisplayWindowBounds(1520, 980);
       window.setBounds(windowBoundsAreVisible(normalBounds) ? normalBounds : widestDisplayWindowBounds(1520, 980), false);
       sendEditorCommand("fullscreen-leave", window);
     }
@@ -6030,7 +6057,6 @@ ipcMain.handle("set-themed-traffic-lights", (event, enabled) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window || window.isDestroyed() || process.platform !== "darwin") return { enabled: false };
   window.openleafThemedTrafficLights = Boolean(enabled);
-  if (!window.openleafDisplayFrameFullscreen) window.setWindowButtonVisibility(!window.openleafThemedTrafficLights);
   return { enabled: window.openleafThemedTrafficLights };
 });
 ipcMain.handle("close-tab", closeTab);

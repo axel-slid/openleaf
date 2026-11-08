@@ -260,6 +260,13 @@ const fullscreenMinimizeTrafficLight = document.getElementById("fullscreenMinimi
 const fullscreenExitTrafficLight = document.getElementById("fullscreenExitTrafficLight");
 
 let lastWindowTabStrip = { tabs: [], activeId: null };
+
+function applyWindowFullscreenClass(fullscreen) {
+  if (document.body.classList.contains("window-fullscreen") === fullscreen) return;
+  document.body.classList.toggle("window-fullscreen", fullscreen);
+  if (!fullscreen && editorFullscreenActive) setEditorFullscreen(false, { syncWindow: false });
+  renderWindowTabStrip(lastWindowTabStrip);
+}
 // Themed traffic lights: Openleaf draws the window controls in accent shades
 // instead of Cocoa's red, yellow and green (windowed and fullscreen).
 const THEMED_TRAFFIC_LIGHTS_KEY = "openleafThemedTrafficLights";
@@ -3766,6 +3773,7 @@ function applyTheme(theme, accent, { presetId = "custom" } = {}) {
 
 function applyThemedTrafficLights(enabled) {
   if (!window.localOverleaf.supportsNativeTabs) return;
+  document.body.classList.add("custom-window-controls");
   document.body.classList.toggle("themed-traffic-lights", enabled);
   const toggle = document.getElementById("settingsThemedTrafficLights");
   if (toggle) toggle.checked = enabled;
@@ -3773,8 +3781,17 @@ function applyThemedTrafficLights(enabled) {
 }
 
 // A notched built-in display has a taller menu bar area (about 37pt vs 24pt).
+// In fullscreen the menu bar is gone (availTop is 0), so remember what the
+// windowed reading said for this screen.
 function displayHasNotch() {
-  return Number(window.screen.availTop || 0) >= 32;
+  const key = `openleafNotch:${window.screen.width}x${window.screen.height}`;
+  const fullscreen = document.body.classList.contains("window-fullscreen");
+  if (!fullscreen && Number(window.screen.availTop || 0) > 0) {
+    const notch = Number(window.screen.availTop) >= 32;
+    try { localStorage.setItem(key, String(notch)); } catch (_error) { /* storage unavailable */ }
+    return notch;
+  }
+  try { return localStorage.getItem(key) === "true"; } catch (_error) { return false; }
 }
 
 function renderWindowTabStrip({ tabs = [], activeId = null } = {}) {
@@ -6740,9 +6757,14 @@ function wireEvents() {
   if (fullscreenCloseTrafficLight) fullscreenCloseTrafficLight.addEventListener("click", () => window.localOverleaf && window.localOverleaf.closeWindow());
   if (fullscreenMinimizeTrafficLight) fullscreenMinimizeTrafficLight.addEventListener("click", () => window.localOverleaf && window.localOverleaf.minimizeWindow());
   if (fullscreenExitTrafficLight) {
-    fullscreenExitTrafficLight.addEventListener("click", () => {
-      if (document.body.classList.contains("window-fullscreen")) exitWindowFullscreen();
-      else if (window.localOverleaf) void window.localOverleaf.setFullscreen(true);
+    // The main process owns the fullscreen state; the body class can lag it.
+    fullscreenExitTrafficLight.addEventListener("click", async () => {
+      if (editorFullscreenActive) {
+        exitWindowFullscreen();
+        return;
+      }
+      const result = await window.localOverleaf?.toggleFullscreen();
+      if (result) applyWindowFullscreenClass(Boolean(result.fullscreen));
     });
   }
   const themedTrafficLightsToggle = document.getElementById("settingsThemedTrafficLights");
@@ -7015,11 +7037,15 @@ function wireEvents() {
   if (pushGithubButton) pushGithubButton.addEventListener("click", pushActiveProjectToGithub);
   if (pullGithubButton) pullGithubButton.addEventListener("click", pullActiveProjectFromGithub);
   if (window.localOverleaf.onTabStrip) window.localOverleaf.onTabStrip(renderWindowTabStrip);
+  displayHasNotch();
   if (window.localOverleaf.syncSimpleFullscreen) {
     let fullscreenSyncTimer = null;
     window.addEventListener("resize", () => {
       clearTimeout(fullscreenSyncTimer);
-      fullscreenSyncTimer = setTimeout(() => void window.localOverleaf.syncSimpleFullscreen(), 60);
+      fullscreenSyncTimer = setTimeout(async () => {
+        const result = await window.localOverleaf.syncSimpleFullscreen();
+        if (result) applyWindowFullscreenClass(Boolean(result.fullscreen));
+      }, 60);
     });
   }
   const newProjectTabButton = document.getElementById("newProjectTabButton");
