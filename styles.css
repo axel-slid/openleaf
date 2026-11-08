@@ -19685,16 +19685,20 @@ body #projectScreen .hero-actions > #helpButton {
   padding: 0 !important;
   width: 36px !important;
 }
-body #projectScreen #projectSearch {
-  background: rgb(from var(--text) r g b / 0.05) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 9px !important;
+body #projectScreen #projectSearch,
+body.high-contrast #projectScreen #projectSearch {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
   box-shadow: none !important;
+  outline: none !important;
   height: 40px !important;
   padding: 0 14px !important;
 }
-body #projectScreen #projectSearch:focus {
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important;
+body #projectScreen #projectSearch:focus,
+body.high-contrast #projectScreen #projectSearch:focus {
+  border: 0 !important;
+  box-shadow: none !important;
   outline: none !important;
 }
 

@@ -75,6 +75,7 @@ Control a running Openleaf (for agents and scripts):
   openleaf compile [PROJECT]          Build (current project, or PROJECT headless)
   openleaf fullscreen [on|off]        Toggle or set fullscreen
   openleaf screenshot [--out FILE]    PNG of the current window
+  openleaf reload                     Reload all windows (keeps each tab's project)
   openleaf call METHOD [JSON]         Raw control-socket request
 
   Add --json for machine-readable output and --window ID to target a window.
@@ -140,7 +141,7 @@ function controlRequest(method, params = {}, timeoutMs = 60000) {
 
 const controlCommands = new Set([
   "status", "projects", "add", "open", "tabs", "tab", "close-tab", "state", "panel",
-  "file", "home", "find", "compile", "fullscreen", "screenshot", "call"
+  "file", "home", "find", "compile", "fullscreen", "screenshot", "reload", "call"
 ]);
 
 function takeFlag(list, name) {

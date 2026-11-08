@@ -6265,6 +6265,16 @@ const agentMethods = {
     const window = agentTargetWindow(params);
     return toggleFullscreen({ sender: window.webContents }, params.on === undefined ? undefined : Boolean(params.on));
   },
+  // Reload every Openleaf window (picks up edited CSS/JS); each tab keeps its project.
+  async reload() {
+    const windows = agentWindows();
+    await Promise.all(windows.map(async (window) => {
+      const state = await agentRenderer(window, "state").catch(() => null);
+      const projectId = state && state.project ? state.project.id : "";
+      await window.loadFile(path.join(__dirname, "index.html"), { query: projectId ? { projectId } : {} });
+    }));
+    return { reloaded: windows.length };
+  },
   async screenshot(params = {}) {
     const window = agentTargetWindow(params);
     const image = await window.webContents.capturePage();
