@@ -19200,18 +19200,22 @@ body.high-contrast .preview-stage {
 .window-tab-strip {
   -webkit-app-region: drag;
   align-items: center;
-  background: var(--bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  background: var(--glass);
   border-bottom: 1px solid var(--border);
   box-sizing: border-box;
   display: flex;
   gap: 8px;
   height: 38px;
   left: 0;
-  padding: 0 8px 0 84px;
+  padding: 0 10px 0 84px;
   position: fixed;
   right: 0;
   top: 0;
   z-index: 2147483000;
+}
+body.transparent-theme[data-theme] .window-tab-strip {
+  background: rgb(from var(--panel) r g b / 0.14);
 }
 .window-tab-strip[hidden] {
   display: none !important;
@@ -19266,8 +19270,7 @@ body.has-window-tabs .topbar {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.window-tab-close,
-.window-tab-add {
+.window-tab-close {
   -webkit-app-region: no-drag;
   align-items: center;
   background: transparent;
@@ -19289,19 +19292,11 @@ body.has-window-tabs .topbar {
 .window-tab:hover .window-tab-close {
   opacity: 1;
 }
-.window-tab-close:hover,
-.window-tab-add:hover {
+.window-tab-close:hover {
   background: color-mix(in srgb, var(--text) 10%, transparent);
   color: var(--text);
 }
-.window-tab-add {
-  border-radius: 999px;
-  flex: none;
-  height: 26px;
-  width: 26px;
-}
-.window-tab-close svg,
-.window-tab-add svg {
+.window-tab-close svg {
   fill: none;
   height: 14px;
   stroke: currentColor;

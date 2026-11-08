@@ -3796,14 +3796,7 @@ function renderWindowTabStrip({ tabs = [], activeId = null } = {}) {
     list.append(item);
   }
 
-  const add = document.createElement("button");
-  add.type = "button";
-  add.className = "window-tab-add";
-  add.setAttribute("aria-label", "New Tab");
-  add.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>';
-  add.addEventListener("click", () => void window.localOverleaf.openNewTab());
-
-  strip.append(list, add);
+  strip.append(list);
 }
 
 function syncSurfaceThemesToAppTheme(theme, { persist = true } = {}) {
