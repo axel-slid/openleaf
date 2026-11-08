@@ -19763,27 +19763,16 @@ body #projectGrid .project-card :is(.project-favorite-button, .project-remove-bu
   opacity: 1;
 }
 
-/* Thin overlay-style scroll bar on the projects page. */
+/* No scroll bar on the projects page; it still scrolls with the trackpad/wheel. */
 #projectScreen,
 #projectScreen .project-shell {
-  scrollbar-color: rgb(from var(--text) r g b / 0.22) transparent;
-  scrollbar-width: thin;
+  scrollbar-width: none;
 }
-#projectScreen ::-webkit-scrollbar,
-#projectScreen::-webkit-scrollbar {
-  background: transparent;
-  width: 8px;
-}
-#projectScreen ::-webkit-scrollbar-track,
-#projectScreen::-webkit-scrollbar-track {
-  background: transparent;
-}
-#projectScreen ::-webkit-scrollbar-thumb,
-#projectScreen::-webkit-scrollbar-thumb {
-  background: rgb(from var(--text) r g b / 0.2);
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background-clip: padding-box;
+#projectScreen::-webkit-scrollbar,
+#projectScreen ::-webkit-scrollbar {
+  display: none;
+  height: 0;
+  width: 0;
 }
 
 /* Welcome actions: hover is the soft pill only, no underline. */
