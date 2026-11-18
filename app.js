@@ -3842,13 +3842,19 @@ function renderWindowTabStrip({ tabs = [], activeId = null } = {}) {
     (index < leftCount ? list : rightList).append(item);
   });
 
+  // A dotted grip the tabs never cover, so the window can always be dragged.
+  const grip = document.createElement("div");
+  grip.className = "window-drag-grip";
+  grip.title = "Drag to move window";
+  grip.setAttribute("aria-hidden", "true");
+
   if (!splitAroundNotch) {
-    strip.append(list);
+    strip.append(list, grip);
     return;
   }
   const notchGap = document.createElement("div");
   notchGap.className = "window-tab-notch-gap";
-  strip.append(list, notchGap, rightList);
+  strip.append(list, notchGap, rightList, grip);
 }
 
 function syncSurfaceThemesToAppTheme(theme, { persist = true } = {}) {
