@@ -381,6 +381,12 @@ const TRASH_ICON_SVG = `
     <path d="M10 10v6M14 10v6"></path>
   </svg>
 `;
+const PENCIL_ICON_SVG = `
+  <svg class="icon icon-pencil" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 20h9"></path>
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+  </svg>
+`;
 const STAR_ICON_SVG = `
   <svg class="icon icon-star" viewBox="0 0 24 24" aria-hidden="true">
     <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z"></path>
@@ -6815,6 +6821,8 @@ function wireEvents() {
   addProjectButton.addEventListener("click", () => toggleNewProjectPanel());
   projectImportButtons.forEach((button) => {
     button.addEventListener("click", () => addProject(button.dataset.projectKind));
+    button.addEventListener("pointerenter", () => showNewProjectPreview(button.dataset.projectKind));
+    button.addEventListener("focus", () => showNewProjectPreview(button.dataset.projectKind));
   });
   wireProjectDrop(projectDropZone);
   wireOverleafProjectPanel();
@@ -10559,6 +10567,7 @@ function renderProjectGrid() {
         <span class="project-card-copy">
           <span class="project-card-title-row">
             <span class="project-name">${escapeHtml(displayName)}</span>
+            <span class="project-rename-button" role="button" aria-label="Rename ${escapeHtml(displayName)}" title="Rename">${PENCIL_ICON_SVG}</span>
           </span>
           <span class="project-card-meta-row">
             <span class="project-meta">Edited ${escapeHtml(relativeTime(project.modifiedAt))}</span>
@@ -10572,8 +10581,12 @@ function renderProjectGrid() {
         ${TRASH_ICON_SVG}
       </button>
     `;
-    card.querySelector(".project-card-open").addEventListener("click", () => {
+    card.querySelector(".project-card-open").addEventListener("click", (event) => {
       if (card.classList.contains("renaming")) return;
+      if (event.target.closest(".project-rename-button")) {
+        startProjectRename(card, project);
+        return;
+      }
       openProject(project.id);
     });
     card.addEventListener("contextmenu", (event) => {
@@ -10828,7 +10841,7 @@ function renderProjectCollectionCard(collection) {
   const card = document.createElement("article");
   card.className = "project-collection-card";
   card.dataset.collectionId = collection.id;
-  const tiles = members.slice(0, 4).map(() => '<span data-project-preview></span>').join("");
+  const tiles = members.slice(0, 3).map(() => '<span data-project-preview></span>').join("") || '<span class="project-collection-empty-page"></span>';
   card.innerHTML = `
     <button class="project-collection-open" type="button" aria-label="Open ${escapeHtml(collection.name)}">
     <span class="project-collection-preview" aria-hidden="true">${tiles}</span>
@@ -11410,6 +11423,13 @@ function toggleNewProjectPanel(force) {
   else closeNewProjectPanel();
 }
 
+function showNewProjectPreview(kind) {
+  projectImportButtons.forEach((button) => button.classList.toggle("previewing", button.dataset.projectKind === kind));
+  document.querySelectorAll("#newProjectPreview .np-preview").forEach((preview) => {
+    preview.hidden = preview.dataset.previewKind !== kind;
+  });
+}
+
 function openNewProjectPanel() {
   closeCommandPalette();
   closeAutomationsPanel({ keepBackdrop: true });
@@ -11419,7 +11439,8 @@ function openNewProjectPanel() {
   settingsBackdrop.hidden = false;
   newProjectPanel.hidden = false;
   addProjectButton.classList.add("active");
-  projectDropZone.focus();
+  showNewProjectPreview("blank");
+  projectImportButtons[0].focus();
 }
 
 function closeNewProjectPanel({ keepBackdrop = false } = {}) {

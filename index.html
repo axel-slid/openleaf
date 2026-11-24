@@ -1160,44 +1160,100 @@
         </button>
       </header>
       <div class="new-project-body">
-        <div class="project-import-options" aria-label="New project type">
-          <button type="button" data-project-kind="blank">
-            <span>Blank</span>
-            <small>Start with a new main.tex</small>
-          </button>
-          <button type="button" data-project-kind="tex">
-            <span>TeX File</span>
-            <small>Open an existing entry file</small>
-          </button>
-          <button type="button" data-project-kind="html"><strong>HTML page</strong><span>Open a local webpage with a live preview.</span></button>
-          <button type="button" data-project-kind="presentation">
-            <span>PowerPoint</span>
-            <small>Open and edit a .pptx deck</small>
-          </button>
-          <button type="button" data-project-kind="overleaf">
-            <span>Overleaf</span>
-            <small>Import and sync an Overleaf project</small>
-          </button>
-          <button type="button" data-project-kind="folder">
-            <span>Folder</span>
-            <small>Use a local project directory</small>
-          </button>
-          <button type="button" data-project-kind="archive">
-            <span>Archive</span>
-            <small>Import zip, tar, tar.gz, tgz</small>
-          </button>
-          <button type="button" data-project-kind="handwritten-notes">
-            <span>Handwritten Notes</span>
-            <small>Import scans and have your agent transcribe them</small>
-          </button>
-          <button type="button" data-project-kind="homework-workings">
-            <span>HW + Workings</span>
-            <small>Transcribe handwritten work into a homework template</small>
-          </button>
+        <div class="new-project-list">
+          <div class="project-import-options" aria-label="New project type">
+          <button type="button" data-project-kind="blank"><span>Blank</span></button>
+          <button type="button" data-project-kind="tex"><span>TeX File</span></button>
+          <button type="button" data-project-kind="html"><span>HTML Page</span></button>
+          <button type="button" data-project-kind="presentation"><span>PowerPoint</span></button>
+          <button type="button" data-project-kind="overleaf"><span>Overleaf</span></button>
+          <button type="button" data-project-kind="folder"><span>Folder</span></button>
+          <button type="button" data-project-kind="archive"><span>Archive</span></button>
+          <button type="button" data-project-kind="handwritten-notes"><span>Handwritten Notes</span></button>
+          <button type="button" data-project-kind="homework-workings"><span>HW + Workings</span></button>
+          </div>
+          <div id="projectDropZone" class="project-drop-zone" role="button" tabindex="0">
+            <span>Drop a file or folder</span>
+          </div>
         </div>
-        <div id="projectDropZone" class="project-drop-zone" role="button" tabindex="0">
-          <span>Drop a project here</span>
-          <small>.tex, .html, .htm, .pptx, folder, .zip, .tar, .tar.gz, or .tgz</small>
+        <div id="newProjectPreview" class="new-project-preview" aria-hidden="true">
+          <div class="np-preview" data-preview-kind="blank"><img class="np-page" src="assets/new-project/blank.png" alt=""></div>
+          <div class="np-preview" data-preview-kind="handwritten-notes" hidden><img class="np-page" src="assets/new-project/notes.png" alt=""></div>
+          <div class="np-preview" data-preview-kind="homework-workings" hidden><img class="np-page" src="assets/new-project/homework.png" alt=""></div>
+          <div class="np-preview" data-preview-kind="tex" hidden>
+            <pre class="np-page np-source">\documentclass{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+
+\title{Your Paper}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+Your existing source opens here,
+with its PDF beside it.
+
+\section{Methods}
+\input{sections/methods}
+
+\end{document}</pre>
+          </div>
+          <div class="np-preview" data-preview-kind="html" hidden>
+            <div class="np-browser">
+              <div class="np-browser-bar"><i></i><i></i><i></i><span>index.html</span></div>
+              <div class="np-browser-page">
+                <h4>Your page</h4>
+                <p>Openleaf shows the page live next to its source and reloads it as you type.</p>
+                <p><a>A link</a> · <a>Another link</a></p>
+                <div class="np-browser-figure"></div>
+              </div>
+            </div>
+          </div>
+          <div class="np-preview" data-preview-kind="presentation" hidden>
+            <div class="np-deck">
+              <div class="np-slide"><h4>Presentation title</h4><p>Your Name</p></div>
+              <div class="np-slide-strip"><span class="active"></span><span></span><span></span><span></span></div>
+            </div>
+          </div>
+          <div class="np-preview" data-preview-kind="overleaf" hidden>
+            <div class="np-files">
+              <span class="np-file np-file-root">Overleaf project</span><span class="np-file np-file-open">main.tex</span>
+              <span class="np-file">references.bib</span>
+              <span class="np-file np-file-dir">figures</span>
+              <span class="np-file np-file-nested">overview.pdf</span>
+              <span class="np-file np-file-nested">results.pdf</span>
+              <span class="np-file np-file-dir">sections</span>
+              <span class="np-file np-file-nested">introduction.tex</span>
+              <span class="np-file np-file-nested">methods.tex</span>
+            </div>
+          </div>
+          <div class="np-preview" data-preview-kind="folder" hidden>
+            <div class="np-files">
+              <span class="np-file np-file-root">my-paper</span><span class="np-file np-file-open">main.tex</span>
+              <span class="np-file">references.bib</span>
+              <span class="np-file np-file-dir">figures</span>
+              <span class="np-file np-file-nested">overview.pdf</span>
+              <span class="np-file np-file-nested">results.pdf</span>
+              <span class="np-file np-file-dir">sections</span>
+              <span class="np-file np-file-nested">introduction.tex</span>
+              <span class="np-file np-file-nested">methods.tex</span>
+            </div>
+          </div>
+          <div class="np-preview" data-preview-kind="archive" hidden>
+            <div class="np-files">
+              <span class="np-file np-file-root">my-paper.zip</span><span class="np-file np-file-open">main.tex</span>
+              <span class="np-file">references.bib</span>
+              <span class="np-file np-file-dir">figures</span>
+              <span class="np-file np-file-nested">overview.pdf</span>
+              <span class="np-file np-file-nested">results.pdf</span>
+              <span class="np-file np-file-dir">sections</span>
+              <span class="np-file np-file-nested">introduction.tex</span>
+              <span class="np-file np-file-nested">methods.tex</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
