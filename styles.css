@@ -20374,3 +20374,91 @@ body .project-division-card > button:focus-visible {
   top: 0;
   z-index: 4;
 }
+
+/* Find bar: an opaque field with visible controls in every theme. */
+body .find-bar {
+  -webkit-backdrop-filter: blur(24px) !important;
+  backdrop-filter: blur(24px) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.14) !important;
+  border-radius: 7px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16) !important;
+  gap: 3px !important;
+  padding: 4px !important;
+  width: min(340px, calc(100% - 28px)) !important;
+}
+body[data-theme="dark"] .find-bar {
+  background: rgba(40, 42, 48, 0.96) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+body .find-bar .find-bar-row {
+  gap: 2px !important;
+}
+body .find-bar .find-bar-input {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid transparent !important;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+  color: #1f2328 !important;
+  font-size: 12.5px !important;
+  height: 24px !important;
+  margin: 0 !important;
+  padding: 0 7px !important;
+}
+body .find-bar .find-bar-input:focus {
+  border-color: var(--accent) !important;
+}
+body[data-theme="dark"] .find-bar .find-bar-input {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #e6e8ec !important;
+}
+body .find-bar .find-bar-input::placeholder {
+  color: rgba(0, 0, 0, 0.42) !important;
+}
+body[data-theme="dark"] .find-bar .find-bar-input::placeholder {
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+body .find-bar :is(.find-bar-icon, .find-bar-text-button) {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+  color: rgba(0, 0, 0, 0.62) !important;
+  height: 24px !important;
+  min-width: 0 !important;
+  opacity: 1 !important;
+  padding: 0 !important;
+}
+body .find-bar .find-bar-icon {
+  width: 24px !important;
+}
+body .find-bar .find-bar-text-button {
+  font-size: 11.5px !important;
+  padding: 0 8px !important;
+}
+body[data-theme="dark"] .find-bar :is(.find-bar-icon, .find-bar-text-button) {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+body .find-bar :is(.find-bar-icon, .find-bar-text-button):hover {
+  background: rgba(127, 127, 127, 0.2) !important;
+}
+body .find-bar .find-bar-icon svg {
+  display: block !important;
+  fill: none !important;
+  height: 14px !important;
+  opacity: 1 !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  width: 14px !important;
+}
+body .find-bar .find-bar-count {
+  color: rgba(0, 0, 0, 0.5) !important;
+  min-width: 0;
+}
+body[data-theme="dark"] .find-bar .find-bar-count {
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+body .find-bar .find-bar-spacer {
+  width: 24px !important;
+}
