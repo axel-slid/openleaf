@@ -6746,6 +6746,7 @@ function positionOpenleafTour() {
 
 function wireEvents() {
   window.addEventListener("beforeunload", () => recordHistoryEvent("Edited"));
+  window.addEventListener("beforeunload", captureProjectLayout);
   window.addEventListener("resize", positionOpenleafTour);
   settingsButtons.forEach((button) => button.addEventListener("click", openSettings));
   closeSettingsButton.addEventListener("click", closeSettings);
@@ -14377,7 +14378,94 @@ async function saveActivePresentation() {
   }
 }
 
+// Each project remembers the layout it was left in: which panes are open, their
+// sizes, the editor mode and file, and where the editor and PDF were scrolled.
+function readProjectLayouts() {
+  try {
+    const stored = JSON.parse(localStorage.getItem("openleafProjectLayouts") || "{}");
+    return stored && typeof stored === "object" ? stored : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function captureProjectLayout() {
+  if (!activeProject || !activeProject.id || editorScreen.hidden || isLoading) return;
+  const pdfScrollable = Math.max(1, pdfViewer.scrollHeight - pdfViewer.clientHeight);
+  const layouts = readProjectLayouts();
+  layouts[activeProject.id] = {
+    files: AGENT_PANELS.files.isOpen(),
+    fileWidth: getFileSidebarWidth(),
+    source: AGENT_PANELS.source.isOpen(),
+    preview: AGENT_PANELS.preview.isOpen(),
+    splitEven: workspace.classList.contains("editor-split-even"),
+    editorWidth: getEditorPaneWidth(),
+    terminal: AGENT_PANELS.terminal.isOpen(),
+    terminalHeight: getTerminalHeight(),
+    log: AGENT_PANELS.log.isOpen(),
+    logHeight: getCompileLogHeight(),
+    notes: AGENT_PANELS.notes.isOpen(),
+    mode: visualEditor.hidden ? "source" : "visual",
+    file: activeTextTabPath || "",
+    editorScroll: editor ? editor.getScrollInfo().top : 0,
+    pdfZoom,
+    pdfScroll: pdfViewer.scrollTop / pdfScrollable
+  };
+  try {
+    localStorage.setItem("openleafProjectLayouts", JSON.stringify(layouts));
+  } catch (_error) {
+    // Storage full: the layout is simply not remembered.
+  }
+}
+
+async function restoreProjectLayout(projectId, { restoreFile = true } = {}) {
+  const layout = readProjectLayouts()[projectId];
+  if (!layout) return;
+  const stillOpen = () => activeProject && activeProject.id === projectId && !editorScreen.hidden;
+  workspace.style.setProperty("--file-width", `${clampNumber(Number(layout.fileWidth), MIN_FILE_WIDTH, MAX_FILE_WIDTH, DEFAULT_FILE_WIDTH)}px`);
+  setFileSidebarVisible(Boolean(layout.files), { persist: false });
+  setSourceCollapsed(!layout.source, { persist: false });
+  setPdfCollapsed(!layout.preview, { persist: false });
+  workspace.classList.toggle("editor-split-even", layout.splitEven !== false);
+  if (layout.splitEven === false && Number(layout.editorWidth)) {
+    workspace.style.setProperty("--editor-width", `${Math.max(MIN_EDITOR_WIDTH, Number(layout.editorWidth))}px`);
+  }
+  setTerminalHeight(Number(layout.terminalHeight), { persist: false });
+  setTerminalCollapsed(!layout.terminal, { persist: false });
+  setCompileLogHeight(Number(layout.logHeight), { persist: false });
+  setCompileLogCollapsed(!layout.log, { persist: false });
+  AGENT_PANELS.notes.set(Boolean(layout.notes));
+  if (Number(layout.pdfZoom) && Number(layout.pdfZoom) !== pdfZoom) setPdfZoom(Number(layout.pdfZoom));
+  if (restoreFile && layout.file && layout.file !== activeTextTabPath) {
+    try {
+      await loadProjectFile(layout.file, { confirmUnsaved: false });
+    } catch (_error) {
+      // The file was renamed or removed since; stay on the entry file.
+    }
+  }
+  if (!stillOpen()) return;
+  if (layout.mode === "visual") setMode("visual");
+  requestAnimationFrame(() => {
+    if (!stillOpen()) return;
+    editor.refresh();
+    if (restoreFile) editor.scrollTo(null, Number(layout.editorScroll) || 0);
+  });
+  // The PDF pages render asynchronously; wait until it is tall enough to scroll.
+  const fraction = Number(layout.pdfScroll) || 0;
+  if (!restoreFile || fraction <= 0) return;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await wait(150);
+    if (!stillOpen()) return;
+    const scrollable = pdfViewer.scrollHeight - pdfViewer.clientHeight;
+    if (scrollable > 40) {
+      pdfViewer.scrollTop = fraction * scrollable;
+      if (attempt >= 3) return;
+    }
+  }
+}
+
 async function openProject(projectId, { pdfRelativePath = "", sourceRelativePath = "" } = {}) {
+  captureProjectLayout();
   lastEditorProjectId = projectId;
   resetTextTabs();
   cancelProjectFileCreation();
@@ -14402,6 +14490,7 @@ async function openProject(projectId, { pdfRelativePath = "", sourceRelativePath
   if (typeof loadNotesForActiveProject === "function") loadNotesForActiveProject();
   startExternalSourcePolling();
   startOverleafSync();
+  await restoreProjectLayout(projectId, { restoreFile: !pdfRelativePath && !sourceRelativePath });
 }
 
 function showEditorShell() {
@@ -14419,6 +14508,7 @@ async function showProjects({ discardChanges = false } = {}) {
   }
   syncActiveTextTabFromEditor();
   recordHistoryEvent("Edited");
+  captureProjectLayout();
   togglePdfReaderMode(false);
   if (!discardChanges && activeProject && openTextTabs.some((tab) => tab.dirty)) {
     const confirmed = window.confirm("Return to Projects and keep unsaved editor changes only in this window?");

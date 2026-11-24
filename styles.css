@@ -20340,3 +20340,37 @@ body .project-division-card:hover > button,
 body .project-division-card > button:focus-visible {
   opacity: 1;
 }
+
+/* Chrome is not selectable text; only fields are. */
+#projectScreen,
+.topbar,
+.window-tab-strip,
+.new-project-panel,
+.project-collection-overlay,
+.settings-drawer,
+.pane-header,
+.source-header,
+.preview-header {
+  -webkit-user-select: none;
+  user-select: none;
+}
+#projectScreen :is(input, textarea),
+.new-project-panel :is(input, textarea),
+.project-collection-overlay :is(input, textarea),
+.settings-drawer :is(input, textarea),
+.topbar :is(input, textarea) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Home: the top strip of the window moves it, like a title bar. */
+#projectScreen::before {
+  -webkit-app-region: drag;
+  content: "";
+  height: 44px;
+  left: 84px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 4;
+}
